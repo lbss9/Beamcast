@@ -10,6 +10,10 @@ on:
         description: "Version (e.g. 0.1.0). Empty uses the tag or the csproj."
         required: false
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   windows:
     runs-on: windows-latest

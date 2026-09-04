@@ -41,4 +41,16 @@ jobs:
             echo "Release ${tag} already exists"
             exit 0
           fi
-          gh workflow run Release --ref "${tag}"
+          # Dispatch by filename (more reliable than the display name) and retry
+          # a few times in case the Actions engine has not indexed the workflow
+          # yet on a fresh push.
+          for attempt in 1 2 3 4 5; do
+            if gh workflow run release.yml --ref "${tag}"; then
+              echo "Dispatched Release for ${tag}"
+              exit 0
+            fi
+            echo "Release workflow not ready yet (attempt ${attempt}); retrying..."
+            sleep 10
+          done
+          echo "Failed to dispatch the Release workflow for ${tag}"
+          exit 1
