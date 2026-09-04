@@ -5,12 +5,12 @@
 <h1 align="center">Beamcast</h1>
 
 <p align="center">
-  <strong>A study project on screen capture, video codecs and real-time streaming on Windows.</strong><br />
-  Not a product. Built to learn, to measure, and to serve as a case study for a separate enterprise application.
+  <strong>Um projeto de estudo sobre captura de tela, codecs de vídeo e transmissão em tempo real no Windows.</strong><br />
+  Não é um produto. Foi feito para aprender, medir e servir de caso de estudo para um outro aplicativo, empresarial e privado.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-study%20project-FF4D6D?style=flat-square" alt="Study project" />
+  <img src="https://img.shields.io/badge/status-projeto%20de%20estudo-FF4D6D?style=flat-square" alt="Projeto de estudo" />
   <img src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=flat-square&logo=windows&logoColor=white" alt="Windows 10 / 11" />
   <img src="https://img.shields.io/badge/WinUI-3-59C8C8?style=flat-square" alt="WinUI 3" />
   <img src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square&logo=dotnet&logoColor=white" alt=".NET 8" />
@@ -18,58 +18,59 @@
 
 ---
 
-## Read this first
+## Leia isto primeiro
 
-**Beamcast exists for study only.** It was written to explore how screen capture, video
-encoding (VP8 today, H.264 next) and a small streaming protocol fit together on Windows, and
-to produce findings and reference code for a separate, private, enterprise application. Every
-design decision here optimises for learning and measurement, not for production use.
+**O Beamcast existe apenas para estudo.** Ele foi escrito para explorar como captura de tela,
+codificação de vídeo (VP8 hoje, H.264 em seguida) e um pequeno protocolo de transmissão se
+encaixam no Windows, e para produzir conclusões e código de referência para um aplicativo
+empresarial separado e privado. Cada decisão de projeto aqui prioriza aprendizado e medição,
+não uso em produção.
 
-- **No warranty, no liability.** The software is provided "as is". The author takes no
-  responsibility for anything that happens from running, distributing or building on it.
-- **Any other use is your own responsibility.** If you use Beamcast for anything beyond
-  studying the code, you do so at your own risk and you are responsible for complying with
-  whatever laws, policies and consent requirements apply to you. Screen sharing exposes
-  whatever is on your screen; think before you go live.
-- **No support, no roadmap promises.** Issues may go unanswered; APIs, the wire protocol and
-  the file layout can change at any time.
-- **Not hardened.** Traffic is plain TCP (the room password never travels in clear text, but
-  the video does). Do not expose it to the internet unless you understand what that means.
+- **Sem garantia, sem responsabilidade.** O software é fornecido "como está". O autor não se
+  responsabiliza por nada que aconteça ao executar, distribuir ou construir em cima dele.
+- **Qualquer outro uso é responsabilidade sua.** Se você usar o Beamcast para algo além de
+  estudar o código, faz isso por sua conta e risco, e é responsável por cumprir as leis,
+  políticas e exigências de consentimento que se aplicam a você. Compartilhar a tela expõe
+  tudo o que estiver nela; pense antes de transmitir.
+- **Sem suporte, sem promessa de roadmap.** Issues podem ficar sem resposta; APIs, o protocolo
+  de rede e a organização dos arquivos podem mudar a qualquer momento.
+- **Não é endurecido.** O tráfego é TCP puro (a senha da sala nunca trafega em texto claro, mas o
+  vídeo sim). Não exponha à internet sem entender o que isso significa.
 
-The same notice is shown inside the app on first launch and on the About page.
+O mesmo aviso aparece dentro do app no primeiro uso e na página Sobre.
 
-## What the study covers
+## O que o estudo cobre
 
-- Capturing a monitor or a window with the Windows Graphics Capture API and reading frames
-  back from Direct3D 11.
-- Scaling frames on the CPU and encoding them with VP8 (libvpx via `SIPSorceryMedia.Encoders`),
-  with measurements of encode cost per resolution.
-- A minimal length-prefixed TCP protocol with a challenge/response password, keyframe
-  recovery and per-viewer back-pressure, so one slow viewer never stalls the others.
-- Presenting decoded frames through a `WriteableBitmap` in WinUI 3, including fullscreen.
-- Packaging and auto-update with Velopack and GitHub Releases.
+- Capturar um monitor ou uma janela com a Windows Graphics Capture API e ler os frames de
+  volta do Direct3D 11.
+- Redimensionar frames na CPU e codificar em VP8 (libvpx via `SIPSorceryMedia.Encoders`), com
+  medições do custo de codificação por resolução.
+- Um protocolo TCP mínimo com prefixo de tamanho, senha por desafio/resposta, recuperação por
+  keyframe e controle de fila por espectador, para que um espectador lento nunca trave os outros.
+- Exibir os frames decodificados num `WriteableBitmap` no WinUI 3, incluindo tela cheia.
+- Empacotamento e atualização automática com Velopack e GitHub Releases.
 
-Findings so far (Ryzen-class desktop, software VP8):
+Medições até agora (desktop classe Ryzen, VP8 por software):
 
-| Output size | Encode time per frame |
-| ----------- | --------------------- |
-| 1280×720    | ~16 ms                |
-| 2560×1080   | ~35 ms                |
+| Tamanho de saída | Tempo de codificação por frame |
+| ---------------- | ------------------------------ |
+| 1280×720         | ~16 ms                         |
+| 2560×1080        | ~35 ms                         |
 
-## How it works
+## Como funciona
 
 ```
-Windows.Graphics.Capture ─► BGRA frame ─► scale to preset ─► VP8 (libvpx) ─► TCP fan-out
-                                                                               │
-                                        WriteableBitmap ◄─ BGRA ◄─ VP8 decode ◄┘ (each viewer)
+Windows.Graphics.Capture ─► frame BGRA ─► escala p/ preset ─► VP8 (libvpx) ─► fan-out TCP
+                                                                                  │
+                                       WriteableBitmap ◄─ BGRA ◄─ decode VP8 ◄────┘ (cada espectador)
 ```
 
-The broadcaster hosts a small TCP server; viewers connect directly using an invite code that
-carries address, port and password. There is no account and no relay server.
+Quem transmite hospeda um pequeno servidor TCP; os espectadores conectam direto usando um
+código de convite que carrega endereço, porta e senha. Não há conta nem servidor intermediário.
 
-## Build from source
+## Compilar a partir do código
 
-Requirements: Windows 10 1809+ (Windows 11 recommended), .NET 8 SDK.
+Requisitos: Windows 10 1809+ (Windows 11 recomendado), .NET 8 SDK.
 
 ```powershell
 dotnet build Beamcast.sln -c Release
@@ -77,25 +78,25 @@ dotnet test tests/Beamcast.Tests
 dotnet run --project src/Beamcast
 ```
 
-`scripts/pack.ps1` publishes a self-contained build and wraps it with Velopack (`vpk`) into an
-MSI under `artifacts/release`. The GitHub workflows tag `main` from the csproj version and
-publish the release; the app checks GitHub Releases for updates on launch.
+`scripts/pack.ps1` publica um build self-contained e o empacota com Velopack (`vpk`) num MSI
+em `artifacts/release`. Os workflows do GitHub criam a tag a partir da versão do csproj e
+publicam o release; o app consulta o GitHub Releases em busca de atualizações ao abrir.
 
-## Project layout
+## Organização do projeto
 
 ```
 src/Beamcast
-├── Capture/    Windows.Graphics.Capture + D3D11 readback, source enumeration
-├── Codec/      VP8 wrapper, frame types, bilinear scaler
-├── Net/        protocol, host server, viewer client, invite codes, auth
+├── Capture/    Windows.Graphics.Capture + leitura D3D11, enumeração de fontes
+├── Codec/      wrapper VP8, tipos de frame, escalador bilinear
+├── Net/        protocolo, servidor host, cliente espectador, códigos de convite, autenticação
 ├── Services/   BroadcastService, WatchService, UpdateService
-├── Pages/      Broadcast, Watch, Settings, About
-└── Controls/   VideoView (WriteableBitmap surface)
-tests/Beamcast.Tests   xunit tests for the pure-logic parts
+├── Pages/      Transmitir, Assistir, Configurações, Sobre
+└── Controls/   VideoView (superfície WriteableBitmap)
+tests/Beamcast.Tests   testes xunit das partes de lógica pura
 ```
 
-## Next experiments
+## Próximos experimentos
 
-- System audio (WASAPI loopback + Opus).
-- Hardware H.264 through Media Foundation, compared against software VP8.
-- An optional relay so nobody needs to forward ports.
+- Áudio do sistema (WASAPI loopback + Opus).
+- H.264 por hardware via Media Foundation, comparado ao VP8 por software.
+- Um relay opcional para ninguém precisar liberar porta no roteador.
