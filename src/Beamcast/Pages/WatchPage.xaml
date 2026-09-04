@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Beamcast.Pages.WatchPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ctrl="using:Beamcast.Controls"
+>
+    <Grid Padding="12,4,20,16">
+        <StackPanel
+            x:Name="JoinPanel"
+            MaxWidth="520"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Spacing="12"
+        >
+            <TextBlock x:Uid="Join_Heading" Style="{ThemeResource TitleTextBlockStyle}" />
+            <TextBlock x:Uid="Join_Summary" Style="{StaticResource HintTextStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="10">
+                    <TextBox x:Name="CodeBox" x:Uid="Join_Code" TextChanged="OnCodeChanged" />
+                    <TextBox x:Name="NameBox" x:Uid="Join_Name" MaxLength="32" />
+                    <PasswordBox
+                        x:Name="PasswordBox"
+                        x:Uid="Join_Password"
+                        PasswordRevealMode="Peek"
+                        MaxLength="64"
+                    />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button
+                            x:Name="JoinButton"
+                            x:Uid="Join_Button"
+                            Style="{StaticResource AccentButtonStyle}"
+                            MinWidth="140"
+                            Click="OnJoin"
+                        />
+                        <ProgressRing x:Name="JoinProgress" IsActive="False" Width="20" Height="20" />
+                    </StackPanel>
+                    <TextBlock
+                        x:Name="ErrorText"
+                        Foreground="{StaticResource BeamAccentBrush}"
+                        TextWrapping="Wrap"
+                    />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <Grid x:Name="PlayerPanel" Visibility="Collapsed" RowSpacing="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border
+                x:Name="VideoFrame"
+                Grid.Row="0"
+                CornerRadius="12"
+                BorderThickness="1"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                Background="#0A0D12"
+            >
+                <Grid x:Name="VideoHost" />
+            </Border>
+
+            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="12,8">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock
+                            x:Name="TitleText"
+                            Style="{ThemeResource BodyStrongTextBlockStyle}"
+                            TextTrimming="CharacterEllipsis"
+                        />
+                        <TextBlock
+                            x:Name="SubtitleText"
+                            Opacity="0.65"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            TextTrimming="CharacterEllipsis"
+                        />
+                    </StackPanel>
+                    <TextBlock
+                        x:Name="StatsText"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Opacity="0.75"
+                        FontFamily="Cascadia Mono, Consolas, Courier New"
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                    />
+                    <Button
+                        x:Name="FullscreenButton"
+                        x:Uid="Watch_Fullscreen"
+                        Grid.Column="2"
+                        Click="OnToggleFullscreen"
+                    >
+                        <FontIcon Glyph="&#xE740;" FontSize="14" />
+                    </Button>
+                    <Button x:Name="LeaveButton" x:Uid="Watch_Leave" Grid.Column="3" Click="OnLeave" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Page>

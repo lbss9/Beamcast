@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Beamcast.Pages.AboutPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+>
+    <ScrollViewer Padding="12,4,20,16" VerticalScrollBarVisibility="Auto">
+        <StackPanel MaxWidth="680" HorizontalAlignment="Left" Spacing="12">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+                <Grid Width="44" Height="44">
+                    <Ellipse Fill="{StaticResource BeamAccentSoftBrush}" />
+                    <Ellipse
+                        Width="18"
+                        Height="18"
+                        Fill="{StaticResource BeamAccentBrush}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                    />
+                </Grid>
+                <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="Beamcast" Style="{ThemeResource TitleTextBlockStyle}" />
+                    <TextBlock x:Name="VersionText" Opacity="0.7" Style="{ThemeResource CaptionTextBlockStyle}" />
+                </StackPanel>
+            </StackPanel>
+
+            <Border
+                CornerRadius="12"
+                Padding="16,14"
+                BorderThickness="1.5"
+                BorderBrush="{StaticResource BeamAccentBrush}"
+                Background="{StaticResource BeamAccentSoftBrush}"
+            >
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE7BA;" FontSize="16" Foreground="{StaticResource BeamAccentBrush}" />
+                        <TextBlock x:Uid="Disclaimer_Heading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    </StackPanel>
+                    <TextBlock x:Uid="Disclaimer_P1_Text" TextWrapping="Wrap" />
+                    <TextBlock x:Uid="Disclaimer_P2_Text" TextWrapping="Wrap" />
+                    <TextBlock x:Uid="Disclaimer_P3_Text" TextWrapping="Wrap" />
+                    <TextBlock x:Uid="Disclaimer_P4_Text" TextWrapping="Wrap" />
+                    <Button x:Uid="Disclaimer_ReadAgain" Click="OnReadDisclaimer" Margin="0,4,0,0" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock x:Uid="About_Tagline" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Uid="About_Description" TextWrapping="Wrap" Opacity="0.85" />
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="4">
+                    <TextBlock x:Uid="About_CardShareTitle" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock x:Uid="About_CardShareBody" Style="{StaticResource HintTextStyle}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="4">
+                    <TextBlock x:Uid="About_CardJoinTitle" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock x:Uid="About_CardJoinBody" Style="{StaticResource HintTextStyle}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="4">
+                    <TextBlock x:Uid="About_CardNetTitle" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <TextBlock x:Uid="About_CardNetBody" Style="{StaticResource HintTextStyle}" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="8">
+                    <TextBlock x:Uid="About_UpdatesTitle" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button x:Name="CheckUpdatesButton" x:Uid="About_CheckUpdates" Click="OnCheckUpdates" />
+                        <ProgressRing x:Name="UpdateSpinner" Width="18" Height="18" IsActive="False" />
+                        <TextBlock
+                            x:Name="UpdateStatus"
+                            VerticalAlignment="Center"
+                            Opacity="0.75"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                        />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <TextBlock x:Uid="About_ChangelogHeading" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <RichTextBlock x:Name="ChangelogView" IsTextSelectionEnabled="True" />
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

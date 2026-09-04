@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Beamcast.UpdateWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Beamcast"
+>
+    <Grid x:Name="RootGrid" Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid x:Name="AppTitleBar" Height="48">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="48" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid
+                Grid.Column="0"
+                Width="18"
+                Height="18"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+            >
+                <Ellipse Width="18" Height="18" Fill="{StaticResource BeamAccentSoftBrush}" />
+                <Ellipse
+                    Width="8"
+                    Height="8"
+                    Fill="{StaticResource BeamAccentBrush}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                />
+            </Grid>
+            <TextBlock
+                Grid.Column="1"
+                x:Uid="Update_WindowTitle"
+                Margin="8,0,0,0"
+                VerticalAlignment="Center"
+                Style="{ThemeResource BodyStrongTextBlockStyle}"
+            />
+        </Grid>
+
+        <ScrollViewer
+            Grid.Row="1"
+            Padding="20,4,24,8"
+            VerticalScrollBarVisibility="Auto"
+            HorizontalScrollBarVisibility="Disabled"
+        >
+            <StackPanel Spacing="14">
+                <Border
+                    CornerRadius="14"
+                    Padding="16,14"
+                    Background="{StaticResource BeamAccentSoftBrush}"
+                >
+                    <StackPanel Spacing="6">
+                        <TextBlock
+                            x:Uid="Update_Badge"
+                            FontSize="11"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource BeamAccentBrush}"
+                        />
+                        <TextBlock x:Name="VersionText" Style="{ThemeResource TitleTextBlockStyle}" />
+                        <TextBlock
+                            x:Uid="Update_Lead"
+                            TextWrapping="Wrap"
+                            Opacity="0.8"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                        />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock x:Uid="Update_ChangelogHeading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                <RichTextBlock x:Name="ChangelogView" IsTextSelectionEnabled="True" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" Padding="20,8,20,16" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <ProgressRing x:Name="Spinner" Width="18" Height="18" IsActive="False" />
+                <TextBlock
+                    x:Name="StatusText"
+                    Opacity="0.75"
+                    VerticalAlignment="Center"
+                    Style="{ThemeResource CaptionTextBlockStyle}"
+                />
+            </StackPanel>
+            <Button x:Name="LaterButton" Grid.Column="1" x:Uid="Update_Later" Click="OnLater" />
+            <Button
+                x:Name="InstallButton"
+                Grid.Column="2"
+                x:Uid="Update_Install"
+                Click="OnInstall"
+                Style="{ThemeResource AccentButtonStyle}"
+            />
+        </Grid>
+    </Grid>
+</Window>

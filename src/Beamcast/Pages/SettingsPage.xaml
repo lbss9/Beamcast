@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Beamcast.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+>
+    <ScrollViewer Padding="12,4,20,16" VerticalScrollBarVisibility="Auto">
+        <StackPanel MaxWidth="640" HorizontalAlignment="Left" Spacing="10">
+            <TextBlock x:Uid="Settings_IdentityHeader" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="10">
+                    <TextBox
+                        x:Name="NameBox"
+                        x:Uid="Settings_DisplayName"
+                        MaxLength="32"
+                        TextChanged="OnNameChanged"
+                    />
+                    <NumberBox
+                        x:Name="PortBox"
+                        x:Uid="Settings_Port"
+                        Minimum="1"
+                        Maximum="65535"
+                        SpinButtonPlacementMode="Compact"
+                        ValueChanged="OnPortChanged"
+                    />
+                    <NumberBox
+                        x:Name="MaxViewersBox"
+                        x:Uid="Settings_MaxViewers"
+                        Minimum="1"
+                        Maximum="100"
+                        SpinButtonPlacementMode="Compact"
+                        ValueChanged="OnMaxViewersChanged"
+                    />
+                </StackPanel>
+            </Border>
+
+            <TextBlock x:Uid="Settings_LanguageHeader" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <ComboBox
+                    x:Name="LanguageBox"
+                    HorizontalAlignment="Stretch"
+                    SelectionChanged="OnLanguageChanged"
+                />
+            </Border>
+
+            <TextBlock x:Uid="Settings_ThemeHeader" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <ComboBox
+                    x:Name="ThemeBox"
+                    HorizontalAlignment="Stretch"
+                    SelectionChanged="OnThemeChanged"
+                />
+            </Border>
+
+            <TextBlock x:Uid="Settings_UpdatesHeader" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="2">
+                        <TextBlock x:Uid="Settings_UpdatesLabel" Style="{ThemeResource BodyTextBlockStyle}" />
+                        <TextBlock x:Uid="Settings_UpdatesDesc" Style="{StaticResource HintTextStyle}" />
+                    </StackPanel>
+                    <ToggleSwitch
+                        x:Name="UpdatesSwitch"
+                        Grid.Column="1"
+                        HorizontalAlignment="Right"
+                        MinWidth="0"
+                        OnContent=""
+                        OffContent=""
+                        Toggled="OnUpdatesToggled"
+                    />
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

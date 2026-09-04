@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 0.1.0). Empty uses the tag or the csproj."
+        required: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install Velopack
+        run: dotnet tool install -g vpk --version 1.2.0
+
+      - name: Test
+        run: dotnet test tests/Beamcast.Tests/Beamcast.Tests.csproj --nologo
+
+      - name: Pack
+        shell: pwsh
+        env:
+          BEAMCAST_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          if (-not $version -and $env:GITHUB_REF_NAME -like "v*") {
+            $version = $env:GITHUB_REF_NAME.TrimStart("v")
+          }
+          if ($version) {
+            pwsh scripts/pack.ps1 -Version $version
+          } else {
+            pwsh scripts/pack.ps1
+          }
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BEAMCAST_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart("v")
+          pwsh scripts/pack.ps1 -Version $version -SkipBuild -Upload

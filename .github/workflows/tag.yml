@@ -1,0 +1,43 @@
+name: Tag
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create version tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          version=$(sed -n 's/.*<Version>\([^<]*\)<\/Version>.*/\1/p' src/Beamcast/Beamcast.csproj | head -n 1)
+          if [ -z "$version" ]; then
+            echo "Version is empty in the csproj"
+            exit 1
+          fi
+          tag="v${version}"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Tag ${tag} already exists"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${tag}" -m "${tag}"
+            git push origin "${tag}"
+          fi
+          if gh release view "${tag}" --json name >/dev/null 2>&1; then
+            echo "Release ${tag} already exists"
+            exit 0
+          fi
+          gh workflow run Release --ref "${tag}"

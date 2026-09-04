@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <data name="Nav_Broadcast.Content" xml:space="preserve"><value>Transmitir</value></data>
+  <data name="Nav_Watch.Content" xml:space="preserve"><value>Assistir</value></data>
+  <data name="Nav_About.Content" xml:space="preserve"><value>Sobre</value></data>
+
+  <data name="Sources_Heading.Text" xml:space="preserve"><value>O que compartilhar</value></data>
+  <data name="Sources_Refresh.ToolTipService.ToolTip" xml:space="preserve"><value>Atualizar lista</value></data>
+  <data name="Sources_Monitors.Text" xml:space="preserve"><value>Telas</value></data>
+  <data name="Sources_Windows.Text" xml:space="preserve"><value>Janelas</value></data>
+
+  <data name="Preview_Hint.Text" xml:space="preserve"><value>Escolha uma tela ou janela ao lado para ver a prévia.</value></data>
+  <data name="Preview_Paused.Text" xml:space="preserve"><value>PAUSADO</value></data>
+
+  <data name="Quality_Heading.Text" xml:space="preserve"><value>Qualidade</value></data>
+  <data name="Quality_Preset.Header" xml:space="preserve"><value>Resolução</value></data>
+  <data name="Quality_PresetSource" xml:space="preserve"><value>Original</value></data>
+  <data name="Quality_Fps.Header" xml:space="preserve"><value>Quadros por segundo</value></data>
+  <data name="Quality_Bitrate.Header" xml:space="preserve"><value>Bitrate (kbps)</value></data>
+  <data name="Quality_Cursor.Header" xml:space="preserve"><value>Mostrar o cursor</value></data>
+
+  <data name="Session_Heading.Text" xml:space="preserve"><value>Sessão</value></data>
+  <data name="Session_Name.Header" xml:space="preserve"><value>Nome da transmissão</value></data>
+  <data name="Session_Name.PlaceholderText" xml:space="preserve"><value>Ex.: Jogatina de sexta</value></data>
+  <data name="Session_Port.Header" xml:space="preserve"><value>Porta</value></data>
+  <data name="Session_Password.Header" xml:space="preserve"><value>Senha (opcional)</value></data>
+  <data name="Session_DefaultName" xml:space="preserve"><value>Tela de {0}</value></data>
+
+  <data name="Action_GoLive.Content" xml:space="preserve"><value>Iniciar transmissão</value></data>
+  <data name="Action_Pause.Content" xml:space="preserve"><value>Pausar</value></data>
+  <data name="Action_Resume" xml:space="preserve"><value>Retomar</value></data>
+  <data name="Action_Stop.Content" xml:space="preserve"><value>Encerrar</value></data>
+
+  <data name="Invite_Heading.Text" xml:space="preserve"><value>Convite</value></data>
+  <data name="Invite_Address.Header" xml:space="preserve"><value>Endereço que os outros vão usar</value></data>
+  <data name="Invite_PublicIp.Content" xml:space="preserve"><value>Descobrir IP público</value></data>
+  <data name="Invite_Code.Header" xml:space="preserve"><value>Código de convite</value></data>
+  <data name="Invite_Copy.Content" xml:space="preserve"><value>Copiar</value></data>
+  <data name="Invite_Copied" xml:space="preserve"><value>Copiado!</value></data>
+  <data name="Invite_Hint.Text" xml:space="preserve"><value>Na mesma rede, basta enviar o código. Pela internet, libere a porta no roteador (port forwarding) e use o IP público.</value></data>
+
+  <data name="Viewers_Heading.Text" xml:space="preserve"><value>Quem está assistindo</value></data>
+  <data name="Viewers_Empty.Text" xml:space="preserve"><value>Ninguém entrou ainda.</value></data>
+
+  <data name="Join_Heading.Text" xml:space="preserve"><value>Assistir uma transmissão</value></data>
+  <data name="Join_Summary.Text" xml:space="preserve"><value>Cole o código que a pessoa te mandou, ou digite o endereço no formato host:porta.</value></data>
+  <data name="Join_Code.Header" xml:space="preserve"><value>Código de convite ou endereço</value></data>
+  <data name="Join_Code.PlaceholderText" xml:space="preserve"><value>BC-… ou 192.168.0.10:47700</value></data>
+  <data name="Join_Name.Header" xml:space="preserve"><value>Seu nome</value></data>
+  <data name="Join_Password.Header" xml:space="preserve"><value>Senha (se houver)</value></data>
+  <data name="Join_Button.Content" xml:space="preserve"><value>Entrar</value></data>
+
+  <data name="Watch_Fullscreen.ToolTipService.ToolTip" xml:space="preserve"><value>Tela cheia (F11 / duplo clique)</value></data>
+  <data name="Watch_Leave.Content" xml:space="preserve"><value>Sair</value></data>
+  <data name="Watch_Subtitle" xml:space="preserve"><value>Transmitido por {0} · {1} assistindo</value></data>
+  <data name="Watch_Waiting" xml:space="preserve"><value>Aguardando o primeiro quadro…</value></data>
+  <data name="Watch_PausedByHost" xml:space="preserve"><value>A transmissão está pausada.</value></data>
+  <data name="Watch_Ended" xml:space="preserve"><value>A transmissão terminou.</value></data>
+  <data name="Watch_Lost" xml:space="preserve"><value>A conexão com o host caiu.</value></data>
+
+  <data name="Error_NoSource" xml:space="preserve"><value>Escolha uma tela ou janela antes de transmitir.</value></data>
+  <data name="Error_Capture" xml:space="preserve"><value>Não deu para capturar isso: {0}</value></data>
+  <data name="Error_GoLive" xml:space="preserve"><value>Não deu para iniciar: {0}</value></data>
+  <data name="Error_PublicIp" xml:space="preserve"><value>Não deu para descobrir o IP público agora.</value></data>
+  <data name="Error_BadCode" xml:space="preserve"><value>Esse código não parece válido.</value></data>
+  <data name="Error_Password" xml:space="preserve"><value>Senha incorreta.</value></data>
+  <data name="Error_Full" xml:space="preserve"><value>A sala está cheia.</value></data>
+  <data name="Error_Version" xml:space="preserve"><value>O host usa uma versão incompatível do Beamcast.</value></data>
+  <data name="Error_Timeout" xml:space="preserve"><value>O host não respondeu. Confira o endereço e se a porta está liberada.</value></data>
+  <data name="Error_Unreachable" xml:space="preserve"><value>Não foi possível alcançar o host.</value></data>
+  <data name="Error_Generic" xml:space="preserve"><value>Algo deu errado: {0}</value></data>
+
+  <data name="Settings_IdentityHeader.Text" xml:space="preserve"><value>Identidade e rede</value></data>
+  <data name="Settings_DisplayName.Header" xml:space="preserve"><value>Seu nome</value></data>
+  <data name="Settings_Port.Header" xml:space="preserve"><value>Porta padrão</value></data>
+  <data name="Settings_MaxViewers.Header" xml:space="preserve"><value>Máximo de espectadores</value></data>
+  <data name="Settings_LanguageHeader.Text" xml:space="preserve"><value>Idioma</value></data>
+  <data name="Settings_LanguageSystem" xml:space="preserve"><value>Seguir o sistema</value></data>
+  <data name="Settings_ThemeHeader.Text" xml:space="preserve"><value>Tema</value></data>
+  <data name="Settings_ThemeSystem" xml:space="preserve"><value>Seguir o sistema</value></data>
+  <data name="Settings_ThemeLight" xml:space="preserve"><value>Claro</value></data>
+  <data name="Settings_ThemeDark" xml:space="preserve"><value>Escuro</value></data>
+
+  <data name="About_Tagline.Text" xml:space="preserve"><value>Um projeto de estudo sobre compartilhamento de tela.</value></data>
+  <data name="About_Description.Text" xml:space="preserve"><value>O Beamcast é um laboratório: captura uma tela ou janela do Windows, comprime em VP8 e transmite por TCP para quem tiver o código de convite. Serve para estudar codecs, captura e transmissão em tempo real, e como caso de estudo para um aplicativo empresarial separado.</value></data>
+  <data name="About_Version" xml:space="preserve"><value>Versão {0}</value></data>
+  <data name="About_CardShareTitle.Text" xml:space="preserve"><value>Transmitir</value></data>
+  <data name="About_CardShareBody.Text" xml:space="preserve"><value>Escolha uma tela ou janela, ajuste a qualidade e inicie. O vídeo é comprimido em VP8 e enviado por TCP.</value></data>
+  <data name="About_CardJoinTitle.Text" xml:space="preserve"><value>Assistir</value></data>
+  <data name="About_CardJoinBody.Text" xml:space="preserve"><value>Cole o código, entre e assista. Duplo clique deixa em tela cheia.</value></data>
+  <data name="About_CardNetTitle.Text" xml:space="preserve"><value>Rede</value></data>
+  <data name="About_CardNetBody.Text" xml:space="preserve"><value>Funciona de cara na mesma rede. Pela internet, quem transmite precisa liberar a porta no roteador.</value></data>
+
+  <data name="Title_StudyBadge.Text" xml:space="preserve"><value>PROJETO DE ESTUDO</value></data>
+
+  <data name="Disclaimer_Title" xml:space="preserve"><value>Antes de usar: isto é um projeto de estudo</value></data>
+  <data name="Disclaimer_Heading.Text" xml:space="preserve"><value>Projeto de estudo. Leia antes de usar.</value></data>
+  <data name="Disclaimer_P1" xml:space="preserve"><value>O Beamcast existe apenas para estudos e casos de estudo sobre captura de tela, codecs de vídeo e transmissão em tempo real no Windows. Ele serve de base de pesquisa para um outro aplicativo, empresarial e privado. Não é um produto e não foi feito para uso real.</value></data>
+  <data name="Disclaimer_P2" xml:space="preserve"><value>Qualquer uso deste app ou deste código para outras finalidades é de responsabilidade exclusiva de quem o utiliza. Ao usar, você declara estar ciente disso e assume todos os riscos, inclusive o de expor o que estiver na sua tela.</value></data>
+  <data name="Disclaimer_P3" xml:space="preserve"><value>O autor não tem nenhuma responsabilidade sobre o uso, os resultados, perdas ou danos decorrentes deste software. Ele é fornecido "como está", sem garantias, sem suporte e sem compromisso de manutenção.</value></data>
+  <data name="Disclaimer_P4" xml:space="preserve"><value>O tráfego de vídeo não é criptografado e o app não foi endurecido para a internet. Use apenas em ambientes de estudo que você controla.</value></data>
+  <data name="Disclaimer_P1_Text.Text" xml:space="preserve"><value>O Beamcast existe apenas para estudos e casos de estudo sobre captura de tela, codecs de vídeo e transmissão em tempo real no Windows. Ele serve de base de pesquisa para um outro aplicativo, empresarial e privado. Não é um produto e não foi feito para uso real.</value></data>
+  <data name="Disclaimer_P2_Text.Text" xml:space="preserve"><value>Qualquer uso deste app ou deste código para outras finalidades é de responsabilidade exclusiva de quem o utiliza. Ao usar, você declara estar ciente disso e assume todos os riscos, inclusive o de expor o que estiver na sua tela.</value></data>
+  <data name="Disclaimer_P3_Text.Text" xml:space="preserve"><value>O autor não tem nenhuma responsabilidade sobre o uso, os resultados, perdas ou danos decorrentes deste software. Ele é fornecido "como está", sem garantias, sem suporte e sem compromisso de manutenção.</value></data>
+  <data name="Disclaimer_P4_Text.Text" xml:space="preserve"><value>O tráfego de vídeo não é criptografado e o app não foi endurecido para a internet. Use apenas em ambientes de estudo que você controla.</value></data>
+  <data name="Disclaimer_Accept" xml:space="preserve"><value>Entendi e assumo o risco</value></data>
+  <data name="Disclaimer_Quit" xml:space="preserve"><value>Fechar o app</value></data>
+  <data name="Disclaimer_Close" xml:space="preserve"><value>Fechar</value></data>
+  <data name="Disclaimer_ReadAgain.Content" xml:space="preserve"><value>Ler o aviso completo</value></data>
+  <data name="Invite_StudyNote.Text" xml:space="preserve"><value>Projeto de estudo: o uso é por sua conta e risco. O vídeo trafega sem criptografia.</value></data>
+
+  <data name="About_UpdatesTitle.Text" xml:space="preserve"><value>Atualizações</value></data>
+  <data name="About_CheckUpdates.Content" xml:space="preserve"><value>Verificar agora</value></data>
+  <data name="About_UpdateChecking" xml:space="preserve"><value>Verificando…</value></data>
+  <data name="About_UpdateAvailable" xml:space="preserve"><value>Versão {0} disponível.</value></data>
+  <data name="About_UpdateUpToDate" xml:space="preserve"><value>Você já está na versão mais recente.</value></data>
+  <data name="About_UpdateNotInstalled" xml:space="preserve"><value>Atualização automática só funciona na versão instalada (MSI).</value></data>
+  <data name="About_UpdateFailed" xml:space="preserve"><value>Não foi possível verificar agora.</value></data>
+  <data name="About_ChangelogHeading.Text" xml:space="preserve"><value>Novidades desta versão</value></data>
+  <data name="Changelog_Missing" xml:space="preserve"><value>Sem notas para esta versão.</value></data>
+
+  <data name="Settings_UpdatesHeader.Text" xml:space="preserve"><value>Atualizações</value></data>
+  <data name="Settings_UpdatesLabel.Text" xml:space="preserve"><value>Verificar ao abrir</value></data>
+  <data name="Settings_UpdatesDesc.Text" xml:space="preserve"><value>Consulta o GitHub Releases ao iniciar e a cada 6 horas. Nada é instalado sem você confirmar.</value></data>
+
+  <data name="Update_WindowTitle.Text" xml:space="preserve"><value>Atualização</value></data>
+  <data name="Update_Badge.Text" xml:space="preserve"><value>NOVA VERSÃO</value></data>
+  <data name="Update_VersionLine" xml:space="preserve"><value>Beamcast {0}</value></data>
+  <data name="Update_Lead.Text" xml:space="preserve"><value>Quer instalar agora? O app baixa a versão e reinicia sozinho.</value></data>
+  <data name="Update_ChangelogHeading.Text" xml:space="preserve"><value>O que mudou</value></data>
+  <data name="Update_Later.Content" xml:space="preserve"><value>Agora não</value></data>
+  <data name="Update_Install.Content" xml:space="preserve"><value>Instalar</value></data>
+  <data name="Update_Downloading" xml:space="preserve"><value>Baixando a atualização…</value></data>
+  <data name="Update_Failed" xml:space="preserve"><value>Não foi possível baixar. Tente de novo em instantes.</value></data>
+  <data name="Update_BarTitle" xml:space="preserve"><value>Atualização disponível</value></data>
+  <data name="Update_BarBody" xml:space="preserve"><value>Beamcast {0} está pronta para instalar.</value></data>
+  <data name="Update_BarAction.Content" xml:space="preserve"><value>Ver</value></data>
+</root>
