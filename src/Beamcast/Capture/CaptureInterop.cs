@@ -1,7 +1,5 @@
 using System.Runtime.InteropServices;
-using Vortice.Direct3D;
 using Vortice.Direct3D11;
-using Vortice.DXGI;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX.Direct3D11;
 using WinRT;
@@ -9,10 +7,9 @@ using WinRT;
 namespace Beamcast.Capture;
 
 /// <summary>
-/// The handful of COM calls Windows.Graphics.Capture needs from a desktop app: building a WinRT
-/// Direct3D device, creating capture items from HWND/HMONITOR and reaching the DXGI texture behind
-/// a captured surface. Interop interfaces are called through their raw vtables so no COM wrapper
-/// generation is required.
+/// The COM calls Windows.Graphics.Capture needs from a desktop app: creating capture items from
+/// HWND/HMONITOR and reaching the DXGI texture behind a captured surface. Interop interfaces are
+/// called through their raw vtables so no COM wrapper generation is required.
 /// </summary>
 internal static unsafe class CaptureInterop
 {
@@ -23,9 +20,6 @@ internal static unsafe class CaptureInterop
 
     private const string CaptureItemClassName = "Windows.Graphics.Capture.GraphicsCaptureItem";
 
-    [DllImport("d3d11.dll")]
-    private static extern int CreateDirect3D11DeviceFromDXGIDevice(IntPtr dxgiDevice, out IntPtr graphicsDevice);
-
     [DllImport("combase.dll", CharSet = CharSet.Unicode)]
     private static extern int WindowsCreateString(string source, int length, out IntPtr hstring);
 
@@ -34,34 +28,6 @@ internal static unsafe class CaptureInterop
 
     [DllImport("combase.dll")]
     private static extern int RoGetActivationFactory(IntPtr activatableClassId, ref Guid iid, out IntPtr factory);
-
-    public static (ID3D11Device Device, IDirect3DDevice WinRtDevice) CreateDevice()
-    {
-        var flags = DeviceCreationFlags.BgraSupport;
-        var result = D3D11.D3D11CreateDevice(
-            null,
-            DriverType.Hardware,
-            flags,
-            null,
-            out ID3D11Device? device
-        );
-        if (result.Failure || device is null)
-        {
-            D3D11.D3D11CreateDevice(null, DriverType.Warp, flags, null, out device).CheckError();
-        }
-
-        using var dxgi = device!.QueryInterface<IDXGIDevice>();
-        Marshal.ThrowExceptionForHR(CreateDirect3D11DeviceFromDXGIDevice(dxgi.NativePointer, out var inspectable));
-        try
-        {
-            var winrt = MarshalInterface<IDirect3DDevice>.FromAbi(inspectable);
-            return (device, winrt);
-        }
-        finally
-        {
-            Marshal.Release(inspectable);
-        }
-    }
 
     public static GraphicsCaptureItem CreateItem(CaptureSource source)
     {

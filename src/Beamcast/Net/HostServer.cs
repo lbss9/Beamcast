@@ -34,6 +34,7 @@ public sealed class HostServer : IDisposable
     private int _width;
     private int _height;
     private int _fps;
+    private string _codec = "vp8";
     private long _lastKeyframeRequestTicks;
 
     public event Action<ViewerInfo>? ViewerJoined;
@@ -48,11 +49,12 @@ public sealed class HostServer : IDisposable
     public IReadOnlyList<ViewerInfo> Viewers =>
         _viewers.Values.Select(v => v.Info).OrderBy(v => v.JoinedAt).ToList();
 
-    public void SetStreamInfo(int width, int height, int fps)
+    public void SetStreamInfo(int width, int height, int fps, string codec)
     {
         _width = width;
         _height = height;
         _fps = fps;
+        _codec = codec;
     }
 
     public void Start(HostOptions options)
@@ -225,6 +227,7 @@ public sealed class HostServer : IDisposable
             {
                 SessionName = options.SessionName,
                 HostName = options.HostName,
+                Codec = _codec,
                 Width = _width,
                 Height = _height,
                 Fps = _fps,
@@ -234,6 +237,7 @@ public sealed class HostServer : IDisposable
             await MessageStream.WriteJsonAsync(stream, MessageType.Welcome, welcome, hct).ConfigureAwait(false);
 
             viewer.Start();
+            Diag.Log($"server: viewer {name} joined from {remote}");
             ViewerJoined?.Invoke(info);
             BroadcastViewerList();
             RaiseKeyframeNeeded();
@@ -282,6 +286,7 @@ public sealed class HostServer : IDisposable
         private readonly object _gateLock = new();
         private readonly CancellationTokenSource _cts;
         private int _pendingVideo;
+        private int _drops;
         private int _closed;
 
         public ViewerConnection(TcpClient client, NetworkStream stream, ViewerInfo info, int maxPending, CancellationToken parent)
@@ -313,6 +318,9 @@ public sealed class HostServer : IDisposable
             {
                 decision = _gate.Offer(isKeyframe, Volatile.Read(ref _pendingVideo));
             }
+
+            if (decision != GateDecision.Send && (++_drops % 60 == 1))
+                Diag.Log($"server: gate {decision} for {Info.Name} (drops={_drops}, pending={Volatile.Read(ref _pendingVideo)}, key={isKeyframe})");
 
             switch (decision)
             {

@@ -10,6 +10,8 @@ public class QualityPresetTests
     [InlineData("480p", 1920, 1080, 852, 480)]
     [InlineData("1080p", 1280, 720, 1280, 720)]
     [InlineData("Source", 3840, 2160, 3840, 2160)]
+    [InlineData("1440p", 3840, 2160, 2560, 1440)]
+    [InlineData("2160p", 5120, 2880, 3840, 2160)]
     [InlineData("720p", 1001, 1001, 720, 720)]
     public void FitKeepsAspectAndNeverUpscales(string preset, int w, int h, int expectedW, int expectedH)
     {

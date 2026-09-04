@@ -1,49 +1,50 @@
 using System.Buffers;
 using System.Diagnostics;
 using Beamcast.Codec;
+using Beamcast.Codec.Gpu;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
+using Vortice.Mathematics;
 using Windows.Foundation.Metadata;
 using Windows.Graphics;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
-using Windows.Graphics.DirectX.Direct3D11;
 
 namespace Beamcast.Capture;
 
 #pragma warning disable CA1416 // Newer members are guarded with ApiInformation at runtime.
 
+/// <summary>A captured frame that stays on the GPU. Valid only for the duration of the callback.</summary>
+public readonly record struct GpuFrame(ID3D11Texture2D Texture, int Width, int Height, long TimestampMs);
+
 /// <summary>
-/// Wraps a Windows.Graphics.Capture session for one monitor or window and turns the GPU frames
-/// into tightly packed BGRA byte arrays at (at most) the requested frame rate. Frames are handed
-/// to <see cref="FrameArrived"/> on the capture thread; the buffer comes from
-/// <see cref="ArrayPool{T}.Shared"/> and must be returned by the consumer.
+/// Windows.Graphics.Capture session for one monitor or window. Each frame is copied once on the
+/// GPU into a texture we own and handed to <see cref="TextureArrived"/> on the capture thread.
+/// CPU pixels are only produced on request through <see cref="ReadPixels"/> (VP8 fallback).
 /// </summary>
 public sealed class ScreenCapture : IDisposable
 {
-    private readonly ID3D11Device _device;
-    private readonly ID3D11DeviceContext _context;
-    private readonly IDirect3DDevice _winrtDevice;
+    private readonly GpuDevice _gpu;
     private readonly object _sync = new();
 
     private GraphicsCaptureItem? _item;
     private Direct3D11CaptureFramePool? _pool;
     private GraphicsCaptureSession? _session;
+    private ID3D11Texture2D? _frameTexture;
     private ID3D11Texture2D? _staging;
     private SizeInt32 _poolSize;
     private long _lastFrameTicks;
     private long _minIntervalTicks;
     private bool _disposed;
 
-    public ScreenCapture()
+    public ScreenCapture(GpuDevice gpu)
     {
-        (_device, _winrtDevice) = CaptureInterop.CreateDevice();
-        _context = _device.ImmediateContext;
+        _gpu = gpu;
     }
 
     public static bool IsSupported => SafeTry.Run(GraphicsCaptureSession.IsSupported);
 
-    public event Action<RawFrame>? FrameArrived;
+    public event Action<GpuFrame>? TextureArrived;
 
     public event Action<Exception>? Faulted;
 
@@ -65,7 +66,7 @@ public sealed class ScreenCapture : IDisposable
             _item = CaptureInterop.CreateItem(source);
             _poolSize = _item.Size;
             _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
-                _winrtDevice,
+                _gpu.WinRtDevice,
                 DirectXPixelFormat.B8G8R8A8UIntNormalized,
                 2,
                 _poolSize
@@ -78,6 +79,10 @@ public sealed class ScreenCapture : IDisposable
                 SafeTry.Run(() => _session.IsCursorCaptureEnabled = ShowCursor);
             if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName!, nameof(GraphicsCaptureSession.IsBorderRequired)))
                 SafeTry.Run(() => _session.IsBorderRequired = false);
+            // Newer Windows 11 builds throttle capture to ~60 Hz unless told otherwise, which on a
+            // 75/120/144 Hz display means every other frame. 4 ms lets the display rate through.
+            if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName!, "MinUpdateInterval"))
+                SafeTry.Run(() => _session.MinUpdateInterval = TimeSpan.FromMilliseconds(4));
 
             _session.StartCapture();
         }
@@ -103,8 +108,13 @@ public sealed class ScreenCapture : IDisposable
         _session = null;
         _pool = null;
         _item = null;
-        _staging?.Dispose();
-        _staging = null;
+        lock (_gpu.ContextLock)
+        {
+            _frameTexture?.Dispose();
+            _frameTexture = null;
+            _staging?.Dispose();
+            _staging = null;
+        }
     }
 
     private void OnItemClosed(GraphicsCaptureItem sender, object args)
@@ -123,24 +133,15 @@ public sealed class ScreenCapture : IDisposable
                 return;
 
             var contentSize = frame.ContentSize;
-            var now = Stopwatch.GetTimestamp();
-            var interval = Interlocked.Read(ref _minIntervalTicks);
-            var due = interval == 0 || now - _lastFrameTicks >= interval;
-
-            if (due && contentSize.Width > 0 && contentSize.Height > 0)
-            {
-                _lastFrameTicks = now;
-                var raw = ReadPixels(frame.Surface, contentSize);
-                if (raw is not null)
-                    FrameArrived?.Invoke(raw);
-            }
+            if (IsDue(Stopwatch.GetTimestamp()) && contentSize.Width > 0 && contentSize.Height > 0)
+                DeliverFrame(frame, contentSize);
 
             if (contentSize.Width != _poolSize.Width || contentSize.Height != _poolSize.Height)
             {
                 _poolSize = contentSize;
                 lock (_sync)
                 {
-                    _pool?.Recreate(_winrtDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, contentSize);
+                    _pool?.Recreate(_gpu.WinRtDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, contentSize);
                 }
             }
         }
@@ -154,23 +155,74 @@ public sealed class ScreenCapture : IDisposable
         }
     }
 
-    private unsafe RawFrame? ReadPixels(IDirect3DSurface surface, SizeInt32 contentSize)
+    /// <summary>
+    /// Frame pacing against the target rate. A plain "at least 1/fps since the last frame" rule
+    /// would accept every other frame on a 75 Hz display when asked for 60, landing at 37.5.
+    /// Instead the next deadline advances by exactly one interval, with half an interval of
+    /// tolerance, so the accepted rate averages out to the target from any refresh rate above it.
+    /// </summary>
+    private bool IsDue(long now)
     {
-        using var texture = CaptureInterop.GetTexture(surface);
-        var description = texture.Description;
-        var width = Math.Min(contentSize.Width, (int)description.Width);
-        var height = Math.Min(contentSize.Height, (int)description.Height);
-        if (width <= 0 || height <= 0)
-            return null;
+        var interval = Interlocked.Read(ref _minIntervalTicks);
+        if (interval == 0)
+            return true;
 
-        if (_staging is null || _staging.Description.Width != description.Width || _staging.Description.Height != description.Height)
+        if (_lastFrameTicks == 0 || now - _lastFrameTicks > interval * 2)
+        {
+            _lastFrameTicks = now;
+            return true;
+        }
+
+        var deadline = _lastFrameTicks + interval;
+        if (now < deadline - interval / 2)
+            return false;
+
+        _lastFrameTicks = deadline;
+        return true;
+    }
+
+    private void DeliverFrame(Direct3D11CaptureFrame frame, SizeInt32 contentSize)
+    {
+        var handler = TextureArrived;
+        if (handler is null)
+            return;
+
+        lock (_gpu.ContextLock)
+        {
+            using var source = CaptureInterop.GetTexture(frame.Surface);
+            var description = source.Description;
+            var width = Math.Min(contentSize.Width, (int)description.Width) & ~1;
+            var height = Math.Min(contentSize.Height, (int)description.Height) & ~1;
+            if (width <= 0 || height <= 0)
+                return;
+
+            if (_frameTexture is null || _frameTexture.Description.Width != width || _frameTexture.Description.Height != height)
+            {
+                _frameTexture?.Dispose();
+                _frameTexture = _gpu.CreateTexture(Format.B8G8R8A8_UNorm, width, height, BindFlags.ShaderResource | BindFlags.RenderTarget);
+            }
+
+            var box = new Box(0, 0, 0, width, height, 1);
+            _gpu.Context.CopySubresourceRegion(_frameTexture, 0, 0, 0, 0, source, 0, box);
+            handler(new GpuFrame(_frameTexture, width, height, Environment.TickCount64));
+        }
+    }
+
+    /// <summary>
+    /// Reads a GPU frame back into a pooled BGRA buffer (caller returns it to <see cref="ArrayPool{T}.Shared"/>).
+    /// Only the VP8 fallback uses this; it costs a GPU→CPU copy of the whole frame.
+    /// Must be called while holding <see cref="GpuDevice.ContextLock"/> (i.e. from the callback).
+    /// </summary>
+    public unsafe RawFrame ReadPixels(GpuFrame frame)
+    {
+        if (_staging is null || _staging.Description.Width != frame.Width || _staging.Description.Height != frame.Height)
         {
             _staging?.Dispose();
-            _staging = _device.CreateTexture2D(
+            _staging = _gpu.Device.CreateTexture2D(
                 new Texture2DDescription
                 {
-                    Width = description.Width,
-                    Height = description.Height,
+                    Width = (uint)frame.Width,
+                    Height = (uint)frame.Height,
                     MipLevels = 1,
                     ArraySize = 1,
                     Format = Format.B8G8R8A8_UNorm,
@@ -183,25 +235,24 @@ public sealed class ScreenCapture : IDisposable
             );
         }
 
-        _context.CopyResource(_staging, texture);
-        var mapped = _context.Map(_staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+        var context = _gpu.Context;
+        context.CopyResource(_staging, frame.Texture);
+        var mapped = context.Map(_staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
         try
         {
-            var rowBytes = width * 4;
-            var buffer = ArrayPool<byte>.Shared.Rent(rowBytes * height);
+            var rowBytes = frame.Width * 4;
+            var buffer = ArrayPool<byte>.Shared.Rent(rowBytes * frame.Height);
             fixed (byte* dst = buffer)
             {
                 var src = (byte*)mapped.DataPointer;
-                for (var y = 0; y < height; y++)
-                {
+                for (var y = 0; y < frame.Height; y++)
                     Buffer.MemoryCopy(src + y * mapped.RowPitch, dst + y * rowBytes, rowBytes, rowBytes);
-                }
             }
-            return new RawFrame(buffer, width, height, Environment.TickCount64);
+            return new RawFrame(buffer, frame.Width, frame.Height, frame.TimestampMs);
         }
         finally
         {
-            _context.Unmap(_staging, 0);
+            context.Unmap(_staging, 0);
         }
     }
 
@@ -211,8 +262,5 @@ public sealed class ScreenCapture : IDisposable
             return;
         _disposed = true;
         Stop();
-        _context.Dispose();
-        _device.Dispose();
-        SafeTry.Run(() => _winrtDevice.Dispose());
     }
 }

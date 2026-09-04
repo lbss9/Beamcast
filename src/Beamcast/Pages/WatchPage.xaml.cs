@@ -1,10 +1,8 @@
-using Beamcast.Codec;
 using Beamcast.Controls;
 using Beamcast.Net;
 using Beamcast.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 
 namespace Beamcast.Pages;
 
@@ -12,11 +10,11 @@ public sealed partial class WatchPage : Page
 {
     // One video surface for the whole process, so fullscreen and page re-creation keep the
     // picture. Created lazily on the UI thread the first time the page loads.
-    private static VideoView? _sharedVideo;
+    private static GpuVideoView? _sharedVideo;
     private static Grid? _overlay;
     private static TextBlock? _overlayText;
 
-    private static VideoView SharedVideo => _sharedVideo ??= CreateVideo();
+    private static GpuVideoView SharedVideo => _sharedVideo ??= CreateVideo();
     private static Grid Overlay => _overlay ??= CreateOverlay();
 
     private readonly WatchService _service = WatchService.Instance;
@@ -29,9 +27,9 @@ public sealed partial class WatchPage : Page
         Unloaded += OnUnloaded;
     }
 
-    private static VideoView CreateVideo()
+    private static GpuVideoView CreateVideo()
     {
-        var view = new VideoView();
+        var view = new GpuVideoView();
         view.DoubleTapped += (_, _) => App.Main?.DispatcherQueue.TryEnqueue(ToggleFullscreenStatic);
         return view;
     }
@@ -57,7 +55,7 @@ public sealed partial class WatchPage : Page
         NameBox.Text = settings.DisplayName;
 
         _service.StateChanged += OnStateChanged;
-        _service.FrameReady += OnFrame;
+        _service.FirstFrame += OnFirstFrame;
         _service.ViewersChanged += OnViewersChanged;
         _service.StatsChanged += OnStats;
         _service.StreamStateChanged += OnStreamState;
@@ -66,6 +64,7 @@ public sealed partial class WatchPage : Page
             App.Main.FullscreenExited += OnFullscreenExited;
 
         AttachVideo();
+        SharedVideo.Bind(_service.Presenter);
         ApplyState(_service.State);
         OnCodeChanged(CodeBox, null!);
     }
@@ -73,7 +72,7 @@ public sealed partial class WatchPage : Page
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         _service.StateChanged -= OnStateChanged;
-        _service.FrameReady -= OnFrame;
+        _service.FirstFrame -= OnFirstFrame;
         _service.ViewersChanged -= OnViewersChanged;
         _service.StatsChanged -= OnStats;
         _service.StreamStateChanged -= OnStreamState;
@@ -153,6 +152,7 @@ public sealed partial class WatchPage : Page
                 RejectReasons.Version => Loc.Get("Error_Version"),
                 "timeout" => Loc.Get("Error_Timeout"),
                 "unreachable" => Loc.Get("Error_Unreachable"),
+                "codec" => Loc.Get("Error_Codec"),
                 _ => Loc.Format("Error_Generic", ex.Message),
             };
         }
@@ -224,7 +224,7 @@ public sealed partial class WatchPage : Page
                 OnStats(stats);
             else
                 StatsText.Text = string.Empty;
-            if (!SharedVideo.HasFrame)
+            if (!_service.HasFrame)
                 ShowOverlay(Loc.Get("Watch_Waiting"));
         }
         else
@@ -233,9 +233,9 @@ public sealed partial class WatchPage : Page
         }
     }
 
-    private void OnFrame(DecodedFrame frame)
+    private void OnFirstFrame()
     {
-        SharedVideo.Present(frame.Bgra, frame.Width, frame.Height);
+        SharedVideo.MarkFrame();
         if (_service.StreamState == StreamStates.Live)
             Overlay.Visibility = Visibility.Collapsed;
     }
@@ -248,7 +248,8 @@ public sealed partial class WatchPage : Page
 
     private void OnStats(ViewerStats stats)
     {
-        StatsText.Text = $"{stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  {stats.RttMs:F0} ms";
+        var codec = (_service.Welcome?.Codec ?? string.Empty).ToUpperInvariant();
+        StatsText.Text = $"{codec}  {stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  dec {stats.DecodeMs:F1} ms  rtt {stats.RttMs:F0} ms";
     }
 
     private void OnStreamState(string state)
@@ -262,7 +263,7 @@ public sealed partial class WatchPage : Page
                 ShowOverlay(Loc.Get("Watch_Ended"));
                 break;
             default:
-                if (SharedVideo.HasFrame)
+                if (_service.HasFrame)
                     Overlay.Visibility = Visibility.Collapsed;
                 break;
         }

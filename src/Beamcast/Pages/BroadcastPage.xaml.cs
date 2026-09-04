@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using Beamcast.Capture;
+using Beamcast.Codec;
+using Beamcast.Codec.Gpu;
 using Beamcast.Net;
 using Beamcast.Services;
 using Microsoft.UI.Xaml;
@@ -37,6 +39,13 @@ public sealed partial class BroadcastPage : Page
         _loading = true;
         var settings = SettingsStore.Load();
 
+        EncoderBox.Items.Clear();
+        EncoderBox.Items.Add(Loc.Get("Encoder_Auto"));
+        EncoderBox.Items.Add(EncoderLabel(VideoCodec.H264, "H.264"));
+        EncoderBox.Items.Add(EncoderLabel(VideoCodec.Hevc, "HEVC"));
+        EncoderBox.Items.Add(Loc.Get("Encoder_Vp8"));
+        EncoderBox.SelectedIndex = Math.Max(0, Array.IndexOf(EncoderPreference.All, _service.EncoderPreferenceValue));
+
         PresetBox.Items.Clear();
         foreach (var preset in QualityPreset.All)
             PresetBox.Items.Add(preset == QualityPreset.Source ? Loc.Get("Quality_PresetSource") : preset);
@@ -58,10 +67,12 @@ public sealed partial class BroadcastPage : Page
         SyncSelectionFromService();
 
         _service.StateChanged += OnStateChanged;
-        _service.PreviewFrame += OnPreviewFrame;
+        _service.PreviewStarted += OnPreviewStarted;
         _service.StatsChanged += OnStats;
         _service.ViewersChanged += OnViewersChanged;
         _service.Error += OnError;
+
+        Preview.Bind(_service.Preview);
 
         _loading = false;
         ApplyState(_service.State);
@@ -70,13 +81,19 @@ public sealed partial class BroadcastPage : Page
         UpdateInviteCode();
     }
 
+    private static string EncoderLabel(VideoCodec codec, string name) =>
+        MfCodecs.HasHardwareEncoder(codec)
+            ? Loc.Format("Encoder_Gpu", name)
+            : Loc.Format("Encoder_Unavailable", name);
+
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         _service.StateChanged -= OnStateChanged;
-        _service.PreviewFrame -= OnPreviewFrame;
+        _service.PreviewStarted -= OnPreviewStarted;
         _service.StatsChanged -= OnStats;
         _service.ViewersChanged -= OnViewersChanged;
         _service.Error -= OnError;
+        Preview.Unbind();
         PersistInputs();
     }
 
@@ -91,6 +108,7 @@ public sealed partial class BroadcastPage : Page
             s.Fps = _service.Fps;
             s.BitrateKbps = _service.BitrateKbps;
             s.ShowCursor = _service.ShowCursor;
+            s.Encoder = _service.EncoderPreferenceValue;
         });
     }
 
@@ -164,6 +182,16 @@ public sealed partial class BroadcastPage : Page
         }
     }
 
+    private void OnEncoderChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || EncoderBox.SelectedIndex < 0)
+            return;
+        _service.EncoderPreferenceValue = EncoderPreference.All[EncoderBox.SelectedIndex];
+        BitrateBox.Value = QualityPreset.SuggestedBitrate(_service.Preset, _service.Fps, ResolvedCodecName());
+    }
+
+    private string ResolvedCodecName() => MfCodecs.Resolve(_service.EncoderPreferenceValue).ToWireName();
+
     private void OnQualityChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loading)
@@ -173,10 +201,7 @@ public sealed partial class BroadcastPage : Page
         if (FpsBox.SelectedIndex >= 0)
             _service.Fps = QualityPreset.FpsOptions[FpsBox.SelectedIndex];
         if (ReferenceEquals(sender, PresetBox) || ReferenceEquals(sender, FpsBox))
-        {
-            var suggested = QualityPreset.SuggestedBitrate(_service.Preset, _service.Fps);
-            BitrateBox.Value = suggested;
-        }
+            BitrateBox.Value = QualityPreset.SuggestedBitrate(_service.Preset, _service.Fps, ResolvedCodecName());
     }
 
     private void OnBitrateChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
@@ -313,6 +338,7 @@ public sealed partial class BroadcastPage : Page
         PortBox.IsEnabled = !live;
         PasswordBox.IsEnabled = !live;
         SessionNameBox.IsEnabled = !live;
+        EncoderBox.IsEnabled = !live;
         PreviewHint.Visibility = state == BroadcastState.Idle ? Visibility.Visible : Visibility.Collapsed;
         if (state == BroadcastState.Idle)
         {
@@ -322,16 +348,16 @@ public sealed partial class BroadcastPage : Page
         OnStats(_service.LastStats);
     }
 
-    private void OnPreviewFrame(byte[] bgra, int width, int height)
+    private void OnPreviewStarted()
     {
-        Preview.Present(bgra, width, height);
+        Preview.MarkFrame();
         PreviewHint.Visibility = Visibility.Collapsed;
     }
 
     private void OnStats(HostStats stats)
     {
         StatsText.Text = _service.State == BroadcastState.Live
-            ? $"{stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  {stats.EncodeMs:F0} ms"
+            ? $"{stats.Codec}  {stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  {stats.EncodeMs:F1} ms"
             : _service.Source is null
                 ? string.Empty
                 : _service.Source.SizeLabel;
@@ -354,7 +380,7 @@ public sealed partial class BroadcastPage : Page
 public sealed class KindGlyphConverter : Microsoft.UI.Xaml.Data.IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, string language) =>
-        value is CaptureSourceKind.Monitor ? "" : "";
+        value is CaptureSourceKind.Monitor ? "" : "";
 
     public object ConvertBack(object value, Type targetType, object parameter, string language) =>
         throw new NotSupportedException();

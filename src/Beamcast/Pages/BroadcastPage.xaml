@@ -128,7 +128,7 @@
                     Background="#0A0D12"
                 >
                     <Grid Height="320">
-                        <ctrl:VideoView x:Name="Preview" />
+                        <ctrl:GpuVideoView x:Name="Preview" />
                         <StackPanel
                             x:Name="PreviewHint"
                             HorizontalAlignment="Center"
@@ -242,6 +242,12 @@
                     <Border Grid.Column="0" Style="{StaticResource CardStyle}">
                         <StackPanel Spacing="10">
                             <TextBlock x:Uid="Quality_Heading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                            <ComboBox
+                                x:Name="EncoderBox"
+                                x:Uid="Quality_Encoder"
+                                HorizontalAlignment="Stretch"
+                                SelectionChanged="OnEncoderChanged"
+                            />
                             <ComboBox
                                 x:Name="PresetBox"
                                 x:Uid="Quality_Preset"

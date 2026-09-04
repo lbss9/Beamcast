@@ -87,10 +87,10 @@
   <data name="Settings_ThemeDark" xml:space="preserve"><value>Dark</value></data>
 
   <data name="About_Tagline.Text" xml:space="preserve"><value>A study project on screen sharing.</value></data>
-  <data name="About_Description.Text" xml:space="preserve"><value>Beamcast is a lab: it captures a Windows screen or window, compresses it with VP8 and streams it over TCP to anyone holding the invite code. It exists to study codecs, capture and real-time streaming, and as a case study for a separate enterprise application.</value></data>
+  <data name="About_Description.Text" xml:space="preserve"><value>Beamcast is a lab: it captures a Windows screen or window straight on the GPU, compresses it with the hardware H.264 or HEVC encoder (VP8 on the CPU as a fallback) and streams it over TCP to anyone holding the invite code. It exists to study codecs, capture and real-time streaming, and as a case study for a separate enterprise application.</value></data>
   <data name="About_Version" xml:space="preserve"><value>Version {0}</value></data>
   <data name="About_CardShareTitle.Text" xml:space="preserve"><value>Broadcast</value></data>
-  <data name="About_CardShareBody.Text" xml:space="preserve"><value>Pick a screen or window, tune the quality and go live. Video is compressed with VP8 and sent over TCP.</value></data>
+  <data name="About_CardShareBody.Text" xml:space="preserve"><value>Pick a screen or window, tune the quality and go live. Capture stays on the GPU and the hardware encoder (H.264/HEVC) compresses it before it goes over TCP.</value></data>
   <data name="About_CardJoinTitle.Text" xml:space="preserve"><value>Watch</value></data>
   <data name="About_CardJoinBody.Text" xml:space="preserve"><value>Paste the code, join and watch. Double-click for fullscreen.</value></data>
   <data name="About_CardNetTitle.Text" xml:space="preserve"><value>Network</value></data>
@@ -140,4 +140,11 @@
   <data name="Update_BarTitle" xml:space="preserve"><value>Update available</value></data>
   <data name="Update_BarBody" xml:space="preserve"><value>Beamcast {0} is ready to install.</value></data>
   <data name="Update_BarAction.Content" xml:space="preserve"><value>View</value></data>
+
+  <data name="Quality_Encoder.Header" xml:space="preserve"><value>Codec</value></data>
+  <data name="Encoder_Auto" xml:space="preserve"><value>Automatic (GPU when available)</value></data>
+  <data name="Encoder_Gpu" xml:space="preserve"><value>{0} (GPU)</value></data>
+  <data name="Encoder_Unavailable" xml:space="preserve"><value>{0} (no encoder on this machine)</value></data>
+  <data name="Encoder_Vp8" xml:space="preserve"><value>VP8 (CPU, compatible)</value></data>
+  <data name="Error_Codec" xml:space="preserve"><value>This machine cannot decode the codec used by the stream.</value></data>
 </root>

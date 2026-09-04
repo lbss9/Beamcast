@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Net.Sockets;
-using Beamcast.Codec;
 
 namespace Beamcast.Net;
 
@@ -13,22 +12,22 @@ public sealed class ConnectException : Exception
         Reason = reason;
     }
 
-    /// <summary>One of <see cref="RejectReasons"/>, or "unreachable" / "timeout" / "protocol".</summary>
+    /// <summary>One of <see cref="RejectReasons"/>, or "unreachable" / "timeout" / "protocol" / "codec".</summary>
     public string Reason { get; }
 }
 
-public sealed record ViewerStats(double Fps, double Kbps, double RttMs, int Width, int Height, long FramesDecoded);
+public sealed record ViewerStats(double Fps, double Kbps, double RttMs, double DecodeMs, int Width, int Height, long FramesReceived);
 
 /// <summary>
-/// Connects to a host, completes the handshake and turns the incoming VP8 stream into decoded
-/// BGRA frames. Frames are decoded on the receive thread; the consumer decides how to present them.
+/// Connects to a host, completes the handshake and delivers the compressed frames to
+/// <see cref="VideoReceived"/> on the receive thread. Decoding is the consumer's job so the
+/// GPU decoder and the presenter can run without any extra hop.
 /// </summary>
 public sealed class ViewerClient : IDisposable
 {
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(8);
     private static readonly TimeSpan PingInterval = TimeSpan.FromSeconds(2);
 
-    private readonly Vp8Decoder _decoder = new();
     private TcpClient? _client;
     private NetworkStream? _stream;
     private CancellationTokenSource? _cts;
@@ -37,13 +36,15 @@ public sealed class ViewerClient : IDisposable
 
     private long _bytesWindow;
     private int _framesWindow;
+    private double _decodeWindowMs;
     private long _windowStart;
-    private long _framesDecoded;
+    private long _framesReceived;
     private double _rttMs;
     private int _width;
     private int _height;
 
-    public event Action<DecodedFrame>? FrameReady;
+    /// <summary>Called for each frame with its header and Annex B / VP8 payload; returns the decode time in ms.</summary>
+    public event Func<VideoPacketHeader, ReadOnlyMemory<byte>, double>? VideoReceived;
     public event Action<IReadOnlyList<string>>? ViewersChanged;
     public event Action<string>? StreamStateChanged;
     public event Action<ViewerStats>? StatsUpdated;
@@ -53,11 +54,7 @@ public sealed class ViewerClient : IDisposable
 
     public bool IsConnected => _client is not null && Interlocked.CompareExchange(ref _closed, 0, 0) == 0;
 
-    public async Task<WelcomeMessage> ConnectAsync(
-        InviteTarget target,
-        string displayName,
-        CancellationToken ct
-    )
+    public async Task<WelcomeMessage> ConnectAsync(InviteTarget target, string displayName, CancellationToken ct)
     {
         if (_client is not null)
             throw new InvalidOperationException("Already connected.");
@@ -81,6 +78,7 @@ public sealed class ViewerClient : IDisposable
             throw new ConnectException("unreachable", ex.Message, ex);
         }
 
+        client.ReceiveBufferSize = 4 * 1024 * 1024;
         var stream = client.GetStream();
         try
         {
@@ -206,26 +204,15 @@ public sealed class ViewerClient : IDisposable
         if (!VideoPacket.TryParse(payload, out var header, out var bitstream))
             return;
 
-        DecodedFrame? frame;
-        try
-        {
-            frame = _decoder.Decode(bitstream.Span);
-        }
-        catch (Exception)
-        {
-            RequestKeyframe();
-            return;
-        }
+        var handler = VideoReceived;
+        var decodeMs = handler?.Invoke(header, bitstream) ?? 0;
 
-        if (frame is null)
-            return;
-
-        _width = frame.Width;
-        _height = frame.Height;
-        Interlocked.Increment(ref _framesDecoded);
+        _width = header.Width;
+        _height = header.Height;
+        Interlocked.Increment(ref _framesReceived);
         _bytesWindow += payload.Length;
         _framesWindow++;
-        FrameReady?.Invoke(frame);
+        _decodeWindowMs += decodeMs;
         MaybePublishStats();
     }
 
@@ -240,12 +227,14 @@ public sealed class ViewerClient : IDisposable
             _framesWindow / seconds,
             _bytesWindow * 8 / 1000.0 / seconds,
             _rttMs,
+            _framesWindow > 0 ? _decodeWindowMs / _framesWindow : 0,
             _width,
             _height,
-            Interlocked.Read(ref _framesDecoded)
+            Interlocked.Read(ref _framesReceived)
         );
         _framesWindow = 0;
         _bytesWindow = 0;
+        _decodeWindowMs = 0;
         _windowStart = Stopwatch.GetTimestamp();
         StatsUpdated?.Invoke(stats);
     }
@@ -303,7 +292,6 @@ public sealed class ViewerClient : IDisposable
     public void Dispose()
     {
         _ = CloseAsync("disposed", sendBye: false);
-        _decoder.Dispose();
         _cts?.Dispose();
         _writeLock.Dispose();
     }

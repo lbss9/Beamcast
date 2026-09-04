@@ -4,16 +4,18 @@ namespace Beamcast;
 public static class QualityPreset
 {
     public const string Source = "Source";
+    public const string P2160 = "2160p";
+    public const string P1440 = "1440p";
     public const string P1080 = "1080p";
     public const string P720 = "720p";
     public const string P480 = "480p";
 
-    public static readonly string[] All = [Source, P1080, P720, P480];
+    public static readonly string[] All = [Source, P2160, P1440, P1080, P720, P480];
 
-    public static readonly int[] FpsOptions = [15, 24, 30, 60];
+    public static readonly int[] FpsOptions = [15, 24, 30, 60, 120];
 
     public const int MinBitrateKbps = 300;
-    public const int MaxBitrateKbps = 50_000;
+    public const int MaxBitrateKbps = 150_000;
 
     public static string Normalize(string? preset) =>
         All.FirstOrDefault(p => string.Equals(p, preset?.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -27,6 +29,8 @@ public static class QualityPreset
     public static int MaxHeight(string preset) =>
         Normalize(preset) switch
         {
+            P2160 => 2160,
+            P1440 => 1440,
             P1080 => 1080,
             P720 => 720,
             P480 => 480,
@@ -53,16 +57,29 @@ public static class QualityPreset
 
     private static int Even(int value) => value < 2 ? 2 : value & ~1;
 
-    /// <summary>A sensible default bitrate for the preset and frame rate, in kbps.</summary>
-    public static int SuggestedBitrate(string preset, int fps)
+    /// <summary>
+    /// A sensible default bitrate in kbps. GPU codecs get streaming-grade numbers (H.264 at 4K60
+    /// wants ~40 Mbps to look clean); HEVC needs roughly a third less; VP8 on the CPU stays modest.
+    /// </summary>
+    public static int SuggestedBitrate(string preset, int fps, string codec = "h264")
     {
         var baseline = Normalize(preset) switch
         {
-            P480 => 1200,
-            P720 => 2500,
-            P1080 => 5000,
-            _ => 8000,
+            P480 => 1500,
+            P720 => 4000,
+            P1080 => 8000,
+            P1440 => 16000,
+            P2160 => 30000,
+            _ => 30000,
         };
-        return fps >= 60 ? (int)(baseline * 1.5) : baseline;
+
+        var kbps = fps >= 120 ? baseline * 2.0 : fps >= 60 ? baseline * 1.4 : baseline;
+        kbps *= codec.ToLowerInvariant() switch
+        {
+            "hevc" => 0.65,
+            "vp8" => 0.6,
+            _ => 1.0,
+        };
+        return ClampBitrate((int)Math.Round(kbps / 250.0) * 250);
     }
 }

@@ -15,11 +15,14 @@ public sealed class AppSettings
 
     public string Password { get; set; } = string.Empty;
 
-    public string QualityPreset { get; set; } = Beamcast.QualityPreset.P1080;
+    public string QualityPreset { get; set; } = Beamcast.QualityPreset.Source;
 
-    public int Fps { get; set; } = 30;
+    public int Fps { get; set; } = 60;
 
-    public int BitrateKbps { get; set; } = 5000;
+    public int BitrateKbps { get; set; } = 30000;
+
+    /// <summary>Auto, H264, HEVC or VP8. Auto picks a GPU encoder when one exists.</summary>
+    public string Encoder { get; set; } = "Auto";
 
     public bool ShowCursor { get; set; } = true;
 
