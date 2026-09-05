@@ -11,8 +11,8 @@ Beamcast is a study project. See the README for the full notice.
 - Biblioteca Velopack alinhada à CLI (1.2.0). Serviço de update com log em `diag.log`, uma única
   instância do gerenciador, progresso do download na janela e retomada de atualização já baixada
   ("Reiniciar e concluir"). Notas de versão no release mostram só a seção da versão.
-- Quem está na 2.0.x/2.1.0 precisa instalar esta versão à mão (o instalador antigo não vê o feed);
-  daqui em diante as atualizações chegam sozinhas.
+- Instalações 2.0.x/2.1.0 já enxergam este feed e se atualizam sozinhas; daqui em diante toda
+  versão chega automaticamente.
 
 ## 2.1.0
 

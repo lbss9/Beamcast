@@ -1,6 +1,6 @@
 ## 2.1.1
 
-- Atualização automática consertada: os releases agora publicam o feed de atualização, então o app passa a receber versões novas sozinho. Esta versão precisa ser instalada à mão uma última vez.
+- Atualização automática consertada: os releases agora publicam o feed de atualização, então o app passa a receber versões novas sozinho.
 - Janela de atualização mostra o progresso do download e retoma uma atualização já baixada.
 
 ## 2.1.0
