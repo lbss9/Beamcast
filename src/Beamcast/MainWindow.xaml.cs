@@ -54,6 +54,8 @@ public sealed partial class MainWindow : Window
             e.Handled = true;
         };
         RootGrid.KeyboardAccelerators.Add(escape);
+        // WinUI shows an automatic "Esc" tooltip for accelerators on hover; not wanted for the whole window.
+        RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
 
         AppWindow.Closing += OnClosing;
         NavView.Loaded += (_, _) =>

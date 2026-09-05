@@ -2,6 +2,16 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.1.2
+
+- Borda amarela em volta da tela ou janela compartilhada removida. O Windows desenha essa moldura
+  em toda captura e só aceita o pedido `IsBorderRequired = false` depois que o app obtém acesso
+  "sem borda" (`GraphicsCaptureAccess.RequestAccessAsync(Borderless)`), que nunca era solicitado.
+  Agora o pedido é feito ao abrir o app. Em Windows 10 anterior ao build 20348 a moldura é do
+  sistema e não pode ser removida.
+- Sumiu o tooltip "Esc" que aparecia ao parar o mouse em qualquer ponto da janela (dica automática
+  do atalho de sair da tela cheia).
+
 ## 2.1.1
 
 - Atualização automática consertada. Os releases anteriores só tinham o MSI; o Velopack descobre

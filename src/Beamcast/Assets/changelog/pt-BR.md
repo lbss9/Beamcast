@@ -1,3 +1,8 @@
+## 2.1.2
+
+- A borda amarela em volta da tela ou janela compartilhada não aparece mais (Windows 11; no Windows 10 antigo ela é do sistema e não pode ser removida).
+- O tooltip "Esc" que aparecia ao parar o mouse na janela não aparece mais.
+
 ## 2.1.1
 
 - Atualização automática consertada: os releases agora publicam o feed de atualização, então o app passa a receber versões novas sozinho.

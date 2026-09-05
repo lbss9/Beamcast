@@ -63,6 +63,10 @@ public sealed class ScreenCapture : IDisposable
             StopCore();
             MaxFps = maxFps;
 
+            // Windows only honours IsBorderRequired = false after borderless access was granted
+            // to this process; the request starts at launch, so this normally returns at once.
+            SafeTry.Run(() => CaptureAccess.EnsureBorderlessAsync().Wait(TimeSpan.FromMilliseconds(800)));
+
             _item = CaptureInterop.CreateItem(source);
             _poolSize = _item.Size;
             _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
@@ -78,7 +82,10 @@ public sealed class ScreenCapture : IDisposable
             if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName!, nameof(GraphicsCaptureSession.IsCursorCaptureEnabled)))
                 SafeTry.Run(() => _session.IsCursorCaptureEnabled = ShowCursor);
             if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName!, nameof(GraphicsCaptureSession.IsBorderRequired)))
+            {
                 SafeTry.Run(() => _session.IsBorderRequired = false);
+                Diag.Log($"capture: border {(CaptureAccess.BorderlessGranted ? "hidden" : "kept by Windows (no borderless access)")}");
+            }
             // Newer Windows 11 builds throttle capture to ~60 Hz unless told otherwise, which on a
             // 75/120/144 Hz display means every other frame. 4 ms lets the display rate through.
             if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName!, "MinUpdateInterval"))

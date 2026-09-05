@@ -32,6 +32,8 @@ public partial class App : Application
             SettingsStore.Save(settings);
 
         ApplyCulture(settings.Language);
+        // Ask Windows early for capture without the coloured border, so the first capture is clean.
+        _ = Capture.CaptureAccess.EnsureBorderlessAsync();
         Main = new MainWindow();
         Main.ApplyTheme(settings.Theme);
         Main.Activate();

@@ -1,3 +1,8 @@
+## 2.1.2
+
+- The yellow border around the shared screen or window is gone (Windows 11; older Windows 10 builds draw it themselves and cannot remove it).
+- The stray "Esc" tooltip shown when hovering the window is gone.
+
 ## 2.1.1
 
 - Automatic updates fixed: releases now publish the update feed, so the app receives new versions on its own.
