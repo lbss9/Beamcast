@@ -166,7 +166,7 @@
   <data name="Lounge_Heading.Text" xml:space="preserve"><value>Salão</value></data>
   <data name="Lounge_Summary.Text" xml:space="preserve"><value>Aponte para o servidor de quem hospeda o Beamcast, crie um salão com senha ou entre em um com o código. Dentro do salão, qualquer pessoa transmite a tela e cada um escolhe o que assistir.</value></data>
   <data name="Lounge_Server.Header" xml:space="preserve"><value>Servidor (host ou IP)</value></data>
-  <data name="Lounge_Server.PlaceholderText" xml:space="preserve"><value>192.168.0.4 ou wss://beamcast.exemplo.com</value></data>
+  <data name="Lounge_Server.PlaceholderText" xml:space="preserve"><value>192.168.1.20 ou wss://beamcast.exemplo.com</value></data>
   <data name="Lounge_YourName.Header" xml:space="preserve"><value>Seu nome</value></data>
   <data name="Lounge_CreateHeading.Text" xml:space="preserve"><value>Criar um salão</value></data>
   <data name="Lounge_CreateHint.Text" xml:space="preserve"><value>A senha é obrigatória: ela vira a chave que cifra tudo de ponta a ponta. O servidor nunca a recebe.</value></data>

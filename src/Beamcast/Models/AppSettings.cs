@@ -20,7 +20,7 @@ public sealed class AppSettings
 
     public bool ShowCursor { get; set; } = true;
 
-    /// <summary>The Beamcast server (salão) this machine talks to, e.g. ws://192.168.0.4:47710.</summary>
+    /// <summary>The Beamcast server (salão) this machine talks to, e.g. ws://192.168.1.20:47710.</summary>
     public string RelayUrl { get; set; } = string.Empty;
 
     /// <summary>Optional key the server may demand (BEAMCAST_APP_KEY on the server).</summary>

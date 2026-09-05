@@ -76,8 +76,8 @@ public class LoungeProtocolTests
     }
 
     [Theory]
-    [InlineData("192.168.0.4", "ws://192.168.0.4:47710/ws")]
-    [InlineData("192.168.0.4:5000", "ws://192.168.0.4:5000/ws")]
+    [InlineData("192.168.1.20", "ws://192.168.1.20:47710/ws")]
+    [InlineData("192.168.1.20:5000", "ws://192.168.1.20:5000/ws")]
     [InlineData("beamcast.example.com", "ws://beamcast.example.com:47710/ws")]
     [InlineData("wss://beamcast.example.com", "wss://beamcast.example.com/ws")]
     [InlineData("https://beamcast.example.com/", "wss://beamcast.example.com/ws")]
@@ -113,21 +113,21 @@ public class LoungeProtocolTests
     [Fact]
     public void InviteRoundTripsAndAcceptsBareCodes()
     {
-        var code = LoungeInvite.Encode(new LoungeTarget("ws://192.168.0.4:47710/ws", "ABC234"));
+        var code = LoungeInvite.Encode(new LoungeTarget("ws://192.168.1.20:47710/ws", "ABC234"));
         Assert.StartsWith("BC-", code);
         Assert.True(LoungeInvite.TryDecode(code, "ws://other:1/ws", out var target));
-        Assert.Equal("ws://192.168.0.4:47710/ws", target.ServerUrl);
+        Assert.Equal("ws://192.168.1.20:47710/ws", target.ServerUrl);
         Assert.Equal("ABC234", target.Code);
 
-        Assert.True(LoungeInvite.TryDecode(" abc234 ", "192.168.0.4", out var bare));
-        Assert.Equal("ws://192.168.0.4:47710/ws", bare.ServerUrl);
+        Assert.True(LoungeInvite.TryDecode(" abc234 ", "192.168.1.20", out var bare));
+        Assert.Equal("ws://192.168.1.20:47710/ws", bare.ServerUrl);
         Assert.Equal("ABC234", bare.Code);
 
         Assert.True(LoungeInvite.TryDecode("beamcast.example.com ABC234", "", out var pair));
         Assert.Equal("ws://beamcast.example.com:47710/ws", pair.ServerUrl);
 
         Assert.False(LoungeInvite.TryDecode("ABC234", "", out _));
-        Assert.False(LoungeInvite.TryDecode("BC-!!!", "192.168.0.4", out _));
-        Assert.False(LoungeInvite.TryDecode("", "192.168.0.4", out _));
+        Assert.False(LoungeInvite.TryDecode("BC-!!!", "192.168.1.20", out _));
+        Assert.False(LoungeInvite.TryDecode("", "192.168.1.20", out _));
     }
 }

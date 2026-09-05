@@ -166,7 +166,7 @@
   <data name="Lounge_Heading.Text" xml:space="preserve"><value>Lounge</value></data>
   <data name="Lounge_Summary.Text" xml:space="preserve"><value>Point at the server of whoever hosts Beamcast, create a lounge with a password or join one with its code. Inside, anyone can broadcast their screen and everyone picks what to watch.</value></data>
   <data name="Lounge_Server.Header" xml:space="preserve"><value>Server (host or IP)</value></data>
-  <data name="Lounge_Server.PlaceholderText" xml:space="preserve"><value>192.168.0.4 or wss://beamcast.example.com</value></data>
+  <data name="Lounge_Server.PlaceholderText" xml:space="preserve"><value>192.168.1.20 or wss://beamcast.example.com</value></data>
   <data name="Lounge_YourName.Header" xml:space="preserve"><value>Your name</value></data>
   <data name="Lounge_CreateHeading.Text" xml:space="preserve"><value>Create a lounge</value></data>
   <data name="Lounge_CreateHint.Text" xml:space="preserve"><value>The password is required: it becomes the key that encrypts everything end to end. The server never receives it.</value></data>
