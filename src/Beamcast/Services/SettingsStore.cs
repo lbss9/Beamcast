@@ -65,6 +65,9 @@ public static class SettingsStore
         settings.BitrateKbps = QualityPreset.ClampBitrate(settings.BitrateKbps);
         settings.MaxViewers = Math.Clamp(settings.MaxViewers, 1, 100);
         settings.LastInvite ??= string.Empty;
+        settings.ConnectionMode = string.Equals(settings.ConnectionMode, "Direct", StringComparison.OrdinalIgnoreCase) ? "Direct" : "Relay";
+        settings.RelayUrl = Net.InviteCode.IsValidRelayUrl(settings.RelayUrl?.Trim()) ? settings.RelayUrl!.Trim() : AppInfo.DefaultRelayUrl;
+        settings.RelayAppKey = (settings.RelayAppKey ?? string.Empty).Trim();
         return settings;
     }
 }

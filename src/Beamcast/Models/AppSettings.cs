@@ -30,6 +30,13 @@ public sealed class AppSettings
 
     public string LastInvite { get; set; } = string.Empty;
 
+    /// <summary>"Relay" (through the server, works anywhere) or "Direct" (TCP to this machine, LAN/port forwarding).</summary>
+    public string ConnectionMode { get; set; } = "Relay";
+
+    public string RelayUrl { get; set; } = AppInfo.DefaultRelayUrl;
+
+    public string RelayAppKey { get; set; } = AppInfo.DefaultRelayAppKey;
+
     public bool CheckUpdatesOnLaunch { get; set; } = true;
 
     /// <summary>Set once the person has read and accepted the study-only notice.</summary>

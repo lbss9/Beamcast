@@ -11,15 +11,30 @@ public sealed record HostOptions(
     string? Password,
     string SessionName,
     string HostName,
-    int MaxViewers
-);
+    int MaxViewers,
+    InviteKind Kind = InviteKind.Direct,
+    string? Secret = null,
+    string? RelayUrl = null,
+    string? AppKey = null
+)
+{
+    /// <summary>Without a secret the stream is plaintext and anyone reaching the port can watch; only for LAN tests.</summary>
+    public bool IsSecure => !string.IsNullOrEmpty(Secret);
+}
 
 public sealed record ViewerInfo(Guid Id, string Name, string RemoteAddress, DateTimeOffset JoinedAt);
 
 /// <summary>
-/// TCP server the broadcaster runs. Accepts viewers, performs the challenge/response handshake and
-/// fans every encoded frame out to each viewer through its own outbox, so one slow connection
-/// never stalls the others.
+/// The broadcaster's server. Two shapes, same handshake and message flow:
+///
+/// - Direct: a TCP listener; every viewer gets its own outbox with a keyframe gate, so one slow
+///   connection never stalls the others.
+/// - Relay: one WebSocket to the relay, which multiplexes the viewers. Broadcast messages are sent
+///   once and fanned out by the relay (which runs the same gate per viewer); per-viewer messages
+///   travel tagged with the viewer id.
+///
+/// With a secret, everything after the Challenge is end-to-end encrypted; the relay only ever sees
+/// message types and the keyframe flag.
 /// </summary>
 public sealed class HostServer : IDisposable
 {
@@ -27,7 +42,12 @@ public sealed class HostServer : IDisposable
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
 
     private readonly ConcurrentDictionary<Guid, ViewerConnection> _viewers = new();
+    private readonly ConcurrentDictionary<uint, ViewerConnection> _relayViewers = new();
+    private readonly ConcurrentDictionary<uint, RelayViewerTransport> _relayTransports = new();
     private TcpListener? _listener;
+    private RelayHostLink? _relay;
+    private FrameGate? _upstreamGate;
+    private SecureChannel? _secure;
     private CancellationTokenSource? _cts;
     private HostOptions? _options;
     private volatile string _state = StreamStates.Live;
@@ -35,38 +55,64 @@ public sealed class HostServer : IDisposable
     private int _height;
     private int _fps;
     private string _codec = "vp8";
+    private string? _audio;
     private long _lastKeyframeRequestTicks;
 
     public event Action<ViewerInfo>? ViewerJoined;
     public event Action<ViewerInfo>? ViewerLeft;
     public event Action? KeyframeNeeded;
     public event Action<Exception>? Faulted;
+    public event Action<string>? RelayClosed;
 
-    public bool IsRunning => _listener is not null;
+    public bool IsRunning => _listener is not null || _relay is not null;
 
     public int ViewerCount => _viewers.Count;
+
+    public string? RoomCode => _relay?.Room;
 
     public IReadOnlyList<ViewerInfo> Viewers =>
         _viewers.Values.Select(v => v.Info).OrderBy(v => v.JoinedAt).ToList();
 
-    public void SetStreamInfo(int width, int height, int fps, string codec)
+    public void SetStreamInfo(int width, int height, int fps, string codec, string? audio = null)
     {
         _width = width;
         _height = height;
         _fps = fps;
         _codec = codec;
+        _audio = audio;
     }
 
-    public void Start(HostOptions options)
+    public void SetAudio(string? audio) => _audio = audio;
+
+    public async Task StartAsync(HostOptions options, CancellationToken ct)
     {
-        if (_listener is not null)
+        if (IsRunning)
             throw new InvalidOperationException("Server already running.");
 
         _options = options;
+        _secure = options.IsSecure ? SecureChannel.FromSecret(options.Secret!) : null;
         _cts = new CancellationTokenSource();
-        _listener = CreateListener(options.Port);
-        _listener.Start();
-        _ = AcceptLoopAsync(_listener, _cts.Token);
+
+        if (options.Kind == InviteKind.Relay)
+        {
+            if (!InviteCode.IsValidRelayUrl(options.RelayUrl))
+                throw new InvalidOperationException("Relay address is not valid.");
+            var relay = await RelayHostLink.ConnectAsync(options.RelayUrl!, options.AppKey, ct).ConfigureAwait(false);
+            relay.ViewerJoined += OnRelayViewerJoined;
+            relay.ViewerLeft += OnRelayViewerLeft;
+            relay.DataReceived += OnRelayData;
+            relay.Closed += OnRelayClosed;
+            _upstreamGate = new FrameGate(MaxPendingFramesPerViewer);
+            _relay = relay;
+            relay.Start(_cts.Token);
+            Diag.Log($"host: relay started, room {relay.Room}");
+        }
+        else
+        {
+            _listener = CreateListener(options.Port);
+            _listener.Start();
+            _ = AcceptLoopAsync(_listener, _cts.Token);
+        }
     }
 
     private static TcpListener CreateListener(int port)
@@ -86,9 +132,14 @@ public sealed class HostServer : IDisposable
     public void Stop()
     {
         // Say goodbye while the connections are still alive, then tear everything down.
+        var bye = Frame(MessageType.Bye, ReadOnlySpan<byte>.Empty);
         foreach (var viewer in _viewers.Values)
-            viewer.Close(sendBye: true);
+            viewer.Close(bye);
         _viewers.Clear();
+        _relayViewers.Clear();
+        foreach (var transport in _relayTransports.Values)
+            transport.Dispose();
+        _relayTransports.Clear();
 
         var cts = _cts;
         _cts = null;
@@ -97,37 +148,77 @@ public sealed class HostServer : IDisposable
         var listener = _listener;
         _listener = null;
         SafeTry.Run(() => listener?.Stop());
+
+        var relay = _relay;
+        _relay = null;
+        _upstreamGate = null;
+        relay?.Dispose();
+
         cts?.Dispose();
+        _secure?.Dispose();
+        _secure = null;
     }
 
     public void SetState(string state)
     {
         _state = state;
-        var payload = Json.Serialize(new StreamStateMessage { State = state });
-        foreach (var viewer in _viewers.Values)
-            viewer.EnqueueControl(MessageType.StreamState, payload);
+        BroadcastControl(MessageType.StreamState, Json.Serialize(new StreamStateMessage { State = state }));
     }
 
-    /// <summary>Offers a frame to every viewer. Returns true if at least one viewer wants a keyframe.</summary>
+    /// <summary>Offers a frame to every viewer (direct) or once to the relay.</summary>
     public void Broadcast(EncodedFrame frame)
     {
-        if (_viewers.IsEmpty)
+        if (_viewers.IsEmpty && _relay is null)
             return;
 
         var header = new VideoPacketHeader(frame.Sequence, frame.TimestampMs, frame.Width, frame.Height, frame.IsKeyframe);
         var body = VideoPacket.Build(header, frame.Data);
-        var framed = Framing.Encode(MessageType.Video, body);
+        var framed = Frame(MessageType.Video, body, frame.IsKeyframe ? MessageFlags.Keyframe : MessageFlags.None);
 
         var needKeyframe = false;
-        foreach (var viewer in _viewers.Values)
+        if (_relay is { } relay && _upstreamGate is { } gate)
         {
-            if (viewer.OfferVideo(framed, frame.IsKeyframe))
+            GateDecision decision;
+            lock (gate)
+            {
+                decision = gate.Offer(frame.IsKeyframe, relay.PendingBroadcastFrames);
+            }
+            if (decision == GateDecision.Send)
+                relay.SendBroadcast(framed, isVideo: true);
+            else if (decision == GateDecision.DropAndRequestKeyframe)
                 needKeyframe = true;
+        }
+        else
+        {
+            foreach (var viewer in _viewers.Values)
+            {
+                if (viewer.OfferVideo(framed, frame.IsKeyframe))
+                    needKeyframe = true;
+            }
         }
 
         if (needKeyframe)
             RaiseKeyframeNeeded();
     }
+
+    /// <summary>Sends an encoded audio packet to everyone. Audio is never gated; it is tiny.</summary>
+    public void BroadcastAudio(byte[] audioPacket) => BroadcastControl(MessageType.Audio, audioPacket);
+
+    private void BroadcastControl(MessageType type, byte[] payload)
+    {
+        var framed = Frame(type, payload);
+        if (_relay is { } relay)
+        {
+            relay.SendBroadcast(framed, isVideo: false);
+            return;
+        }
+        foreach (var viewer in _viewers.Values)
+            viewer.EnqueueFramed(framed);
+    }
+
+    /// <summary>Frames a message, encrypting it when the session has a secret.</summary>
+    private byte[] Frame(MessageType type, ReadOnlySpan<byte> payload, byte flags = MessageFlags.None) =>
+        _secure is { } secure ? secure.Seal(type, payload, flags) : Framing.Encode(type, payload, flags);
 
     private void RaiseKeyframeNeeded()
     {
@@ -147,7 +238,10 @@ public sealed class HostServer : IDisposable
             while (!ct.IsCancellationRequested)
             {
                 var client = await listener.AcceptTcpClientAsync(ct).ConfigureAwait(false);
-                _ = HandleClientAsync(client, ct);
+                client.NoDelay = true;
+                var remote = client.Client.RemoteEndPoint?.ToString() ?? "?";
+                var transport = new StreamTransport(client.GetStream(), client);
+                _ = HandshakeAsync(transport, remote, relayViewerId: null, ct);
             }
         }
         catch (OperationCanceledException) { }
@@ -159,18 +253,47 @@ public sealed class HostServer : IDisposable
         }
     }
 
-    private async Task HandleClientAsync(TcpClient client, CancellationToken ct)
+    private void OnRelayViewerJoined(uint viewerId)
+    {
+        var relay = _relay;
+        var cts = _cts;
+        if (relay is null || cts is null)
+            return;
+        Diag.Log($"host: relay viewer {viewerId} joined");
+        var transport = new RelayViewerTransport(relay, viewerId);
+        _relayTransports[viewerId] = transport;
+        _ = HandshakeAsync(transport, $"relay#{viewerId}", viewerId, cts.Token);
+    }
+
+    private void OnRelayViewerLeft(uint viewerId)
+    {
+        if (_relayTransports.TryRemove(viewerId, out var transport))
+            transport.Dispose();
+        if (_relayViewers.TryRemove(viewerId, out var viewer))
+            viewer.Close(null);
+    }
+
+    private void OnRelayData(uint viewerId, Message message)
+    {
+        if (_relayTransports.TryGetValue(viewerId, out var transport))
+            transport.Deliver(message);
+        else
+            Diag.Log($"host: data from unknown relay viewer {viewerId} type {message.Type}");
+    }
+
+    private void OnRelayClosed(string reason)
+    {
+        RelayClosed?.Invoke(reason);
+    }
+
+    private async Task HandshakeAsync(IMessageTransport transport, string remote, uint? relayViewerId, CancellationToken ct)
     {
         var options = _options;
         if (options is null)
         {
-            client.Dispose();
+            transport.Dispose();
             return;
         }
-
-        client.NoDelay = true;
-        var stream = client.GetStream();
-        var remote = client.Client.RemoteEndPoint?.ToString() ?? "?";
 
         try
         {
@@ -180,48 +303,65 @@ public sealed class HostServer : IDisposable
 
             var nonce = AuthProof.NewNonce();
             var requiresPassword = !string.IsNullOrEmpty(options.Password);
-            await MessageStream.WriteJsonAsync(
-                stream,
-                MessageType.Challenge,
-                new ChallengeMessage { Protocol = AppInfo.ProtocolVersion, Nonce = nonce, RequiresPassword = requiresPassword },
-                hct
-            ).ConfigureAwait(false);
+            var challenge = new ChallengeMessage
+            {
+                Protocol = AppInfo.ProtocolVersion,
+                Nonce = nonce,
+                RequiresPassword = requiresPassword,
+                RequiresSecret = _secure is not null,
+            };
+            await transport.WriteFramedAsync(Framing.Encode(MessageType.Challenge, Json.Serialize(challenge)), hct).ConfigureAwait(false);
+            Diag.Log($"host: challenge sent to {remote}");
 
-            var message = await MessageStream.ReadAsync(stream, hct).ConfigureAwait(false);
+            var message = await transport.ReadAsync(hct).ConfigureAwait(false);
+            Diag.Log($"host: handshake reply from {remote}: {(message is null ? "null" : message.Value.Type.ToString())}");
             if (message is null || message.Value.Type != MessageType.Hello)
             {
-                client.Dispose();
+                transport.Dispose();
                 return;
             }
 
-            var hello = Json.Deserialize<HelloMessage>(message.Value.Payload);
+            var helloBytes = message.Value.Payload;
+            if (_secure is { } secure)
+            {
+                if (!secure.TryOpen(message.Value, out helloBytes))
+                {
+                    await RejectAsync(transport, RejectReasons.Secret, hct).ConfigureAwait(false);
+                    transport.Dispose();
+                    return;
+                }
+            }
+
+            var hello = Json.Deserialize<HelloMessage>(helloBytes);
             if (hello is null || hello.Protocol != AppInfo.ProtocolVersion)
             {
-                await RejectAsync(stream, RejectReasons.Version, hct).ConfigureAwait(false);
-                client.Dispose();
+                await RejectAsync(transport, RejectReasons.Version, hct).ConfigureAwait(false);
+                transport.Dispose();
                 return;
             }
 
             if (requiresPassword && !AuthProof.Verify(options.Password!, nonce, hello.Auth))
             {
-                await RejectAsync(stream, RejectReasons.Password, hct).ConfigureAwait(false);
-                client.Dispose();
+                await RejectAsync(transport, RejectReasons.Password, hct).ConfigureAwait(false);
+                transport.Dispose();
                 return;
             }
 
-            if (_viewers.Count >= options.MaxViewers)
+            if (options.MaxViewers > 0 && _viewers.Count >= options.MaxViewers)
             {
-                await RejectAsync(stream, RejectReasons.Full, hct).ConfigureAwait(false);
-                client.Dispose();
+                await RejectAsync(transport, RejectReasons.Full, hct).ConfigureAwait(false);
+                transport.Dispose();
                 return;
             }
 
             var name = SanitizeName(hello.Name);
             var info = new ViewerInfo(Guid.NewGuid(), name, remote, DateTimeOffset.Now);
-            var viewer = new ViewerConnection(client, stream, info, MaxPendingFramesPerViewer, ct);
+            var viewer = new ViewerConnection(transport, info, MaxPendingFramesPerViewer, _secure, ct);
             viewer.KeyframeRequested += RaiseKeyframeNeeded;
             viewer.Closed += () => OnViewerClosed(viewer);
             _viewers[info.Id] = viewer;
+            if (relayViewerId is { } id)
+                _relayViewers[id] = viewer;
 
             var welcome = new WelcomeMessage
             {
@@ -232,19 +372,21 @@ public sealed class HostServer : IDisposable
                 Height = _height,
                 Fps = _fps,
                 State = _state,
+                Audio = _audio,
                 Viewers = Viewers.Select(v => v.Name).ToList(),
             };
-            await MessageStream.WriteJsonAsync(stream, MessageType.Welcome, welcome, hct).ConfigureAwait(false);
+            await transport.WriteFramedAsync(Frame(MessageType.Welcome, Json.Serialize(welcome)), hct).ConfigureAwait(false);
 
+            Diag.Log($"host: welcome sent to {remote} ({name})");
             viewer.Start();
-            Diag.Log($"server: viewer {name} joined from {remote}");
             ViewerJoined?.Invoke(info);
             BroadcastViewerList();
             RaiseKeyframeNeeded();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            client.Dispose();
+            Diag.Log($"host: handshake with {remote} failed: {ex.GetType().Name} {ex.Message}");
+            transport.Dispose();
         }
     }
 
@@ -256,44 +398,46 @@ public sealed class HostServer : IDisposable
         return trimmed.Length > 32 ? trimmed[..32] : trimmed;
     }
 
-    private static Task RejectAsync(Stream stream, string reason, CancellationToken ct) =>
-        MessageStream.WriteJsonAsync(stream, MessageType.Reject, new RejectMessage { Reason = reason }, ct);
+    /// <summary>Rejects are always plaintext: the viewer may not hold the secret, and needs to know why.</summary>
+    private static Task RejectAsync(IMessageTransport transport, string reason, CancellationToken ct) =>
+        transport.WriteFramedAsync(Framing.Encode(MessageType.Reject, Json.Serialize(new RejectMessage { Reason = reason })), ct);
 
     private void OnViewerClosed(ViewerConnection viewer)
     {
         if (!_viewers.TryRemove(viewer.Info.Id, out _))
             return;
+        foreach (var pair in _relayViewers.Where(p => ReferenceEquals(p.Value, viewer)).ToList())
+        {
+            _relayViewers.TryRemove(pair.Key, out _);
+            if (_relayTransports.TryRemove(pair.Key, out var transport))
+                transport.Dispose();
+        }
         ViewerLeft?.Invoke(viewer.Info);
         BroadcastViewerList();
     }
 
-    private void BroadcastViewerList()
-    {
-        var payload = Json.Serialize(new ViewersMessage { Viewers = Viewers.Select(v => v.Name).ToList() });
-        foreach (var viewer in _viewers.Values)
-            viewer.EnqueueControl(MessageType.Viewers, payload);
-    }
+    private void BroadcastViewerList() =>
+        BroadcastControl(MessageType.Viewers, Json.Serialize(new ViewersMessage { Viewers = Viewers.Select(v => v.Name).ToList() }));
 
     public void Dispose() => Stop();
 
     /// <summary>One connected viewer: an outbox with the frame gate, plus a reader for control messages.</summary>
     private sealed class ViewerConnection
     {
-        private readonly TcpClient _client;
-        private readonly NetworkStream _stream;
+        private readonly IMessageTransport _transport;
         private readonly Channel<(byte[] Bytes, bool IsVideo)> _outbox;
         private readonly FrameGate _gate;
         private readonly object _gateLock = new();
+        private readonly SecureChannel? _secure;
         private readonly CancellationTokenSource _cts;
         private int _pendingVideo;
-        private int _drops;
         private int _closed;
 
-        public ViewerConnection(TcpClient client, NetworkStream stream, ViewerInfo info, int maxPending, CancellationToken parent)
+        public ViewerConnection(IMessageTransport transport, ViewerInfo info, int maxPending, SecureChannel? secure, CancellationToken parent)
         {
-            _client = client;
-            _stream = stream;
+            _transport = transport;
             Info = info;
+            _secure = secure;
             _gate = new FrameGate(maxPending);
             _outbox = Channel.CreateUnbounded<(byte[], bool)>(new UnboundedChannelOptions { SingleReader = true });
             _cts = CancellationTokenSource.CreateLinkedTokenSource(parent);
@@ -319,9 +463,6 @@ public sealed class HostServer : IDisposable
                 decision = _gate.Offer(isKeyframe, Volatile.Read(ref _pendingVideo));
             }
 
-            if (decision != GateDecision.Send && (++_drops % 60 == 1))
-                Diag.Log($"server: gate {decision} for {Info.Name} (drops={_drops}, pending={Volatile.Read(ref _pendingVideo)}, key={isKeyframe})");
-
             switch (decision)
             {
                 case GateDecision.Send:
@@ -335,8 +476,7 @@ public sealed class HostServer : IDisposable
             }
         }
 
-        public void EnqueueControl(MessageType type, byte[] payload) =>
-            _outbox.Writer.TryWrite((Framing.Encode(type, payload), false));
+        public void EnqueueFramed(byte[] framed) => _outbox.Writer.TryWrite((framed, false));
 
         private async Task SendLoopAsync(CancellationToken ct)
         {
@@ -347,7 +487,7 @@ public sealed class HostServer : IDisposable
                 {
                     while (reader.TryRead(out var item))
                     {
-                        await _stream.WriteAsync(item.Bytes, ct).ConfigureAwait(false);
+                        await _transport.WriteFramedAsync(item.Bytes, ct).ConfigureAwait(false);
                         if (item.IsVideo)
                             Interlocked.Decrement(ref _pendingVideo);
                     }
@@ -356,7 +496,7 @@ public sealed class HostServer : IDisposable
             catch (Exception) { }
             finally
             {
-                Close(sendBye: false);
+                Close(null);
             }
         }
 
@@ -366,14 +506,27 @@ public sealed class HostServer : IDisposable
             {
                 while (!ct.IsCancellationRequested)
                 {
-                    var message = await MessageStream.ReadAsync(_stream, ct).ConfigureAwait(false);
+                    var message = await _transport.ReadAsync(ct).ConfigureAwait(false);
                     if (message is null)
                         break;
 
-                    switch (message.Value.Type)
+                    var m = message.Value;
+                    byte[] payload = m.Payload;
+                    if (m.IsEncrypted)
+                    {
+                        if (_secure is null || !_secure.TryOpen(m, out payload))
+                            continue;
+                    }
+                    else if (_secure is not null && m.Type != MessageType.KeyframeRequest && m.Type != MessageType.Bye)
+                    {
+                        // Only the relay's synthesized keyframe requests may arrive in the clear.
+                        continue;
+                    }
+
+                    switch (m.Type)
                     {
                         case MessageType.Ping:
-                            EnqueueControl(MessageType.Pong, message.Value.Payload);
+                            EnqueueFramed(_secure is { } s ? s.Seal(MessageType.Pong, payload) : Framing.Encode(MessageType.Pong, payload));
                             break;
                         case MessageType.KeyframeRequest:
                             lock (_gateLock)
@@ -383,7 +536,7 @@ public sealed class HostServer : IDisposable
                             KeyframeRequested?.Invoke();
                             break;
                         case MessageType.Bye:
-                            Close(sendBye: false);
+                            Close(null);
                             return;
                     }
                 }
@@ -391,27 +544,27 @@ public sealed class HostServer : IDisposable
             catch (Exception) { }
             finally
             {
-                Close(sendBye: false);
+                Close(null);
             }
         }
 
-        public void Close(bool sendBye)
+        public void Close(byte[]? bye)
         {
             if (Interlocked.Exchange(ref _closed, 1) != 0)
                 return;
 
-            if (sendBye)
+            if (bye is not null)
             {
                 SafeTry.Run(() =>
                 {
-                    _stream.Write(Framing.Encode(MessageType.Bye, ReadOnlySpan<byte>.Empty));
-                    _stream.Flush();
+                    using var timeout = new CancellationTokenSource(500);
+                    _transport.WriteFramedAsync(bye, timeout.Token).Wait(timeout.Token);
                 });
             }
 
             _outbox.Writer.TryComplete();
             SafeTry.Run(() => _cts.Cancel());
-            SafeTry.Run(() => _client.Dispose());
+            SafeTry.Run(() => _transport.Dispose());
             _cts.Dispose();
             Closed?.Invoke();
         }

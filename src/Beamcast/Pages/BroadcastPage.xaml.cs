@@ -13,7 +13,7 @@ namespace Beamcast.Pages;
 
 public sealed partial class BroadcastPage : Page
 {
-    private static readonly string PublicIpPending = "…";
+    private static readonly string[] Modes = ["Relay", "Direct"];
 
     private readonly ObservableCollection<CaptureSource> _monitors = [];
     private readonly ObservableCollection<CaptureSource> _windows = [];
@@ -33,6 +33,8 @@ public sealed partial class BroadcastPage : Page
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
+
+    private bool IsRelayMode => ModeBox.SelectedIndex != 1;
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -56,13 +58,24 @@ public sealed partial class BroadcastPage : Page
             FpsBox.Items.Add($"{fps} fps");
         FpsBox.SelectedIndex = Array.IndexOf(QualityPreset.FpsOptions, _service.Fps);
 
+        ModeBox.Items.Clear();
+        ModeBox.Items.Add(Loc.Get("Mode_Relay"));
+        ModeBox.Items.Add(Loc.Get("Mode_Direct"));
+        var mode = _service.Options?.Kind switch
+        {
+            InviteKind.Relay => "Relay",
+            InviteKind.Direct => "Direct",
+            _ => settings.ConnectionMode,
+        };
+        ModeBox.SelectedIndex = Math.Max(0, Array.IndexOf(Modes, mode));
+
         BitrateBox.Value = _service.BitrateKbps;
         CursorSwitch.IsOn = _service.ShowCursor;
         SessionNameBox.Text = _service.Options?.SessionName ?? settings.SessionName;
         PortBox.Value = _service.Options?.Port ?? settings.Port;
         PasswordBox.Password = _service.Options?.Password ?? settings.Password;
 
-        FillAddresses(settings);
+        FillAddresses();
         RefreshSources();
         SyncSelectionFromService();
 
@@ -78,7 +91,7 @@ public sealed partial class BroadcastPage : Page
         ApplyState(_service.State);
         OnStats(_service.LastStats);
         OnViewersChanged();
-        UpdateInviteCode();
+        ApplyMode();
     }
 
     private static string EncoderLabel(VideoCodec codec, string name) =>
@@ -109,10 +122,11 @@ public sealed partial class BroadcastPage : Page
             s.BitrateKbps = _service.BitrateKbps;
             s.ShowCursor = _service.ShowCursor;
             s.Encoder = _service.EncoderPreferenceValue;
+            s.ConnectionMode = IsRelayMode ? "Relay" : "Direct";
         });
     }
 
-    private void FillAddresses(AppSettings settings)
+    private void FillAddresses()
     {
         AddressBox.Items.Clear();
         foreach (var address in NetworkInfo.LocalAddresses())
@@ -218,6 +232,22 @@ public sealed partial class BroadcastPage : Page
         _service.ShowCursor = CursorSwitch.IsOn;
     }
 
+    private void OnModeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading)
+            return;
+        ApplyMode();
+    }
+
+    private void ApplyMode()
+    {
+        var relay = IsRelayMode;
+        PortBox.Visibility = relay ? Visibility.Collapsed : Visibility.Visible;
+        AddressRow.Visibility = relay ? Visibility.Collapsed : Visibility.Visible;
+        InviteHintText.Text = Loc.Get(relay ? "Invite_HintRelay" : "Invite_HintDirect");
+        UpdateInviteCode();
+    }
+
     private void OnPasswordChanged(object sender, RoutedEventArgs e) => UpdateInviteCode();
 
     private void OnInviteInputChanged(object sender, object e) => UpdateInviteCode();
@@ -232,17 +262,27 @@ public sealed partial class BroadcastPage : Page
     {
         if (_loading)
             return;
-        var address = AddressBox.SelectedItem as string;
-        if (string.IsNullOrEmpty(address) || address == PublicIpPending)
+
+        var invite = _service.CurrentInvite;
+        if (_service.State != BroadcastState.Live || invite is null)
         {
             InviteCodeBox.Text = string.Empty;
+            InviteStatusText.Text = Loc.Get("Invite_NotLive");
+            CopyButton.IsEnabled = false;
             return;
         }
 
-        var password = PasswordBox.Password;
-        InviteCodeBox.Text = InviteCode.Encode(
-            new InviteTarget(address, PortValue(), password.Length == 0 ? null : password)
-        );
+        CopyButton.IsEnabled = true;
+        if (invite.Kind == InviteKind.Relay)
+        {
+            InviteCodeBox.Text = InviteCode.Encode(invite);
+            InviteStatusText.Text = Loc.Format("Invite_RelayReady", invite.Room ?? string.Empty);
+            return;
+        }
+
+        var address = AddressBox.SelectedItem as string;
+        InviteStatusText.Text = Loc.Get("Invite_DirectReady");
+        InviteCodeBox.Text = string.IsNullOrEmpty(address) ? string.Empty : InviteCode.Encode(_service.InviteFor(address)!);
     }
 
     private async void OnFindPublicIp(object sender, RoutedEventArgs e)
@@ -285,7 +325,7 @@ public sealed partial class BroadcastPage : Page
         CopyButton.Content = Loc.Get("Invite_Copy/Content");
     }
 
-    private void OnGoLive(object sender, RoutedEventArgs e)
+    private async void OnGoLive(object sender, RoutedEventArgs e)
     {
         ErrorText.Text = string.Empty;
         if (_service.Source is null)
@@ -300,22 +340,42 @@ public sealed partial class BroadcastPage : Page
             name = Loc.Format("Session_DefaultName", settings.DisplayName);
 
         var password = PasswordBox.Password;
+        var relay = IsRelayMode;
         var options = new HostOptions(
             PortValue(),
             password.Length == 0 ? null : password,
             name,
             settings.DisplayName,
-            settings.MaxViewers
+            0,
+            relay ? InviteKind.Relay : InviteKind.Direct,
+            SecureChannel.NewSecret(),
+            relay ? settings.RelayUrl : null,
+            relay ? settings.RelayAppKey : null
         );
 
+        GoLiveButton.IsEnabled = false;
         try
         {
-            _service.GoLive(options);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await _service.GoLiveAsync(options, cts.Token);
             PersistInputs();
+        }
+        catch (RelayException ex)
+        {
+            ErrorText.Text = ex.Reason switch
+            {
+                RelayProtocol.ReasonBadKey => Loc.Get("Error_AppKey"),
+                "unreachable" or "timeout" => Loc.Get("Error_RelayUnreachable"),
+                _ => Loc.Format("Error_GoLiveRelay", ex.Reason),
+            };
         }
         catch (Exception ex)
         {
             ErrorText.Text = Loc.Format("Error_GoLive", ex.Message);
+        }
+        finally
+        {
+            GoLiveButton.IsEnabled = _service.State == BroadcastState.Preview;
         }
     }
 
@@ -339,6 +399,7 @@ public sealed partial class BroadcastPage : Page
         PasswordBox.IsEnabled = !live;
         SessionNameBox.IsEnabled = !live;
         EncoderBox.IsEnabled = !live;
+        ModeBox.IsEnabled = !live;
         PreviewHint.Visibility = state == BroadcastState.Idle ? Visibility.Visible : Visibility.Collapsed;
         if (state == BroadcastState.Idle)
         {
@@ -346,6 +407,7 @@ public sealed partial class BroadcastPage : Page
             SyncSelectionFromService();
         }
         OnStats(_service.LastStats);
+        UpdateInviteCode();
     }
 
     private void OnPreviewStarted()
@@ -380,7 +442,7 @@ public sealed partial class BroadcastPage : Page
 public sealed class KindGlyphConverter : Microsoft.UI.Xaml.Data.IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, string language) =>
-        value is CaptureSourceKind.Monitor ? "" : "";
+        value is CaptureSourceKind.Monitor ? "" : "";
 
     public object ConvertBack(object value, Type targetType, object parameter, string language) =>
         throw new NotSupportedException();

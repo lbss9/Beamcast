@@ -9,35 +9,42 @@ public class ProtocolTests
     public void FramingRoundTrips()
     {
         var payload = new byte[] { 1, 2, 3, 4, 5 };
-        var framed = Framing.Encode(MessageType.Video, payload);
+        var framed = Framing.Encode(MessageType.Video, payload, MessageFlags.Keyframe);
 
-        Assert.Equal(Framing.HeaderSize + 1 + payload.Length, framed.Length);
-        Assert.True(Framing.TryDecode(framed, out var type, out var decoded, out var consumed));
-        Assert.Equal(MessageType.Video, type);
-        Assert.Equal(payload, decoded);
+        Assert.Equal(Framing.HeaderSize + Framing.PrefixSize + payload.Length, framed.Length);
+        Assert.True(Framing.TryDecode(framed, out var message, out var consumed));
+        Assert.Equal(MessageType.Video, message.Type);
+        Assert.True(message.IsKeyframe);
+        Assert.False(message.IsEncrypted);
+        Assert.Equal(payload, message.Payload);
         Assert.Equal(framed.Length, consumed);
+        Assert.True(Framing.TryPeek(framed, out var type, out var flags));
+        Assert.Equal(MessageType.Video, type);
+        Assert.Equal(MessageFlags.Keyframe, flags);
     }
 
     [Fact]
     public void FramingHandlesEmptyPayload()
     {
         var framed = Framing.Encode(MessageType.KeyframeRequest, ReadOnlySpan<byte>.Empty);
-        Assert.True(Framing.TryDecode(framed, out var type, out var payload, out _));
-        Assert.Equal(MessageType.KeyframeRequest, type);
-        Assert.Empty(payload);
+        Assert.True(Framing.TryDecodeWhole(framed, out var message));
+        Assert.Equal(MessageType.KeyframeRequest, message.Type);
+        Assert.Empty(message.Payload);
     }
 
     [Fact]
     public void FramingWaitsForWholeMessage()
     {
         var framed = Framing.Encode(MessageType.Hello, new byte[] { 9, 9, 9 });
-        Assert.False(Framing.TryDecode(framed.AsSpan(0, framed.Length - 1), out _, out _, out _));
+        Assert.False(Framing.TryDecode(framed.AsSpan(0, framed.Length - 1), out _, out _));
+        Assert.False(Framing.TryDecodeWhole(framed.Concat(new byte[] { 1 }).ToArray(), out _));
     }
 
     [Fact]
     public void FramingRejectsHostileLengths()
     {
         Assert.False(Framing.TryReadLength(new byte[] { 0, 0, 0, 0 }, out _));
+        Assert.False(Framing.TryReadLength(new byte[] { 1, 0, 0, 0 }, out _));
         Assert.False(Framing.TryReadLength(new byte[] { 0xFF, 0xFF, 0xFF, 0x7F }, out _));
         Assert.False(Framing.TryReadLength(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF }, out _));
     }
@@ -52,6 +59,17 @@ public class ProtocolTests
         Assert.True(VideoPacket.TryParse(body, out var parsed, out var data));
         Assert.Equal(header, parsed);
         Assert.Equal(bitstream, data.ToArray());
+    }
+
+    [Fact]
+    public void AudioPacketRoundTrips()
+    {
+        var header = new AudioPacketHeader(7, 123456, 48000, 2);
+        var body = AudioPacket.Build(header, new byte[] { 0xAA, 0xBB });
+        Assert.True(AudioPacket.TryParse(body, out var parsed, out var opus));
+        Assert.Equal(header, parsed);
+        Assert.Equal(new byte[] { 0xAA, 0xBB }, opus.ToArray());
+        Assert.False(AudioPacket.TryParse(AudioPacket.Build(header, ReadOnlySpan<byte>.Empty), out _, out _));
     }
 
     [Fact]

@@ -282,6 +282,12 @@
                         <StackPanel Spacing="10">
                             <TextBlock x:Uid="Session_Heading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
                             <TextBox x:Name="SessionNameBox" x:Uid="Session_Name" MaxLength="48" />
+                            <ComboBox
+                                x:Name="ModeBox"
+                                x:Uid="Session_Mode"
+                                HorizontalAlignment="Stretch"
+                                SelectionChanged="OnModeChanged"
+                            />
                             <NumberBox
                                 x:Name="PortBox"
                                 x:Uid="Session_Port"
@@ -304,7 +310,8 @@
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel Spacing="10">
                         <TextBlock x:Uid="Invite_Heading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                        <Grid ColumnSpacing="8">
+                        <TextBlock x:Name="InviteStatusText" Style="{StaticResource HintTextStyle}" />
+                        <Grid x:Name="AddressRow" ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -342,7 +349,7 @@
                                 Click="OnCopyInvite"
                             />
                         </Grid>
-                        <TextBlock x:Uid="Invite_Hint" Style="{StaticResource HintTextStyle}" />
+                        <TextBlock x:Name="InviteHintText" Style="{StaticResource HintTextStyle}" />
                         <TextBlock
                             x:Uid="Invite_StudyNote"
                             Style="{StaticResource HintTextStyle}"

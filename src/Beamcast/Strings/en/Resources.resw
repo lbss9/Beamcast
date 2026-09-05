@@ -103,16 +103,16 @@
   <data name="Disclaimer_P1" xml:space="preserve"><value>Beamcast exists only for study and case studies about screen capture, video codecs and real-time streaming on Windows. It is the research base for a separate, private, enterprise application. It is not a product and was not built for real use.</value></data>
   <data name="Disclaimer_P2" xml:space="preserve"><value>Any use of this app or this code for other purposes is the sole responsibility of whoever uses it. By using it you declare that you are aware of this and accept every risk, including exposing whatever is on your screen.</value></data>
   <data name="Disclaimer_P3" xml:space="preserve"><value>The author accepts no responsibility for the use, the results, losses or damages arising from this software. It is provided "as is", with no warranty, no support and no maintenance commitment.</value></data>
-  <data name="Disclaimer_P4" xml:space="preserve"><value>Video traffic is not encrypted and the app has not been hardened for the internet. Use it only in study environments you control.</value></data>
+  <data name="Disclaimer_P4" xml:space="preserve"><value>The app has not been hardened for production. Video is end-to-end encrypted, but use it only in study environments you control.</value></data>
   <data name="Disclaimer_P1_Text.Text" xml:space="preserve"><value>Beamcast exists only for study and case studies about screen capture, video codecs and real-time streaming on Windows. It is the research base for a separate, private, enterprise application. It is not a product and was not built for real use.</value></data>
   <data name="Disclaimer_P2_Text.Text" xml:space="preserve"><value>Any use of this app or this code for other purposes is the sole responsibility of whoever uses it. By using it you declare that you are aware of this and accept every risk, including exposing whatever is on your screen.</value></data>
   <data name="Disclaimer_P3_Text.Text" xml:space="preserve"><value>The author accepts no responsibility for the use, the results, losses or damages arising from this software. It is provided "as is", with no warranty, no support and no maintenance commitment.</value></data>
-  <data name="Disclaimer_P4_Text.Text" xml:space="preserve"><value>Video traffic is not encrypted and the app has not been hardened for the internet. Use it only in study environments you control.</value></data>
+  <data name="Disclaimer_P4_Text.Text" xml:space="preserve"><value>The app has not been hardened for production. Video is end-to-end encrypted, but use it only in study environments you control.</value></data>
   <data name="Disclaimer_Accept" xml:space="preserve"><value>I understand and accept the risk</value></data>
   <data name="Disclaimer_Quit" xml:space="preserve"><value>Close the app</value></data>
   <data name="Disclaimer_Close" xml:space="preserve"><value>Close</value></data>
   <data name="Disclaimer_ReadAgain.Content" xml:space="preserve"><value>Read the full notice</value></data>
-  <data name="Invite_StudyNote.Text" xml:space="preserve"><value>Study project: use at your own risk. Video travels unencrypted.</value></data>
+  <data name="Invite_StudyNote.Text" xml:space="preserve"><value>Study project: use at your own risk.</value></data>
 
   <data name="About_UpdatesTitle.Text" xml:space="preserve"><value>Updates</value></data>
   <data name="About_CheckUpdates.Content" xml:space="preserve"><value>Check now</value></data>
@@ -147,4 +147,24 @@
   <data name="Encoder_Unavailable" xml:space="preserve"><value>{0} (no encoder on this machine)</value></data>
   <data name="Encoder_Vp8" xml:space="preserve"><value>VP8 (CPU, compatible)</value></data>
   <data name="Error_Codec" xml:space="preserve"><value>This machine cannot decode the codec used by the stream.</value></data>
+
+  <data name="Session_Mode.Header" xml:space="preserve"><value>How viewers reach you</value></data>
+  <data name="Mode_Relay" xml:space="preserve"><value>Over the internet (Beamcast server)</value></data>
+  <data name="Mode_Direct" xml:space="preserve"><value>Direct (same network or forwarded port)</value></data>
+  <data name="Invite_NotLive" xml:space="preserve"><value>Go live to generate the code. It changes every session.</value></data>
+  <data name="Invite_RelayReady" xml:space="preserve"><value>Room {0} is open on the server. Send the code; it works from any network.</value></data>
+  <data name="Invite_DirectReady" xml:space="preserve"><value>Pick the address viewers will use and send the code.</value></data>
+  <data name="Invite_HintRelay" xml:space="preserve"><value>Video is end-to-end encrypted: not even the server can see it.</value></data>
+  <data name="Invite_HintDirect" xml:space="preserve"><value>On the same network just send the code. Over the internet, forward the port on your router and use the public IP.</value></data>
+  <data name="Error_RelayLost" xml:space="preserve"><value>Lost the connection to the server. The stream has ended.</value></data>
+  <data name="Error_RelayUnreachable" xml:space="preserve"><value>Could not reach the Beamcast server. Check the address in Settings.</value></data>
+  <data name="Error_NoRoom" xml:space="preserve"><value>That room no longer exists. Ask the broadcaster for a new code.</value></data>
+  <data name="Error_AppKey" xml:space="preserve"><value>The server refused this app (different key). Check the key in Settings.</value></data>
+  <data name="Error_Secret" xml:space="preserve"><value>Paste the full invite code; a typed address is not enough for this stream.</value></data>
+  <data name="Error_GoLiveRelay" xml:space="preserve"><value>Could not open the room on the server: {0}</value></data>
+  <data name="Settings_RelayHeader.Text" xml:space="preserve"><value>Server</value></data>
+  <data name="Settings_RelayDesc.Text" xml:space="preserve"><value>Internet broadcasts go through this server. Everyone must use the same address and key.</value></data>
+  <data name="Settings_RelayUrl.Header" xml:space="preserve"><value>Address (wss://…)</value></data>
+  <data name="Settings_RelayKey.Header" xml:space="preserve"><value>App key</value></data>
+  <data name="Settings_RelayReset.Content" xml:space="preserve"><value>Restore default</value></data>
 </root>

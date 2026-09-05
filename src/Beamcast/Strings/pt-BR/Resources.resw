@@ -103,16 +103,16 @@
   <data name="Disclaimer_P1" xml:space="preserve"><value>O Beamcast existe apenas para estudos e casos de estudo sobre captura de tela, codecs de vídeo e transmissão em tempo real no Windows. Ele serve de base de pesquisa para um outro aplicativo, empresarial e privado. Não é um produto e não foi feito para uso real.</value></data>
   <data name="Disclaimer_P2" xml:space="preserve"><value>Qualquer uso deste app ou deste código para outras finalidades é de responsabilidade exclusiva de quem o utiliza. Ao usar, você declara estar ciente disso e assume todos os riscos, inclusive o de expor o que estiver na sua tela.</value></data>
   <data name="Disclaimer_P3" xml:space="preserve"><value>O autor não tem nenhuma responsabilidade sobre o uso, os resultados, perdas ou danos decorrentes deste software. Ele é fornecido "como está", sem garantias, sem suporte e sem compromisso de manutenção.</value></data>
-  <data name="Disclaimer_P4" xml:space="preserve"><value>O tráfego de vídeo não é criptografado e o app não foi endurecido para a internet. Use apenas em ambientes de estudo que você controla.</value></data>
+  <data name="Disclaimer_P4" xml:space="preserve"><value>O app não foi endurecido para produção. O vídeo vai cifrado de ponta a ponta, mas use apenas em ambientes de estudo que você controla.</value></data>
   <data name="Disclaimer_P1_Text.Text" xml:space="preserve"><value>O Beamcast existe apenas para estudos e casos de estudo sobre captura de tela, codecs de vídeo e transmissão em tempo real no Windows. Ele serve de base de pesquisa para um outro aplicativo, empresarial e privado. Não é um produto e não foi feito para uso real.</value></data>
   <data name="Disclaimer_P2_Text.Text" xml:space="preserve"><value>Qualquer uso deste app ou deste código para outras finalidades é de responsabilidade exclusiva de quem o utiliza. Ao usar, você declara estar ciente disso e assume todos os riscos, inclusive o de expor o que estiver na sua tela.</value></data>
   <data name="Disclaimer_P3_Text.Text" xml:space="preserve"><value>O autor não tem nenhuma responsabilidade sobre o uso, os resultados, perdas ou danos decorrentes deste software. Ele é fornecido "como está", sem garantias, sem suporte e sem compromisso de manutenção.</value></data>
-  <data name="Disclaimer_P4_Text.Text" xml:space="preserve"><value>O tráfego de vídeo não é criptografado e o app não foi endurecido para a internet. Use apenas em ambientes de estudo que você controla.</value></data>
+  <data name="Disclaimer_P4_Text.Text" xml:space="preserve"><value>O app não foi endurecido para produção. O vídeo vai cifrado de ponta a ponta, mas use apenas em ambientes de estudo que você controla.</value></data>
   <data name="Disclaimer_Accept" xml:space="preserve"><value>Entendi e assumo o risco</value></data>
   <data name="Disclaimer_Quit" xml:space="preserve"><value>Fechar o app</value></data>
   <data name="Disclaimer_Close" xml:space="preserve"><value>Fechar</value></data>
   <data name="Disclaimer_ReadAgain.Content" xml:space="preserve"><value>Ler o aviso completo</value></data>
-  <data name="Invite_StudyNote.Text" xml:space="preserve"><value>Projeto de estudo: o uso é por sua conta e risco. O vídeo trafega sem criptografia.</value></data>
+  <data name="Invite_StudyNote.Text" xml:space="preserve"><value>Projeto de estudo: o uso é por sua conta e risco.</value></data>
 
   <data name="About_UpdatesTitle.Text" xml:space="preserve"><value>Atualizações</value></data>
   <data name="About_CheckUpdates.Content" xml:space="preserve"><value>Verificar agora</value></data>
@@ -147,4 +147,24 @@
   <data name="Encoder_Unavailable" xml:space="preserve"><value>{0} (sem encoder nesta máquina)</value></data>
   <data name="Encoder_Vp8" xml:space="preserve"><value>VP8 (CPU, compatível)</value></data>
   <data name="Error_Codec" xml:space="preserve"><value>Esta máquina não consegue decodificar o codec da transmissão.</value></data>
+
+  <data name="Session_Mode.Header" xml:space="preserve"><value>Como os outros chegam até você</value></data>
+  <data name="Mode_Relay" xml:space="preserve"><value>Pela internet (servidor Beamcast)</value></data>
+  <data name="Mode_Direct" xml:space="preserve"><value>Direto (mesma rede ou porta liberada)</value></data>
+  <data name="Invite_NotLive" xml:space="preserve"><value>Inicie a transmissão para gerar o código. Ele muda a cada sessão.</value></data>
+  <data name="Invite_RelayReady" xml:space="preserve"><value>Sala {0} aberta no servidor. Mande o código; funciona de qualquer rede.</value></data>
+  <data name="Invite_DirectReady" xml:space="preserve"><value>Escolha o endereço que os outros usam e mande o código.</value></data>
+  <data name="Invite_HintRelay" xml:space="preserve"><value>O vídeo vai criptografado de ponta a ponta: nem o servidor consegue ver.</value></data>
+  <data name="Invite_HintDirect" xml:space="preserve"><value>Na mesma rede, basta enviar o código. Pela internet, libere a porta no roteador (port forwarding) e use o IP público.</value></data>
+  <data name="Error_RelayLost" xml:space="preserve"><value>A conexão com o servidor caiu. A transmissão foi encerrada.</value></data>
+  <data name="Error_RelayUnreachable" xml:space="preserve"><value>Não foi possível conectar ao servidor Beamcast. Confira o endereço nas Configurações.</value></data>
+  <data name="Error_NoRoom" xml:space="preserve"><value>Essa sala não existe mais. Peça um código novo para quem está transmitindo.</value></data>
+  <data name="Error_AppKey" xml:space="preserve"><value>O servidor recusou este app (chave diferente). Confira a chave nas Configurações.</value></data>
+  <data name="Error_Secret" xml:space="preserve"><value>Cole o código de convite completo; endereço digitado não basta para esta transmissão.</value></data>
+  <data name="Error_GoLiveRelay" xml:space="preserve"><value>Não deu para abrir a sala no servidor: {0}</value></data>
+  <data name="Settings_RelayHeader.Text" xml:space="preserve"><value>Servidor</value></data>
+  <data name="Settings_RelayDesc.Text" xml:space="preserve"><value>Quem transmite pela internet passa por este servidor. Todos os participantes precisam usar o mesmo endereço e a mesma chave.</value></data>
+  <data name="Settings_RelayUrl.Header" xml:space="preserve"><value>Endereço (wss://…)</value></data>
+  <data name="Settings_RelayKey.Header" xml:space="preserve"><value>Chave do app</value></data>
+  <data name="Settings_RelayReset.Content" xml:space="preserve"><value>Restaurar padrão</value></data>
 </root>

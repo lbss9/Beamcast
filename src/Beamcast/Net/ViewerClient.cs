@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Net.WebSockets;
 
 namespace Beamcast.Net;
 
@@ -12,29 +13,29 @@ public sealed class ConnectException : Exception
         Reason = reason;
     }
 
-    /// <summary>One of <see cref="RejectReasons"/>, or "unreachable" / "timeout" / "protocol" / "codec".</summary>
+    /// <summary>One of <see cref="RejectReasons"/>, a relay reason, or "unreachable" / "timeout" / "protocol" / "codec".</summary>
     public string Reason { get; }
 }
 
-public sealed record ViewerStats(double Fps, double Kbps, double RttMs, double DecodeMs, int Width, int Height, long FramesReceived);
+public sealed record ViewerStats(double Fps, double Kbps, double AudioKbps, double RttMs, double DecodeMs, int Width, int Height, long FramesReceived);
 
 /// <summary>
-/// Connects to a host, completes the handshake and delivers the compressed frames to
-/// <see cref="VideoReceived"/> on the receive thread. Decoding is the consumer's job so the
-/// GPU decoder and the presenter can run without any extra hop.
+/// Connects to a host (directly over TCP or through a relay room), completes the handshake and
+/// delivers compressed frames to <see cref="VideoReceived"/> on the receive thread. Decoding is
+/// the consumer's job so the GPU decoder and the presenter can run without any extra hop.
 /// </summary>
 public sealed class ViewerClient : IDisposable
 {
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(8);
     private static readonly TimeSpan PingInterval = TimeSpan.FromSeconds(2);
 
-    private TcpClient? _client;
-    private NetworkStream? _stream;
+    private IMessageTransport? _transport;
+    private SecureChannel? _secure;
     private CancellationTokenSource? _cts;
-    private readonly SemaphoreSlim _writeLock = new(1, 1);
     private int _closed;
 
     private long _bytesWindow;
+    private long _audioBytesWindow;
     private int _framesWindow;
     private double _decodeWindowMs;
     private long _windowStart;
@@ -45,6 +46,7 @@ public sealed class ViewerClient : IDisposable
 
     /// <summary>Called for each frame with its header and Annex B / VP8 payload; returns the decode time in ms.</summary>
     public event Func<VideoPacketHeader, ReadOnlyMemory<byte>, double>? VideoReceived;
+    public event Action<AudioPacketHeader, ReadOnlyMemory<byte>>? AudioReceived;
     public event Action<IReadOnlyList<string>>? ViewersChanged;
     public event Action<string>? StreamStateChanged;
     public event Action<ViewerStats>? StatsUpdated;
@@ -52,37 +54,23 @@ public sealed class ViewerClient : IDisposable
 
     public WelcomeMessage? Welcome { get; private set; }
 
-    public bool IsConnected => _client is not null && Interlocked.CompareExchange(ref _closed, 0, 0) == 0;
+    public bool IsConnected => _transport is not null && Interlocked.CompareExchange(ref _closed, 0, 0) == 0;
 
     public async Task<WelcomeMessage> ConnectAsync(InviteTarget target, string displayName, CancellationToken ct)
     {
-        if (_client is not null)
+        if (_transport is not null)
             throw new InvalidOperationException("Already connected.");
 
-        var client = new TcpClient { NoDelay = true };
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(ConnectTimeout);
 
-        try
-        {
-            await client.ConnectAsync(target.Host, target.Port, timeoutCts.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            client.Dispose();
-            throw new ConnectException("timeout", "Connection timed out.");
-        }
-        catch (SocketException ex)
-        {
-            client.Dispose();
-            throw new ConnectException("unreachable", ex.Message, ex);
-        }
+        var transport = target.Kind == InviteKind.Relay
+            ? await ConnectRelayAsync(target, displayName, timeoutCts.Token, ct).ConfigureAwait(false)
+            : await ConnectTcpAsync(target, timeoutCts.Token, ct).ConfigureAwait(false);
 
-        client.ReceiveBufferSize = 4 * 1024 * 1024;
-        var stream = client.GetStream();
         try
         {
-            var first = await MessageStream.ReadAsync(stream, timeoutCts.Token).ConfigureAwait(false);
+            var first = await transport.ReadAsync(timeoutCts.Token).ConfigureAwait(false);
             var challenge = first?.Type == MessageType.Challenge
                 ? Json.Deserialize<ChallengeMessage>(first.Value.Payload)
                 : null;
@@ -90,9 +78,12 @@ public sealed class ViewerClient : IDisposable
                 throw new ConnectException("protocol", "The host did not answer with a Beamcast handshake.");
             if (challenge.Protocol != AppInfo.ProtocolVersion)
                 throw new ConnectException(RejectReasons.Version, "Protocol version mismatch.");
+            if (challenge.RequiresSecret && !target.HasSecret)
+                throw new ConnectException(RejectReasons.Secret, "This stream needs the full invite code.");
             if (challenge.RequiresPassword && !target.HasPassword)
                 throw new ConnectException(RejectReasons.Password, "This stream needs a password.");
 
+            var secure = target.HasSecret && challenge.RequiresSecret ? SecureChannel.FromSecret(target.Secret!) : null;
             var hello = new HelloMessage
             {
                 Protocol = AppInfo.ProtocolVersion,
@@ -100,9 +91,13 @@ public sealed class ViewerClient : IDisposable
                 AppVersion = AppInfo.Version,
                 Auth = target.HasPassword ? AuthProof.Compute(target.Password!, challenge.Nonce) : null,
             };
-            await MessageStream.WriteJsonAsync(stream, MessageType.Hello, hello, timeoutCts.Token).ConfigureAwait(false);
+            var helloBytes = Json.Serialize(hello);
+            await transport.WriteFramedAsync(
+                secure is not null ? secure.Seal(MessageType.Hello, helloBytes) : Framing.Encode(MessageType.Hello, helloBytes),
+                timeoutCts.Token
+            ).ConfigureAwait(false);
 
-            var answer = await MessageStream.ReadAsync(stream, timeoutCts.Token).ConfigureAwait(false);
+            var answer = await transport.ReadAsync(timeoutCts.Token).ConfigureAwait(false);
             if (answer is null)
                 throw new ConnectException("protocol", "The host closed the connection.");
             if (answer.Value.Type == MessageType.Reject)
@@ -113,12 +108,19 @@ public sealed class ViewerClient : IDisposable
             if (answer.Value.Type != MessageType.Welcome)
                 throw new ConnectException("protocol", "Unexpected handshake reply.");
 
-            var welcome = Json.Deserialize<WelcomeMessage>(answer.Value.Payload)
+            var welcomeBytes = answer.Value.Payload;
+            if (answer.Value.IsEncrypted)
+            {
+                if (secure is null || !secure.TryOpen(answer.Value, out welcomeBytes))
+                    throw new ConnectException(RejectReasons.Secret, "Could not decrypt the host's reply.");
+            }
+
+            var welcome = Json.Deserialize<WelcomeMessage>(welcomeBytes)
                 ?? throw new ConnectException("protocol", "Malformed welcome.");
 
             Welcome = welcome;
-            _client = client;
-            _stream = stream;
+            _secure = secure;
+            _transport = transport;
             _cts = new CancellationTokenSource();
             _windowStart = Stopwatch.GetTimestamp();
             _ = ReceiveLoopAsync(_cts.Token);
@@ -127,18 +129,78 @@ public sealed class ViewerClient : IDisposable
         }
         catch (ConnectException)
         {
-            client.Dispose();
+            transport.Dispose();
             throw;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            client.Dispose();
+            transport.Dispose();
             throw new ConnectException("timeout", "The host took too long to answer.");
         }
-        catch (Exception ex) when (ex is IOException or SocketException or InvalidDataException)
+        catch (Exception ex) when (ex is IOException or SocketException or InvalidDataException or WebSocketException)
+        {
+            transport.Dispose();
+            throw new ConnectException("protocol", ex.Message, ex);
+        }
+    }
+
+    private static async Task<IMessageTransport> ConnectTcpAsync(InviteTarget target, CancellationToken timeout, CancellationToken user)
+    {
+        var client = new TcpClient { NoDelay = true };
+        try
+        {
+            await client.ConnectAsync(target.Host, target.Port, timeout).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!user.IsCancellationRequested)
         {
             client.Dispose();
-            throw new ConnectException("protocol", ex.Message, ex);
+            throw new ConnectException("timeout", "Connection timed out.");
+        }
+        catch (SocketException ex)
+        {
+            client.Dispose();
+            throw new ConnectException("unreachable", ex.Message, ex);
+        }
+        client.ReceiveBufferSize = 4 * 1024 * 1024;
+        return new StreamTransport(client.GetStream(), client);
+    }
+
+    private static async Task<IMessageTransport> ConnectRelayAsync(InviteTarget target, string displayName, CancellationToken timeout, CancellationToken user)
+    {
+        var socket = new ClientWebSocket();
+        socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
+        try
+        {
+            await socket.ConnectAsync(new Uri(target.RelayUrl!), timeout).ConfigureAwait(false);
+            var join = new RelayJoin
+            {
+                Role = RelayProtocol.RoleViewer,
+                Room = target.Room,
+                AppKey = SettingsStore.Load().RelayAppKey,
+                Name = displayName,
+            };
+            await socket.SendAsync(Json.Serialize(join), WebSocketMessageType.Text, true, timeout).ConfigureAwait(false);
+            var result = await RelayClient.ReadJoinResultAsync(socket, timeout).ConfigureAwait(false);
+            if (result is null || !result.Ok)
+            {
+                socket.Dispose();
+                throw new ConnectException(result?.Reason ?? "protocol", "The relay refused the room.");
+            }
+            return new WebSocketTransport(socket);
+        }
+        catch (ConnectException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (!user.IsCancellationRequested)
+        {
+            socket.Dispose();
+            throw new ConnectException("timeout", "The relay did not answer.");
+        }
+        catch (Exception ex) when (ex is WebSocketException or IOException or InvalidDataException)
+        {
+            socket.Dispose();
+            throw new ConnectException("relay_unreachable", ex.Message, ex);
         }
     }
 
@@ -153,15 +215,29 @@ public sealed class ViewerClient : IDisposable
         {
             while (!ct.IsCancellationRequested)
             {
-                var message = await MessageStream.ReadAsync(_stream!, ct).ConfigureAwait(false);
+                var message = await _transport!.ReadAsync(ct).ConfigureAwait(false);
                 if (message is null)
                     break;
 
-                var (type, payload) = message.Value;
-                switch (type)
+                var m = message.Value;
+                var payload = m.Payload;
+                if (m.IsEncrypted)
+                {
+                    if (_secure is null || !_secure.TryOpen(m, out payload))
+                        continue;
+                }
+                else if (_secure is not null && m.Type != MessageType.Bye)
+                {
+                    continue;
+                }
+
+                switch (m.Type)
                 {
                     case MessageType.Video:
                         HandleVideo(payload);
+                        break;
+                    case MessageType.Audio:
+                        HandleAudio(payload);
                         break;
                     case MessageType.Pong:
                         if (payload.Length >= 8)
@@ -216,6 +292,15 @@ public sealed class ViewerClient : IDisposable
         MaybePublishStats();
     }
 
+    private void HandleAudio(byte[] payload)
+    {
+        if (!AudioPacket.TryParse(payload, out var header, out var opus))
+            return;
+        _audioBytesWindow += payload.Length;
+        AudioReceived?.Invoke(header, opus);
+        MaybePublishStats();
+    }
+
     private void MaybePublishStats()
     {
         var elapsed = Stopwatch.GetElapsedTime(_windowStart);
@@ -226,6 +311,7 @@ public sealed class ViewerClient : IDisposable
         var stats = new ViewerStats(
             _framesWindow / seconds,
             _bytesWindow * 8 / 1000.0 / seconds,
+            _audioBytesWindow * 8 / 1000.0 / seconds,
             _rttMs,
             _framesWindow > 0 ? _decodeWindowMs / _framesWindow : 0,
             _width,
@@ -234,6 +320,7 @@ public sealed class ViewerClient : IDisposable
         );
         _framesWindow = 0;
         _bytesWindow = 0;
+        _audioBytesWindow = 0;
         _decodeWindowMs = 0;
         _windowStart = Stopwatch.GetTimestamp();
         StatsUpdated?.Invoke(stats);
@@ -256,22 +343,15 @@ public sealed class ViewerClient : IDisposable
 
     private async Task SendAsync(MessageType type, byte[] payload)
     {
-        var stream = _stream;
+        var transport = _transport;
         var cts = _cts;
-        if (stream is null || cts is null)
+        if (transport is null || cts is null)
             return;
 
         try
         {
-            await _writeLock.WaitAsync(cts.Token).ConfigureAwait(false);
-            try
-            {
-                await MessageStream.WriteAsync(stream, type, payload, cts.Token).ConfigureAwait(false);
-            }
-            finally
-            {
-                _writeLock.Release();
-            }
+            var framed = _secure is { } s ? s.Seal(type, payload) : Framing.Encode(type, payload);
+            await transport.WriteFramedAsync(framed, cts.Token).ConfigureAwait(false);
         }
         catch (Exception) { }
     }
@@ -285,7 +365,7 @@ public sealed class ViewerClient : IDisposable
             await SendAsync(MessageType.Bye, Array.Empty<byte>()).ConfigureAwait(false);
 
         SafeTry.Run(() => _cts?.Cancel());
-        SafeTry.Run(() => _client?.Dispose());
+        SafeTry.Run(() => _transport?.Dispose());
         Closed?.Invoke(reason);
     }
 
@@ -293,6 +373,6 @@ public sealed class ViewerClient : IDisposable
     {
         _ = CloseAsync("disposed", sendBye: false);
         _cts?.Dispose();
-        _writeLock.Dispose();
+        _secure?.Dispose();
     }
 }

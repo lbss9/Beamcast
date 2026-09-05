@@ -27,6 +27,10 @@
     <Compile Include="..\..\src\Beamcast\Net\InviteCode.cs" Link="Net\InviteCode.cs" />
     <Compile Include="..\..\src\Beamcast\Net\FrameGate.cs" Link="Net\FrameGate.cs" />
     <Compile Include="..\..\src\Beamcast\Net\MessageStream.cs" Link="Net\MessageStream.cs" />
+    <Compile Include="..\..\src\Beamcast\Net\SecureChannel.cs" Link="Net\SecureChannel.cs" />
+    <Compile Include="..\..\src\Beamcast\Net\RelayProtocol.cs" Link="Net\RelayProtocol.cs" />
+    <Compile Include="..\..\src\Beamcast\Audio\AudioSourceSelector.cs" Link="Audio\AudioSourceSelector.cs" />
+    <Compile Include="..\..\src\Beamcast\Audio\ProcessTable.cs" Link="Audio\ProcessTable.cs" />
     <Compile Include="..\..\src\Beamcast\Codec\Frames.cs" Link="Codec\Frames.cs" />
     <Compile Include="..\..\src\Beamcast\Codec\FrameScaler.cs" Link="Codec\FrameScaler.cs" />
   </ItemGroup>

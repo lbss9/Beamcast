@@ -79,6 +79,13 @@ public sealed class BroadcastService
         _server.ViewerJoined += _ => Post(() => ViewersChanged?.Invoke());
         _server.ViewerLeft += _ => Post(() => ViewersChanged?.Invoke());
         _server.Faulted += ex => Post(() => Error?.Invoke(ex.Message));
+        _server.RelayClosed += reason => Post(() =>
+        {
+            if (State != BroadcastState.Live)
+                return;
+            Error?.Invoke(Loc.Get("Error_RelayLost"));
+            StopLive();
+        });
     }
 
     public event Action<BroadcastState>? StateChanged;
@@ -185,18 +192,34 @@ public sealed class BroadcastService
         _preview?.Clear();
     }
 
-    public void GoLive(HostOptions options)
+    /// <summary>The invite viewers need for the current session; null until live.</summary>
+    public InviteTarget? CurrentInvite { get; private set; }
+
+    public string? RoomCode => _server.RoomCode;
+
+    public async Task GoLiveAsync(HostOptions options, CancellationToken ct)
     {
+        if (State != BroadcastState.Preview || Source is null)
+            throw new InvalidOperationException("Pick something to share first.");
+
+        var codec = MfCodecs.Resolve(_encoderPreference);
+        _server.SetStreamInfo(0, 0, _fps, codec.ToWireName());
+        await _server.StartAsync(options, ct);
+
         lock (_sync)
         {
             if (State != BroadcastState.Preview || Source is null)
+            {
+                _server.Stop();
                 throw new InvalidOperationException("Pick something to share first.");
+            }
 
-            ActiveCodec = MfCodecs.Resolve(_encoderPreference);
+            ActiveCodec = codec;
             EncoderName = ActiveCodec == VideoCodec.Vp8 ? "libvpx (CPU)" : string.Empty;
-            _server.SetStreamInfo(0, 0, _fps, ActiveCodec.ToWireName());
-            _server.Start(options);
             Options = options;
+            CurrentInvite = options.Kind == InviteKind.Relay
+                ? InviteTarget.Relay(options.RelayUrl!, _server.RoomCode ?? string.Empty, options.Secret, options.Password)
+                : InviteTarget.Direct(string.Empty, options.Port, options.Secret, options.Password);
             _paused = false;
             ResetStats();
 
@@ -217,6 +240,10 @@ public sealed class BroadcastService
             SetState(BroadcastState.Live);
         }
     }
+
+    /// <summary>Same invite with a different address, for the direct mode address picker.</summary>
+    public InviteTarget? InviteFor(string address) =>
+        CurrentInvite is { Kind: InviteKind.Direct } direct ? direct with { Host = address } : CurrentInvite;
 
     public void StopLive()
     {
@@ -275,6 +302,7 @@ public sealed class BroadcastService
 
         _server.Stop();
         Options = null;
+        CurrentInvite = null;
         _paused = false;
 
         var stale = Interlocked.Exchange(ref _latest, null);

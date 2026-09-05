@@ -1,0 +1,14 @@
+# docker compose -f src/Beamcast.Relay/docker-compose.example.yml up -d --build (a partir da raiz do repo)
+services:
+  relay:
+    build:
+      context: ../..
+      dockerfile: src/Beamcast.Relay/Dockerfile
+    container_name: beamcast
+    restart: unless-stopped
+    environment:
+      # A mesma chave que está gravada no app (Configurações > Servidor > Chave).
+      # Sem ela o relay aceita qualquer cliente.
+      BEAMCAST_APP_KEY: ${BEAMCAST_APP_KEY}
+    ports: [ "127.0.0.1:5092:8080" ]
+    labels: [ "com.centurylinklabs.watchtower.enable=true" ]

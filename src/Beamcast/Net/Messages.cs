@@ -3,12 +3,15 @@ using System.Text.Json.Serialization;
 
 namespace Beamcast.Net;
 
-/// <summary>Host → viewer, first message after the TCP connect. Carries the auth nonce.</summary>
+/// <summary>Host → viewer, first message after the connect. Carries the auth nonce. Never encrypted.</summary>
 public sealed class ChallengeMessage
 {
     public int Protocol { get; set; } = 1;
     public string Nonce { get; set; } = string.Empty;
     public bool RequiresPassword { get; set; }
+
+    /// <summary>True when the host only accepts viewers that hold the invite secret (always, unless legacy mode).</summary>
+    public bool RequiresSecret { get; set; }
 }
 
 /// <summary>Viewer → host, answers the challenge.</summary>
@@ -31,6 +34,9 @@ public sealed class WelcomeMessage
     public int Fps { get; set; }
     public string State { get; set; } = StreamStates.Live;
     public List<string> Viewers { get; set; } = [];
+
+    /// <summary>"opus" when the host sends audio, otherwise null.</summary>
+    public string? Audio { get; set; }
 }
 
 public sealed class RejectMessage
@@ -41,6 +47,7 @@ public sealed class RejectMessage
 public static class RejectReasons
 {
     public const string Password = "password";
+    public const string Secret = "secret";
     public const string Full = "full";
     public const string Version = "version";
     public const string Unknown = "unknown";
@@ -80,6 +87,18 @@ public static class Json
         try
         {
             return JsonSerializer.Deserialize<T>(utf8, Options);
+        }
+        catch (JsonException)
+        {
+            return default;
+        }
+    }
+
+    public static T? Deserialize<T>(string text)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<T>(text, Options);
         }
         catch (JsonException)
         {

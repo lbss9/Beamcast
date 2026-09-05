@@ -33,8 +33,8 @@ privado. Cada decisão de projeto aqui prioriza aprendizado e medição, não us
   tudo o que estiver nela; pense antes de transmitir.
 - **Sem suporte, sem promessa de roadmap.** Issues podem ficar sem resposta; APIs, o protocolo
   de rede e a organização dos arquivos podem mudar a qualquer momento.
-- **Não é endurecido.** O tráfego é TCP puro (a senha da sala nunca trafega em texto claro, mas o
-  vídeo sim). Não exponha à internet sem entender o que isso significa.
+- **Não é endurecido para produção.** O vídeo vai cifrado de ponta a ponta e a senha nunca trafega,
+  mas não houve auditoria de segurança. Use em ambientes que você controla.
 
 O mesmo aviso aparece dentro do app no primeiro uso e na página Sobre.
 
@@ -76,6 +76,23 @@ Medições nesta máquina (Ryzen 7 5700X, Radeon RX 6750 XT, monitor 2560×1080 
 
 4K não pôde ser medido aqui (não há monitor 4K); o caminho é o mesmo e a VCN 3.0 é
 especificada para 4K60 em H.264 e HEVC.
+
+## Servidor (relay) e segurança
+
+O app pode transmitir **pela internet através de um relay** (projeto `src/Beamcast.Relay`,
+ASP.NET Core + WebSocket, com `Dockerfile` e `docker-compose.example.yml`): quem transmite e
+quem assiste só fazem conexão de saída, então funciona atrás de CGNAT, sem port forwarding e
+sem mexer em roteador. O endereço do relay e a chave do app ficam em Configurações.
+
+- **Criptografia de ponta a ponta.** O código de convite carrega um segredo aleatório por sessão;
+  tudo depois do primeiro handshake vai em AES-256-GCM com chave derivada dele. O relay (e
+  qualquer proxy na frente dele) só vê o tipo de cada mensagem e a flag de keyframe, que o relay
+  usa para descartar frames de espectadores lentos e pedir um keyframe ao host.
+- **Chave do app.** O relay só aceita clientes que apresentem a chave configurada no app; serve
+  para ninguém usar sua banda, não para proteger conteúdo.
+- **Senha opcional** por sala, verificada por desafio/resposta (nunca trafega).
+- **Modo direto** (TCP para a sua máquina) continua disponível para a mesma rede; também usa o
+  segredo do convite, então endereço digitado à mão já não basta.
 
 ## Como funciona
 

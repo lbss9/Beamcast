@@ -153,6 +153,10 @@ public sealed partial class WatchPage : Page
                 "timeout" => Loc.Get("Error_Timeout"),
                 "unreachable" => Loc.Get("Error_Unreachable"),
                 "codec" => Loc.Get("Error_Codec"),
+                RejectReasons.Secret => Loc.Get("Error_Secret"),
+                "no_room" => Loc.Get("Error_NoRoom"),
+                "app_key" => Loc.Get("Error_AppKey"),
+                "relay_unreachable" => Loc.Get("Error_RelayUnreachable"),
                 _ => Loc.Format("Error_Generic", ex.Message),
             };
         }

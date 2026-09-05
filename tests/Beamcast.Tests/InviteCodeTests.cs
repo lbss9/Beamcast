@@ -6,27 +6,52 @@ namespace Beamcast.Tests;
 public class InviteCodeTests
 {
     [Fact]
-    public void RoundTripsHostPortAndPassword()
+    public void RoundTripsDirectTargetWithSecretAndPassword()
     {
-        var code = InviteCode.Encode(new InviteTarget("203.0.113.9", 47700, "s3cret|pipe"));
+        var code = InviteCode.Encode(InviteTarget.Direct("203.0.113.9", 47700, "s3cr3t_X", "s3cret|pipe"));
 
         Assert.StartsWith("BC-", code);
         Assert.True(InviteCode.TryDecode(code, out var target));
+        Assert.Equal(InviteKind.Direct, target.Kind);
         Assert.Equal("203.0.113.9", target.Host);
         Assert.Equal(47700, target.Port);
         Assert.Equal("s3cret|pipe", target.Password);
+        Assert.Equal("s3cr3t_X", target.Secret);
     }
 
     [Fact]
-    public void RoundTripsWithoutPassword()
+    public void RoundTripsRelayTarget()
     {
-        var code = InviteCode.Encode(new InviteTarget("meu-pc.local", 5000, null));
+        var secret = SecureChannel.NewSecret();
+        var code = InviteCode.Encode(InviteTarget.Relay("wss://relay.example.com/ws", "ABC234", secret, null));
 
         Assert.True(InviteCode.TryDecode(code, out var target));
+        Assert.Equal(InviteKind.Relay, target.Kind);
+        Assert.Equal("wss://relay.example.com/ws", target.RelayUrl);
+        Assert.Equal("ABC234", target.Room);
+        Assert.Equal(secret, target.Secret);
+        Assert.Null(target.Password);
+        Assert.True(target.HasSecret);
+    }
+
+    [Fact]
+    public void RelayTargetNeedsValidRoomAndSecret()
+    {
+        Assert.False(InviteCode.TryDecode(InviteCode.Encode(InviteTarget.Relay("wss://r/ws", "ABC", "x", null)), out _));
+        Assert.False(InviteCode.TryDecode(InviteCode.Encode(InviteTarget.Relay("wss://r/ws", "ABC234", "", null)), out _));
+        Assert.False(InviteCode.TryDecode(InviteCode.Encode(InviteTarget.Relay("http://r/ws", "ABC234", "x", null)), out _));
+    }
+
+    [Fact]
+    public void StillReadsVersionOneCodes()
+    {
+        var legacy = "BC-" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("meu-pc.local|5000|")).TrimEnd('=');
+        Assert.True(InviteCode.TryDecode(legacy, out var target));
         Assert.Equal("meu-pc.local", target.Host);
         Assert.Equal(5000, target.Port);
         Assert.Null(target.Password);
-        Assert.False(target.HasPassword);
+        Assert.Null(target.Secret);
+        Assert.False(target.HasSecret);
     }
 
     [Theory]
@@ -41,6 +66,7 @@ public class InviteCodeTests
         Assert.Equal(host, target.Host);
         Assert.Equal(port, target.Port);
         Assert.Null(target.Password);
+        Assert.False(target.HasSecret);
     }
 
     [Theory]
@@ -58,9 +84,12 @@ public class InviteCodeTests
     }
 
     [Fact]
-    public void DecodedCodeWithBadPortIsRejected()
+    public void RelayUrlValidation()
     {
-        var raw = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("host|99999|x")).TrimEnd('=');
-        Assert.False(InviteCode.TryDecode("BC-" + raw, out _));
+        Assert.True(InviteCode.IsValidRelayUrl("wss://relay.example.com/ws"));
+        Assert.True(InviteCode.IsValidRelayUrl("ws://localhost:5092/ws"));
+        Assert.False(InviteCode.IsValidRelayUrl("https://relay.example.com/ws"));
+        Assert.False(InviteCode.IsValidRelayUrl("relay.example.com"));
+        Assert.False(InviteCode.IsValidRelayUrl(null));
     }
 }

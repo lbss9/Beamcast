@@ -2,6 +2,16 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 1.1.0
+
+- Relay (`Beamcast.Relay`): transmissão pela internet sem abrir porta; salas por código, chave do
+  app, fan-out com controle de fila por espectador no servidor.
+- Criptografia de ponta a ponta (AES-256-GCM) com segredo por sessão dentro do código de convite,
+  nos dois modos (relay e direto). Protocolo de rede v2: versões anteriores não conectam.
+- Página Transmitir: escolha entre servidor e direto; código de convite gerado ao iniciar.
+- Configurações: endereço do servidor e chave do app.
+- Protocolo preparado para áudio (Opus) e captura por processo (base do próximo passo).
+
 ## 1.0.0
 
 - First study build: broadcast a monitor or window to anyone with the invite code.

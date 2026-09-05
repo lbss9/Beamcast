@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Beamcast.Relay</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Beamcast\Logic\SafeTry.cs" Link="Shared\SafeTry.cs" />
+    <Compile Include="..\Beamcast\Net\Protocol.cs" Link="Shared\Protocol.cs" />
+    <Compile Include="..\Beamcast\Net\RelayProtocol.cs" Link="Shared\RelayProtocol.cs" />
+    <Compile Include="..\Beamcast\Net\FrameGate.cs" Link="Shared\FrameGate.cs" />
+    <Compile Include="..\Beamcast\Net\Messages.cs" Link="Shared\Messages.cs" />
+  </ItemGroup>
+</Project>

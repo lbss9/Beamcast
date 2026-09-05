@@ -12,6 +12,15 @@ public static class AppInfo
 
     public const string DefaultRepoUrl = "https://github.com/lbss9/beamcast";
 
+    /// <summary>The relay every install talks to unless Settings says otherwise.</summary>
+    public const string DefaultRelayUrl = "wss://relay.example.com/ws";
+
+    /// <summary>
+    /// Shared key the relay demands. It only keeps strangers from using the relay's bandwidth;
+    /// stream contents are protected by the per-room secret, never by this key.
+    /// </summary>
+    public const string DefaultRelayAppKey = "";
+
     public static string Version
     {
         get
