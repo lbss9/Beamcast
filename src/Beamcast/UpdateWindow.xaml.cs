@@ -27,6 +27,11 @@ public sealed partial class UpdateWindow : Window
         VersionText.Text = Loc.Format("Update_VersionLine", offer.Version);
         MarkdownLite.Render(ChangelogView, offer.Notes);
         RootGrid.RequestedTheme = App.Main?.RootTheme ?? ElementTheme.Default;
+        if (offer.Downloaded)
+        {
+            InstallButton.Content = Loc.Get("Update_Restart");
+            StatusText.Text = Loc.Get("Update_Ready");
+        }
     }
 
     private async void OnInstall(object sender, RoutedEventArgs e)
@@ -35,7 +40,8 @@ public sealed partial class UpdateWindow : Window
         LaterButton.IsEnabled = false;
         Spinner.IsActive = true;
         StatusText.Text = Loc.Get("Update_Downloading");
-        var result = await UpdateService.DownloadAndApplyAsync();
+        var result = await UpdateService.DownloadAndApplyAsync(percent =>
+            DispatcherQueue.TryEnqueue(() => StatusText.Text = Loc.Format("Update_DownloadingPercent", percent)));
         if (result == UpdateCheckKind.Failed)
         {
             Spinner.IsActive = false;

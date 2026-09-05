@@ -43,7 +43,7 @@ public partial class App : Application
     private static async Task CheckUpdatesOnLaunchAsync()
     {
         var check = await UpdateService.CheckAsync();
-        if (check.Kind != UpdateCheckKind.Available || check.Offer is null)
+        if (check.Kind is not (UpdateCheckKind.Available or UpdateCheckKind.ReadyToRestart) || check.Offer is null)
             return;
         Main?.DispatcherQueue.TryEnqueue(() => Main.NotifyUpdate(check.Offer));
     }

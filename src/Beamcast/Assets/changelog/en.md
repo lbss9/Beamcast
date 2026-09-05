@@ -1,3 +1,8 @@
+## 2.1.1
+
+- Automatic updates fixed: releases now publish the update feed, so the app receives new versions on its own. This version has to be installed by hand one last time.
+- The update window shows download progress and resumes an already downloaded update.
+
 ## 2.1.0
 
 - New Rooms screen: favorite hosts, the host's public rooms, favorite rooms and join by code or invite.

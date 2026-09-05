@@ -29,11 +29,12 @@ public sealed partial class AboutPage : Page
             UpdateStatus.Text = check.Kind switch
             {
                 UpdateCheckKind.Available => Loc.Format("About_UpdateAvailable", check.Offer?.Version ?? string.Empty),
+                UpdateCheckKind.ReadyToRestart => Loc.Format("About_UpdateReady", check.Offer?.Version ?? string.Empty),
                 UpdateCheckKind.UpToDate => Loc.Get("About_UpdateUpToDate"),
                 UpdateCheckKind.NotInstalled => Loc.Get("About_UpdateNotInstalled"),
                 _ => Loc.Get("About_UpdateFailed"),
             };
-            if (check.Kind == UpdateCheckKind.Available && check.Offer is not null)
+            if (check.Kind is UpdateCheckKind.Available or UpdateCheckKind.ReadyToRestart && check.Offer is not null)
                 App.Main?.ShowUpdate(check.Offer);
         }
         finally

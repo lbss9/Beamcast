@@ -1,3 +1,8 @@
+## 2.1.1
+
+- Atualização automática consertada: os releases agora publicam o feed de atualização, então o app passa a receber versões novas sozinho. Esta versão precisa ser instalada à mão uma última vez.
+- Janela de atualização mostra o progresso do download e retoma uma atualização já baixada.
+
 ## 2.1.0
 
 - Nova tela Salas: lista de hosts favoritos, salas públicas do host, salas favoritas e entrada por código ou convite.

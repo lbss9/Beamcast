@@ -307,4 +307,8 @@
   <data name="Room_PrivateBadge" xml:space="preserve"><value>privada</value></data>
   <data name="Room_TemporaryBadge" xml:space="preserve"><value>temporária</value></data>
   <data name="Room_OnlyOwnerBroadcasts.Text" xml:space="preserve"><value>Nesta sala só o dono transmite.</value></data>
+  <data name="Update_Restart" xml:space="preserve"><value>Reiniciar e concluir</value></data>
+  <data name="Update_Ready" xml:space="preserve"><value>A atualização já foi baixada. Reinicie para concluir.</value></data>
+  <data name="Update_DownloadingPercent" xml:space="preserve"><value>Baixando… {0}%</value></data>
+  <data name="About_UpdateReady" xml:space="preserve"><value>Versão {0} baixada. Reinicie o app para concluir.</value></data>
 </root>

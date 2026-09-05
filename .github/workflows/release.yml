@@ -35,6 +35,7 @@ jobs:
       - name: Pack
         shell: pwsh
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BEAMCAST_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           $version = "${{ github.event.inputs.version }}"

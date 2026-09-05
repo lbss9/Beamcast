@@ -195,7 +195,7 @@ public sealed partial class MainWindow : Window
         if (!SettingsStore.Load().CheckUpdatesOnLaunch)
             return;
         var check = await UpdateService.CheckAsync();
-        if (check.Kind == UpdateCheckKind.Available && check.Offer is not null)
+        if (check.Kind is UpdateCheckKind.Available or UpdateCheckKind.ReadyToRestart && check.Offer is not null)
             NotifyUpdate(check.Offer);
     }
 

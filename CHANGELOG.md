@@ -2,6 +2,18 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.1.1
+
+- Atualização automática consertada. Os releases anteriores só tinham o MSI; o Velopack descobre
+  versões novas pelo `releases.win.json` e pelos pacotes `.nupkg`, que nunca eram publicados, então
+  nenhuma instalação recebia atualização. Agora o `scripts/pack.ps1` baixa o release anterior,
+  gera pacote completo e delta, e publica feed + pacotes + Setup.exe + MSI com `vpk upload github`.
+- Biblioteca Velopack alinhada à CLI (1.2.0). Serviço de update com log em `diag.log`, uma única
+  instância do gerenciador, progresso do download na janela e retomada de atualização já baixada
+  ("Reiniciar e concluir"). Notas de versão no release mostram só a seção da versão.
+- Quem está na 2.0.x/2.1.0 precisa instalar esta versão à mão (o instalador antigo não vê o feed);
+  daqui em diante as atualizações chegam sozinhas.
+
 ## 2.1.0
 
 - Hosts e salas: o app guarda uma lista de hosts (favoritáveis); ao selecionar um, mostra as

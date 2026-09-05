@@ -5,7 +5,7 @@ public static class AppInfo
 {
     public const string Name = "Beamcast";
 
-    public const string DefaultRepoUrl = "https://github.com/lbss9/beamcast";
+    public const string DefaultRepoUrl = "https://github.com/lbss9/Beamcast";
 
     /// <summary>Default server port for a bare host in Settings (ws://host → ws://host:47710/ws).</summary>
     public const int DefaultServerPort = Net.LoungeProtocol.DefaultPort;
