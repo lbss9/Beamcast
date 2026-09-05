@@ -1,3 +1,7 @@
+## 2.0.1
+
+- Members that vanish without leaving are dropped within 30 s even behind a tunnel; their streams end for everyone.
+
 ## 2.0.0
 
 - Self-hosted lounge: run the server with `docker compose up -d --build`, type its address in the app, create a lounge with a password or join with code and password.

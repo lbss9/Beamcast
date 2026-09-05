@@ -325,7 +325,20 @@ internal sealed class Lounge
         {
             while (!linked.IsCancellationRequested)
             {
-                var frame = await ReadFrameAsync(socket, scratch, linked.Token);
+                byte[]? frame;
+                using (var idle = CancellationTokenSource.CreateLinkedTokenSource(linked.Token))
+                {
+                    idle.CancelAfter(LoungeProtocol.IdleTimeout);
+                    try
+                    {
+                        frame = await ReadFrameAsync(socket, scratch, idle.Token);
+                    }
+                    catch (OperationCanceledException) when (!linked.IsCancellationRequested)
+                    {
+                        _log.LogInformation("Member {Id} in lounge {Code} timed out.", member.Id, Code);
+                        break;
+                    }
+                }
                 if (frame is null)
                     break;
                 if (!LoungeMux.TryDecode(frame, out var kind, out var a, out var b, out var payload))
@@ -353,6 +366,9 @@ internal sealed class Lounge
     {
         switch (kind)
         {
+            case LoungeMux.Heartbeat:
+                member.Enqueue(LoungeMux.Encode(LoungeMux.Heartbeat, 0, 0, ReadOnlySpan<byte>.Empty), 0);
+                break;
             case LoungeMux.Presence:
                 member.Presence = payload;
                 Broadcast(LoungeMux.Encode(LoungeMux.Presence, member.Id, 0, payload), except: member.Id);

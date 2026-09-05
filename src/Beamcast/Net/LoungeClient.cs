@@ -157,6 +157,7 @@ public sealed class LoungeClient : IDisposable
         _cts = new CancellationTokenSource();
         _ = SendLoopAsync(_cts.Token);
         _ = ReceiveLoopAsync(_cts.Token);
+        _ = HeartbeatLoopAsync(_cts.Token);
     }
 
     /// <summary>Opens an opaque blob handed over by the server (presence or stream metadata).</summary>
@@ -248,6 +249,17 @@ public sealed class LoungeClient : IDisposable
         }
     }
 
+    private async Task HeartbeatLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(LoungeProtocol.HeartbeatInterval);
+            while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
+                Enqueue(LoungeMux.Encode(LoungeMux.Heartbeat, 0, 0, ReadOnlySpan<byte>.Empty));
+        }
+        catch (Exception) { }
+    }
+
     private async Task ReceiveLoopAsync(CancellationToken ct)
     {
         var reason = "closed";
@@ -255,7 +267,20 @@ public sealed class LoungeClient : IDisposable
         {
             while (!ct.IsCancellationRequested)
             {
-                var frame = await ReadFrameAsync(_socket, _scratch, ct).ConfigureAwait(false);
+                byte[]? frame;
+                using (var idle = CancellationTokenSource.CreateLinkedTokenSource(ct))
+                {
+                    idle.CancelAfter(LoungeProtocol.IdleTimeout);
+                    try
+                    {
+                        frame = await ReadFrameAsync(_socket, _scratch, idle.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                    {
+                        reason = "timeout";
+                        break;
+                    }
+                }
                 if (frame is null)
                     break;
                 if (!LoungeMux.TryDecode(frame, out var kind, out var a, out var b, out var payload))

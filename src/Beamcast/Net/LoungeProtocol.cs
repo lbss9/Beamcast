@@ -15,6 +15,11 @@ public static class LoungeProtocol
 {
     public const int Version = 2;
     public const string DefaultPath = "/ws";
+
+    public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(10);
+
+    /// <summary>A peer that sends nothing for this long is treated as gone.</summary>
+    public static readonly TimeSpan IdleTimeout = TimeSpan.FromSeconds(30);
     public const int DefaultPort = 47710;
 
     public const string OpCreate = "create";
@@ -170,6 +175,13 @@ public static class LoungeMux
 
     /// <summary>Server→publisher: a=streamId, b=the client's request tag.</summary>
     public const byte PublishAck = 13;
+
+    /// <summary>
+    /// Both ways, empty payload. Clients send one every <see cref="LoungeProtocol.HeartbeatInterval"/>
+    /// and the server echoes it, so each side can tell a dead peer from a quiet one even through a
+    /// proxy that keeps the origin socket open after the client vanished.
+    /// </summary>
+    public const byte Heartbeat = 14;
 
     public static byte[] Encode(byte kind, uint a, uint b, ReadOnlySpan<byte> payload)
     {

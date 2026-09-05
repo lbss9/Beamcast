@@ -2,6 +2,12 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.0.1
+
+- Heartbeat entre app e servidor: quem some sem avisar (queda de rede, app fechado à força) é
+  removido do salão em até 30 s mesmo atrás de proxy/túnel, e a transmissão dele é encerrada
+  para os outros.
+
 ## 2.0.0
 
 - Modelo de salão (`Beamcast.Server`): qualquer pessoa sobe o servidor com `docker compose up -d --build`

@@ -1,3 +1,7 @@
+## 2.0.1
+
+- Quem cai sem avisar sai do salão em até 30 s, mesmo atrás de túnel; a transmissão dele é encerrada para os outros.
+
 ## 2.0.0
 
 - Salão self-hosted: suba o servidor com `docker compose up -d --build`, digite o endereço no app, crie um salão com senha ou entre com código e senha.
