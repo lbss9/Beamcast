@@ -281,8 +281,13 @@ public sealed class BroadcastService
             if (State != BroadcastState.Live)
                 return;
             StopLiveCore();
-            SetState(Source is null ? BroadcastState.Idle : BroadcastState.Preview);
+            // Release the capture too: after "stop" nothing of the screen should be read any more,
+            // and Windows only removes its capture border once the session is gone.
+            _capture?.Stop();
+            Source = null;
+            SetState(BroadcastState.Idle);
         }
+        _preview?.Clear();
     }
 
     /// <summary>

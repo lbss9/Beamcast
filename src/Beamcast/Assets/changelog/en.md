@@ -1,3 +1,8 @@
+## 2.1.3
+
+- Sharing a whole screen no longer shows the yellow border on any Windows version (Desktop Duplication capture).
+- Stopping the broadcast ends the capture immediately.
+
 ## 2.1.2
 
 - The yellow border around the shared screen or window is gone (Windows 11; older Windows 10 builds draw it themselves and cannot remove it).

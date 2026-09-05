@@ -2,6 +2,17 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.1.3
+
+- Captura de monitor migrada para DXGI Desktop Duplication: não passa pelo mecanismo da borda
+  amarela do Windows, então a moldura não aparece em nenhuma versão do Windows 10/11, sem depender
+  de consentimento. O cursor é desenhado no quadro pela GPU (GDI sobre a textura). Janelas seguem
+  pela Windows.Graphics.Capture com o pedido "sem borda"; monitores em tela girada ou em outra placa
+  caem nela também.
+- Parar a transmissão agora encerra a captura: nada da tela é lido (e nenhuma borda desenhada)
+  depois de "Parar". Para transmitir de novo, escolha a fonte outra vez.
+- Pedido de captura sem borda feito de forma síncrona antes de cada sessão e registrado no diag.log.
+
 ## 2.1.2
 
 - Borda amarela em volta da tela ou janela compartilhada removida. O Windows desenha essa moldura

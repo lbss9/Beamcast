@@ -118,7 +118,8 @@ Como todo membro só faz conexão de saída, CGNAT e firewall de quem entra não
 
 ## O que o app faz
 
-- **Captura** de monitor ou janela pela Windows Graphics Capture API, que fica na GPU.
+- **Captura** de monitor por DXGI Desktop Duplication (sem a borda amarela do Windows, cursor desenhado
+  na GPU) e de janela pela Windows Graphics Capture API; tudo fica na GPU.
 - **Vídeo**: conversão BGRA→NV12 no D3D11 Video Processor e encoder H.264/HEVC por hardware via
   Media Foundation (AMD, NVIDIA, Intel, D3D12) com perfil de baixa latência; VP8 por software
   como reserva. Decodificação DXVA direto para um `SwapChainPanel`.

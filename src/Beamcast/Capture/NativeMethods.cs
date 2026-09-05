@@ -32,6 +32,47 @@ internal static class NativeMethods
         public string Device;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Point
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CursorInfo
+    {
+        public int Size;
+        public int Flags;
+        public IntPtr Cursor;
+        public Point ScreenPos;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct IconInfo
+    {
+        public bool IsIcon;
+        public int XHotspot;
+        public int YHotspot;
+        public IntPtr MaskBitmap;
+        public IntPtr ColorBitmap;
+    }
+
+    public const int CursorShowing = 0x00000001;
+    public const uint DiNormal = 0x0003;
+
+    [DllImport("user32.dll")]
+    public static extern bool GetCursorInfo(ref CursorInfo pci);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetIconInfo(IntPtr hIcon, out IconInfo piconinfo);
+
+    [DllImport("user32.dll")]
+    public static extern bool DrawIconEx(IntPtr hdc, int xLeft, int yTop, IntPtr hIcon, int cxWidth, int cyWidth, uint istepIfAniCur, IntPtr hbrFlickerFreeDraw, uint diFlags);
+
+    [DllImport("gdi32.dll")]
+    public static extern bool DeleteObject(IntPtr hObject);
+
     public const uint MonitorInfoPrimary = 1;
     public const int GwlExStyle = -20;
     public const int GwlStyle = -16;

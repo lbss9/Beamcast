@@ -1,3 +1,8 @@
+## 2.1.3
+
+- Compartilhar a tela inteira não mostra mais a borda amarela em nenhuma versão do Windows (captura por Desktop Duplication).
+- Parar a transmissão encerra a captura na hora.
+
 ## 2.1.2
 
 - A borda amarela em volta da tela ou janela compartilhada não aparece mais (Windows 11; no Windows 10 antigo ela é do sistema e não pode ser removida).
