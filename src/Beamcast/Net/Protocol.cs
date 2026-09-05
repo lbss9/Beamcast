@@ -2,29 +2,21 @@ using System.Buffers.Binary;
 
 namespace Beamcast.Net;
 
-/// <summary>Message kinds carried on the wire. Values are part of the protocol; never renumber.</summary>
+/// <summary>Message kinds carried inside lounge frames. Values are part of the protocol; never renumber.</summary>
 public enum MessageType : byte
 {
-    Challenge = 1,
-    Hello = 2,
-    Welcome = 3,
-    Reject = 4,
     Video = 5,
-    Ping = 6,
-    Pong = 7,
-    Viewers = 8,
-    KeyframeRequest = 9,
-    StreamState = 10,
-    Bye = 11,
     Audio = 12,
+    Presence = 20,
+    StreamMeta = 21,
 }
 
-/// <summary>Bits of the per-message flags byte. The relay reads these without decrypting anything.</summary>
+/// <summary>Bits of the per-message flags byte. The server reads these without decrypting anything.</summary>
 public static class MessageFlags
 {
     public const byte None = 0;
 
-    /// <summary>Video message carries a keyframe (lets the relay resync a lagging viewer).</summary>
+    /// <summary>Video message carries a keyframe (lets the server resync a lagging subscriber).</summary>
     public const byte Keyframe = 0x01;
 
     /// <summary>Body is AES-GCM ciphertext: [12-byte nonce][ciphertext][16-byte tag].</summary>

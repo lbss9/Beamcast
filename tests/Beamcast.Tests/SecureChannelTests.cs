@@ -5,12 +5,18 @@ namespace Beamcast.Tests;
 
 public class SecureChannelTests
 {
+    private static byte[] Key(byte fill)
+    {
+        var key = new byte[32];
+        Array.Fill(key, fill);
+        return key;
+    }
+
     [Fact]
     public void SealAndOpenRoundTrip()
     {
-        var secret = SecureChannel.NewSecret();
-        using var host = SecureChannel.FromSecret(secret);
-        using var viewer = SecureChannel.FromSecret(secret);
+        using var host = new SecureChannel(Key(1));
+        using var viewer = new SecureChannel(Key(1));
 
         var plaintext = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
         var framed = host.Seal(MessageType.Video, plaintext, MessageFlags.Keyframe);
@@ -25,11 +31,11 @@ public class SecureChannelTests
     }
 
     [Fact]
-    public void WrongSecretFails()
+    public void WrongKeyFails()
     {
-        using var host = SecureChannel.FromSecret(SecureChannel.NewSecret());
-        using var stranger = SecureChannel.FromSecret(SecureChannel.NewSecret());
-        var framed = host.Seal(MessageType.Welcome, new byte[] { 42 });
+        using var host = new SecureChannel(Key(1));
+        using var stranger = new SecureChannel(Key(2));
+        var framed = host.Seal(MessageType.Presence, new byte[] { 42 });
         Framing.TryDecodeWhole(framed, out var message);
         Assert.False(stranger.TryOpen(message, out _));
     }
@@ -37,9 +43,8 @@ public class SecureChannelTests
     [Fact]
     public void TamperedFlagsOrBodyFail()
     {
-        var secret = SecureChannel.NewSecret();
-        using var host = SecureChannel.FromSecret(secret);
-        using var viewer = SecureChannel.FromSecret(secret);
+        using var host = new SecureChannel(Key(3));
+        using var viewer = new SecureChannel(Key(3));
         var framed = host.Seal(MessageType.Video, new byte[] { 1, 2, 3 });
 
         var flipped = (byte[])framed.Clone();
@@ -55,20 +60,14 @@ public class SecureChannelTests
     [Fact]
     public void PlaintextIsNotOpened()
     {
-        using var viewer = SecureChannel.FromSecret(SecureChannel.NewSecret());
-        Framing.TryDecodeWhole(Framing.Encode(MessageType.Bye, ReadOnlySpan<byte>.Empty), out var plain);
+        using var viewer = new SecureChannel(Key(4));
+        Framing.TryDecodeWhole(Framing.Encode(MessageType.Audio, ReadOnlySpan<byte>.Empty), out var plain);
         Assert.False(viewer.TryOpen(plain, out _));
     }
 
     [Fact]
-    public void SecretsAreUrlSafeAndRandom()
+    public void RejectsWrongKeySize()
     {
-        var a = SecureChannel.NewSecret();
-        var b = SecureChannel.NewSecret();
-        Assert.NotEqual(a, b);
-        Assert.DoesNotContain('+', a);
-        Assert.DoesNotContain('/', a);
-        Assert.DoesNotContain('=', a);
-        Assert.True(a.Length >= 20);
+        Assert.Throws<ArgumentException>(() => new SecureChannel(new byte[16]));
     }
 }

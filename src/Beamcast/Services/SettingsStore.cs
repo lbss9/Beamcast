@@ -56,18 +56,16 @@ public static class SettingsStore
             settings.DisplayName = Environment.UserName;
         if (settings.DisplayName.Length > 32)
             settings.DisplayName = settings.DisplayName[..32];
-        if (!Net.InviteCode.IsValidPort(settings.Port))
-            settings.Port = AppInfo.DefaultPort;
-        settings.SessionName = (settings.SessionName ?? string.Empty).Trim();
-        settings.Password ??= string.Empty;
         settings.QualityPreset = QualityPreset.Normalize(settings.QualityPreset);
         settings.Fps = QualityPreset.NormalizeFps(settings.Fps);
         settings.BitrateKbps = QualityPreset.ClampBitrate(settings.BitrateKbps);
-        settings.MaxViewers = Math.Clamp(settings.MaxViewers, 1, 100);
-        settings.LastInvite ??= string.Empty;
-        settings.ConnectionMode = string.Equals(settings.ConnectionMode, "Direct", StringComparison.OrdinalIgnoreCase) ? "Direct" : "Relay";
-        settings.RelayUrl = Net.InviteCode.IsValidRelayUrl(settings.RelayUrl?.Trim()) ? settings.RelayUrl!.Trim() : AppInfo.DefaultRelayUrl;
+        settings.RelayUrl = Net.LoungeProtocol.TryNormalizeServer(settings.RelayUrl, out var server) ? server : string.Empty;
         settings.RelayAppKey = (settings.RelayAppKey ?? string.Empty).Trim();
+        settings.LastLoungeCode = Net.LoungeProtocol.NormalizeCode(settings.LastLoungeCode);
+        settings.LastLoungeName = (settings.LastLoungeName ?? string.Empty).Trim();
+        settings.StreamTitle = (settings.StreamTitle ?? string.Empty).Trim();
+        settings.AudioMode = Audio.AudioMode.Normalize(settings.AudioMode);
+        settings.Volume = Math.Clamp(settings.Volume, 0, 100);
         return settings;
     }
 }

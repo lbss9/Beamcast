@@ -1,3 +1,11 @@
+## 2.0.0
+
+- Salão self-hosted: suba o servidor com `docker compose up -d --build`, digite o endereço no app, crie um salão com senha ou entre com código e senha.
+- No salão, qualquer pessoa transmite (várias ao mesmo tempo) e cada um escolhe o que assistir; pare de assistir sem sair.
+- Tudo cifrado de ponta a ponta com a senha do salão; o servidor nunca vê senha, nomes, vídeo ou áudio.
+- Áudio como no Discord: ao compartilhar a tela, o som dos apps vai junto, menos o das chamadas de voz; ao compartilhar uma janela, só o som daquele app.
+- Volume e mudo para quem assiste; título da transmissão.
+
 ## 1.1.0
 
 - Transmissão pela internet pelo servidor Beamcast: sem abrir porta, funciona com CGNAT.

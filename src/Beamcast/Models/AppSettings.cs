@@ -9,12 +9,6 @@ public sealed class AppSettings
 
     public string DisplayName { get; set; } = string.Empty;
 
-    public int Port { get; set; } = AppInfo.DefaultPort;
-
-    public string SessionName { get; set; } = string.Empty;
-
-    public string Password { get; set; } = string.Empty;
-
     public string QualityPreset { get; set; } = Beamcast.QualityPreset.Source;
 
     public int Fps { get; set; } = 60;
@@ -26,16 +20,22 @@ public sealed class AppSettings
 
     public bool ShowCursor { get; set; } = true;
 
-    public int MaxViewers { get; set; } = 16;
+    /// <summary>The Beamcast server (salão) this machine talks to, e.g. ws://192.168.0.4:47710.</summary>
+    public string RelayUrl { get; set; } = string.Empty;
 
-    public string LastInvite { get; set; } = string.Empty;
+    /// <summary>Optional key the server may demand (BEAMCAST_APP_KEY on the server).</summary>
+    public string RelayAppKey { get; set; } = string.Empty;
 
-    /// <summary>"Relay" (through the server, works anywhere) or "Direct" (TCP to this machine, LAN/port forwarding).</summary>
-    public string ConnectionMode { get; set; } = "Relay";
+    public string LastLoungeCode { get; set; } = string.Empty;
 
-    public string RelayUrl { get; set; } = AppInfo.DefaultRelayUrl;
+    public string LastLoungeName { get; set; } = string.Empty;
 
-    public string RelayAppKey { get; set; } = AppInfo.DefaultRelayAppKey;
+    public string StreamTitle { get; set; } = string.Empty;
+
+    /// <summary>Auto, System, App or Off (see AudioMode).</summary>
+    public string AudioMode { get; set; } = "Auto";
+
+    public int Volume { get; set; } = 100;
 
     public bool CheckUpdatesOnLaunch { get; set; } = true;
 

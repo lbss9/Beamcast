@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Beamcast.Pages.LoungePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+>
+    <ScrollViewer Padding="12,4,20,16" VerticalScrollBarVisibility="Auto">
+        <StackPanel MaxWidth="760" HorizontalAlignment="Center" Spacing="14">
+            <TextBlock x:Uid="Lounge_Heading" Style="{ThemeResource TitleTextBlockStyle}" Margin="0,24,0,0" />
+            <TextBlock x:Uid="Lounge_Summary" Style="{StaticResource HintTextStyle}" />
+
+            <Border Style="{StaticResource CardStyle}">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="ServerBox" x:Uid="Lounge_Server" Grid.Column="0" TextChanged="OnInputChanged" />
+                    <TextBox x:Name="NameBox" x:Uid="Lounge_YourName" Grid.Column="1" MaxLength="32" />
+                </Grid>
+            </Border>
+
+            <Grid ColumnSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock x:Uid="Lounge_CreateHeading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Uid="Lounge_CreateHint" Style="{StaticResource HintTextStyle}" />
+                        <TextBox x:Name="LoungeNameBox" x:Uid="Lounge_Name" MaxLength="48" TextChanged="OnInputChanged" />
+                        <PasswordBox
+                            x:Name="CreatePasswordBox"
+                            x:Uid="Lounge_CreatePassword"
+                            PasswordRevealMode="Peek"
+                            MaxLength="128"
+                            PasswordChanged="OnInputChanged"
+                        />
+                        <Button
+                            x:Name="CreateButton"
+                            x:Uid="Lounge_CreateButton"
+                            Style="{StaticResource AccentButtonStyle}"
+                            MinWidth="140"
+                            Click="OnCreate"
+                        />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource CardStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock x:Uid="Lounge_JoinHeading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Uid="Lounge_JoinHint" Style="{StaticResource HintTextStyle}" />
+                        <TextBox x:Name="CodeBox" x:Uid="Lounge_Code" TextChanged="OnInputChanged" />
+                        <PasswordBox
+                            x:Name="JoinPasswordBox"
+                            x:Uid="Lounge_JoinPassword"
+                            PasswordRevealMode="Peek"
+                            MaxLength="128"
+                            PasswordChanged="OnInputChanged"
+                        />
+                        <Button
+                            x:Name="JoinButton"
+                            x:Uid="Lounge_JoinButton"
+                            Style="{StaticResource AccentButtonStyle}"
+                            MinWidth="140"
+                            Click="OnJoin"
+                        />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <ProgressRing x:Name="Progress" IsActive="False" Width="20" Height="20" />
+                <TextBlock
+                    x:Name="ErrorText"
+                    Foreground="{StaticResource BeamAccentBrush}"
+                    VerticalAlignment="Center"
+                    TextWrapping="Wrap"
+                />
+            </StackPanel>
+
+            <TextBlock x:Uid="Lounge_SecurityNote" Style="{StaticResource HintTextStyle}" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

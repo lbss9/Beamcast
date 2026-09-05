@@ -3,66 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace Beamcast.Net;
 
-/// <summary>Host → viewer, first message after the connect. Carries the auth nonce. Never encrypted.</summary>
-public sealed class ChallengeMessage
-{
-    public int Protocol { get; set; } = 1;
-    public string Nonce { get; set; } = string.Empty;
-    public bool RequiresPassword { get; set; }
-
-    /// <summary>True when the host only accepts viewers that hold the invite secret (always, unless legacy mode).</summary>
-    public bool RequiresSecret { get; set; }
-}
-
-/// <summary>Viewer → host, answers the challenge.</summary>
-public sealed class HelloMessage
-{
-    public int Protocol { get; set; } = 1;
-    public string Name { get; set; } = string.Empty;
-    public string? Auth { get; set; }
-    public string AppVersion { get; set; } = string.Empty;
-}
-
-/// <summary>Host → viewer once the handshake is accepted.</summary>
-public sealed class WelcomeMessage
-{
-    public string SessionName { get; set; } = string.Empty;
-    public string HostName { get; set; } = string.Empty;
-    public string Codec { get; set; } = "vp8";
-    public int Width { get; set; }
-    public int Height { get; set; }
-    public int Fps { get; set; }
-    public string State { get; set; } = StreamStates.Live;
-    public List<string> Viewers { get; set; } = [];
-
-    /// <summary>"opus" when the host sends audio, otherwise null.</summary>
-    public string? Audio { get; set; }
-}
-
-public sealed class RejectMessage
-{
-    public string Reason { get; set; } = RejectReasons.Unknown;
-}
-
-public static class RejectReasons
-{
-    public const string Password = "password";
-    public const string Secret = "secret";
-    public const string Full = "full";
-    public const string Version = "version";
-    public const string Unknown = "unknown";
-}
-
-public sealed class ViewersMessage
-{
-    public List<string> Viewers { get; set; } = [];
-}
-
-public sealed class StreamStateMessage
-{
-    public string State { get; set; } = StreamStates.Live;
-}
-
 public static class StreamStates
 {
     public const string Live = "live";

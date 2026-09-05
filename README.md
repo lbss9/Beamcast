@@ -5,8 +5,8 @@
 <h1 align="center">Beamcast</h1>
 
 <p align="center">
-  <strong>Um projeto de estudo sobre captura de tela, codecs de vídeo e transmissão em tempo real no Windows.</strong><br />
-  Não é um produto. Foi feito para aprender, medir e servir de caso de estudo para um outro aplicativo, empresarial e privado.
+  <strong>Um salão de compartilhamento de tela, self-hosted e cifrado de ponta a ponta.</strong><br />
+  Projeto de estudo sobre captura, codecs, áudio por processo e transmissão em tempo real no Windows.
 </p>
 
 <p align="center">
@@ -21,9 +21,9 @@
 ## Leia isto primeiro
 
 **O Beamcast existe apenas para estudo.** Ele foi escrito para explorar como captura de tela,
-codificação de vídeo por hardware e um pequeno protocolo de transmissão se encaixam no Windows,
-e para produzir conclusões e código de referência para um aplicativo empresarial separado e
-privado. Cada decisão de projeto aqui prioriza aprendizado e medição, não uso em produção.
+codificação de vídeo por hardware, áudio por processo e um protocolo de transmissão se
+encaixam no Windows, e para produzir conclusões e código de referência para um aplicativo
+empresarial separado e privado. Cada decisão prioriza aprendizado e medição, não uso em produção.
 
 - **Sem garantia, sem responsabilidade.** O software é fornecido "como está". O autor não se
   responsabiliza por nada que aconteça ao executar, distribuir ou construir em cima dele.
@@ -31,83 +31,84 @@ privado. Cada decisão de projeto aqui prioriza aprendizado e medição, não us
   estudar o código, faz isso por sua conta e risco, e é responsável por cumprir as leis,
   políticas e exigências de consentimento que se aplicam a você. Compartilhar a tela expõe
   tudo o que estiver nela; pense antes de transmitir.
-- **Sem suporte, sem promessa de roadmap.** Issues podem ficar sem resposta; APIs, o protocolo
-  de rede e a organização dos arquivos podem mudar a qualquer momento.
-- **Não é endurecido para produção.** O vídeo vai cifrado de ponta a ponta e a senha nunca trafega,
-  mas não houve auditoria de segurança. Use em ambientes que você controla.
+- **Sem suporte, sem promessa de roadmap.** Issues podem ficar sem resposta; o protocolo e a
+  organização dos arquivos podem mudar a qualquer momento.
+- **Não é endurecido para produção.** O conteúdo vai cifrado de ponta a ponta e a senha nunca
+  trafega, mas não houve auditoria de segurança. Use em ambientes que você controla.
 
 O mesmo aviso aparece dentro do app no primeiro uso e na página Sobre.
 
-## O que o estudo cobre
+## Como funciona o salão
 
-- Capturar um monitor ou uma janela com a Windows Graphics Capture API e manter o frame na GPU.
-- Converter BGRA → NV12 e redimensionar no video processor do D3D11 (bloco de função fixa da GPU).
-- Codificar em H.264/HEVC com o encoder de hardware exposto pelo Media Foundation (AMD VCN,
-  NVIDIA NVENC, Intel QSV ou o encoder D3D12 genérico), com perfil de baixa latência.
-- Decodificar por hardware (Media Foundation + DXVA) direto em textura NV12 e apresentar num
-  `SwapChainPanel` sem passar pela CPU.
-- Um protocolo TCP mínimo com prefixo de tamanho, senha por desafio/resposta, recuperação por
-  keyframe e controle de fila por espectador, para que um espectador lento nunca trave os outros.
-- VP8 por software (libvpx) como reserva para máquinas sem encoder de hardware.
-- Empacotamento e atualização automática com Velopack e GitHub Releases.
+1. Alguém sobe o **servidor** (um container Docker) em qualquer máquina com IP ou host
+   alcançável: um VPS, o PC de casa atrás de um túnel, um servidor na LAN.
+2. No app, cada pessoa digita o **endereço do servidor**, o **nome dela** e cria um salão
+   (nome + senha obrigatória) ou entra num salão existente (código + senha).
+3. Dentro do salão todo mundo vê quem está online e quais transmissões existem. **Qualquer um
+   transmite** a tela (monitor ou janela), com ou sem áudio; **cada um escolhe** qual transmissão
+   assistir, para de assistir quando quiser e continua no salão. Várias transmissões ao mesmo
+   tempo são normais.
 
-## O que a pesquisa concluiu (e o que virou código)
+O servidor nunca recebe a senha e não consegue ver nem ouvir nada:
 
-Estudo de como Sunshine/Moonlight, Parsec e Steam Remote Play fazem 4K60 com latência baixa:
+```
+chave       = PBKDF2-SHA256(senha, salt, 200 000 rodadas)   fica só nas máquinas dos membros
+verificador = HMAC(chave, "verify")                          o servidor guarda isto na criação
+prova       = HMAC(verificador, nonce)                        quem entra envia; o servidor confere
+conteúdo    = HKDF(chave, "content")                          AES-256-GCM em nomes, títulos, vídeo e áudio
+```
 
-| Princípio | Como está no Beamcast |
+O servidor só lê o tipo de cada mensagem e a flag de keyframe, que ele usa para descartar
+quadros de um espectador lento e pedir um keyframe ao transmissor sem prejudicar os outros.
+Quem sabe o código mas não a senha é recusado antes de ver qualquer coisa.
+
+## Subir o servidor (quem hospeda)
+
+Precisa só de Docker com Compose. Sem Actions, sem registry, sem conta:
+
+```bash
+git clone https://github.com/lbss9/Beamcast.git
+cd Beamcast
+docker compose up -d --build
+```
+
+O servidor escuta na porta `47710`. No app, o endereço é `ws://SEU-IP:47710` (ou só `SEU-IP`).
+Variáveis opcionais num `.env` ao lado do `docker-compose.yml`:
+
+| Variável | Efeito |
 | --- | --- |
-| Nunca copiar o frame para a CPU | WGC → textura própria (cópia na GPU) → NV12 no video processor → encoder, tudo no mesmo device D3D11 |
-| Encoder de hardware, nunca software, para 4K | MFT assíncrono do driver (AMD/NVIDIA/Intel), `MF_LOW_LATENCY`, CBR, VBV de 1 frame, sem B-frames, 1 ref, GOP infinito |
-| Fila de profundidade zero | O encoder só recebe um frame quando pede (`METransformNeedInput`); frame antigo é descartado, nunca enfileirado |
-| Keyframe só quando alguém precisa | Forçado quando um espectador entra ou cai; se o driver ignorar o pedido (AMD ignora), o encoder é recriado e nasce com IDR |
-| Decodificar e apresentar no mesmo lugar | Decode DXVA na thread de rede e blit direto no back buffer; sem salto pela thread de UI |
-| Não deixar o Windows limitar a captura | `MinUpdateInterval` = 4 ms (senão o WGC trava em ~60 Hz) e pacing por deadline em vez de "1/fps desde o último" |
-| Transporte UDP com FEC (Moonlight, Parsec) | Ainda não. TCP por enquanto; é o próximo passo |
+| `BEAMCAST_PORT` | porta publicada no host (padrão `47710`) |
+| `BEAMCAST_APP_KEY` | quando definida, o app precisa carregar a mesma chave (Configurações → Servidor) |
+| `BEAMCAST_LOUNGE_TTL_HOURS` | horas que um salão vazio sobrevive; `0` (padrão) mantém até apagar o volume |
 
-Medições nesta máquina (Ryzen 7 5700X, Radeon RX 6750 XT, monitor 2560×1080 a 75 Hz):
+Os salões (código, nome, salt e verificador; nunca conteúdo) ficam no volume `beamcast_data`
+e sobrevivem a reinícios. `GET /health` mostra salões, membros e transmissões ativos.
 
-| Caminho | Codificação por frame | Decodificação | Observação |
-| --- | --- | --- | --- |
-| VP8 por software, 1280×720 | ~16 ms | CPU | reserva |
-| VP8 por software, 2560×1080 | ~35 ms | CPU | não sustenta 60 fps |
-| H.264 AMD VCN, 2560×1080 @ 60 | ~8 ms | ~0,4 ms (GPU) | 60 fps sustentados, ~36–42 Mbps |
-| HEVC AMD VCN, 2560×1080 @ 60 | ~5 ms | ~0,4 ms (GPU) | mesma qualidade com ~1/3 do bitrate |
+**Pela internet:** abra a porta `47710/tcp` no roteador, ou coloque o container atrás de um
+reverse proxy/túnel com TLS (Cloudflare Tunnel, Caddy, nginx) e use `wss://seu-host` no app.
+Como todo membro só faz conexão de saída, CGNAT e firewall de quem entra não importam.
 
-4K não pôde ser medido aqui (não há monitor 4K); o caminho é o mesmo e a VCN 3.0 é
-especificada para 4K60 em H.264 e HEVC.
+**Banda:** o servidor recebe cada transmissão uma vez e reenvia uma vez por espectador. 1080p60 a
+~12 Mbps por espectador; 4K60 H.264 a ~40 Mbps; HEVC gasta ~35% menos.
 
-## Servidor (relay) e segurança
+## O que o app faz
 
-O app pode transmitir **pela internet através de um relay** (projeto `src/Beamcast.Relay`,
-ASP.NET Core + WebSocket, com `Dockerfile` e `docker-compose.example.yml`): quem transmite e
-quem assiste só fazem conexão de saída, então funciona atrás de CGNAT, sem port forwarding e
-sem mexer em roteador. O endereço do relay e a chave do app ficam em Configurações.
+- **Captura** de monitor ou janela pela Windows Graphics Capture API, que fica na GPU.
+- **Vídeo**: conversão BGRA→NV12 no D3D11 Video Processor e encoder H.264/HEVC por hardware via
+  Media Foundation (AMD, NVIDIA, Intel, D3D12) com perfil de baixa latência; VP8 por software
+  como reserva. Decodificação DXVA direto para um `SwapChainPanel`.
+- **Áudio**: loopback **por processo** (a mesma API que Discord e Teams usam). Ao compartilhar
+  uma janela, captura só o app dela; ao compartilhar a tela inteira, captura todos os apps com
+  sessão de áudio **exceto** Discord, Teams, Zoom, Slack, WhatsApp e afins, para a voz da chamada
+  não ser retransmitida. Mixagem em quadros de 20 ms e Opus a 128 kbps, com ocultação de perda
+  no receptor.
+- **Rede**: um WebSocket por membro, mensagens cifradas, keyframe sob demanda, fila por
+  espectador no servidor. Presets até 2160p/120 fps.
 
-- **Criptografia de ponta a ponta.** O código de convite carrega um segredo aleatório por sessão;
-  tudo depois do primeiro handshake vai em AES-256-GCM com chave derivada dele. O relay (e
-  qualquer proxy na frente dele) só vê o tipo de cada mensagem e a flag de keyframe, que o relay
-  usa para descartar frames de espectadores lentos e pedir um keyframe ao host.
-- **Chave do app.** O relay só aceita clientes que apresentem a chave configurada no app; serve
-  para ninguém usar sua banda, não para proteger conteúdo.
-- **Senha opcional** por sala, verificada por desafio/resposta (nunca trafega).
-- **Modo direto** (TCP para a sua máquina) continua disponível para a mesma rede; também usa o
-  segredo do convite, então endereço digitado à mão já não basta.
+## Compilar
 
-## Como funciona
-
-```
-Windows.Graphics.Capture ─► textura BGRA (GPU) ─► VideoProcessor: escala + NV12 ─► MFT H.264/HEVC ─► fan-out TCP
-                                                                                                        │
-                    SwapChainPanel ◄─ VideoProcessor: NV12→RGB + letterbox ◄─ decoder DXVA (NV12) ◄─────┘ (cada espectador)
-```
-
-Quem transmite hospeda um pequeno servidor TCP; os espectadores conectam direto usando um
-código de convite que carrega endereço, porta e senha. Não há conta nem servidor intermediário.
-
-## Compilar a partir do código
-
-Requisitos: Windows 10 1809+ (Windows 11 recomendado), .NET 8 SDK.
+Requisitos: Windows 10 1809+ (Windows 11 recomendado; áudio por processo pede build 20348+),
+.NET 8 SDK.
 
 ```powershell
 dotnet build Beamcast.sln -c Release
@@ -115,32 +116,25 @@ dotnet test tests/Beamcast.Tests
 dotnet run --project src/Beamcast
 ```
 
-`scripts/pack.ps1` publica um build self-contained e o empacota com Velopack (`vpk`) num MSI
-em `artifacts/release`. Os workflows do GitHub criam a tag a partir da versão do csproj e
-publicam o release; o app consulta o GitHub Releases em busca de atualizações ao abrir.
+O servidor também roda sem Docker: `dotnet run --project src/Beamcast.Server` (porta 8080).
+`scripts/pack.ps1` gera o MSI com Velopack; os workflows do GitHub publicam o release do app
+a partir da versão do csproj, e o app procura atualizações no GitHub Releases.
 
-Para depurar a pipeline, crie um arquivo vazio `%LOCALAPPDATA%\Beamcast\diag.on` (ou defina
-`BEAMCAST_DIAG=1`): o app passa a escrever `diag.log` na mesma pasta com eventos de encoder,
-keyframe e do gate de cada espectador.
+Para depurar, crie um arquivo vazio `%LOCALAPPDATA%\Beamcast\diag.on` (ou defina
+`BEAMCAST_DIAG=1`): o app escreve `diag.log` na mesma pasta com eventos de encoder, keyframe e
+fila.
 
-## Organização do projeto
+## Organização
 
 ```
-src/Beamcast
-├── Capture/    Windows.Graphics.Capture, enumeração de fontes, frame na GPU
-├── Codec/      VideoCodec, VP8 (reserva), escalador bilinear
-│   └── Gpu/    GpuDevice, VideoProcessorConverter, MfVideoEncoder, MfVideoDecoder, ICodecAPI
-├── Render/     SwapChainPresenter (DXGI composition swap chain no SwapChainPanel)
-├── Net/        protocolo, servidor host, cliente espectador, códigos de convite, autenticação
-├── Services/   BroadcastService, WatchService, UpdateService
-├── Pages/      Transmitir, Assistir, Configurações, Sobre
-└── Controls/   GpuVideoView
-tests/Beamcast.Tests   testes xunit das partes de lógica pura
+src/Beamcast          app WinUI 3
+├── Capture/          Windows.Graphics.Capture + D3D11, enumeração de fontes
+├── Codec/            VP8, encoders/decoders Media Foundation, conversor de vídeo
+├── Audio/            loopback por processo, seletor de fontes, mixer, Opus, player
+├── Net/              protocolo do salão, criptografia, cliente
+├── Services/         LoungeService, BroadcastService, WatchService, UpdateService
+└── Pages/            Salão (entrada), Sala, Configurações, Sobre
+src/Beamcast.Server   servidor do salão (ASP.NET Core, WebSocket)
+tests/Beamcast.Tests  testes xunit das partes de lógica pura
+docker-compose.yml    sobe o servidor a partir do código
 ```
-
-## Próximos experimentos
-
-- Transporte UDP com FEC Reed-Solomon e invalidação de frame de referência (como Moonlight).
-- Áudio do sistema (WASAPI loopback + Opus).
-- AV1 nas GPUs que expõem encoder AV1.
-- Um relay opcional para ninguém precisar liberar porta no roteador.

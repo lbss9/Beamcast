@@ -7,7 +7,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A1B2C3D4-000
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Beamcast", "src\Beamcast\Beamcast.csproj", "{7D3F2C41-5B1E-4C7A-9A0E-2E7B1F4C8D01}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Beamcast.Relay", "src\Beamcast.Relay\Beamcast.Relay.csproj", "{7D3F2C41-5B1E-4C7A-9A0E-2E7B1F4C8D03}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Beamcast.Server", "src\Beamcast.Server\Beamcast.Server.csproj", "{7D3F2C41-5B1E-4C7A-9A0E-2E7B1F4C8D03}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A1B2C3D4-0002-4000-8000-000000000002}"
 EndProject

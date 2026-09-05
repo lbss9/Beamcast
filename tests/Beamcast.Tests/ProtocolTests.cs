@@ -26,16 +26,16 @@ public class ProtocolTests
     [Fact]
     public void FramingHandlesEmptyPayload()
     {
-        var framed = Framing.Encode(MessageType.KeyframeRequest, ReadOnlySpan<byte>.Empty);
+        var framed = Framing.Encode(MessageType.Presence, ReadOnlySpan<byte>.Empty);
         Assert.True(Framing.TryDecodeWhole(framed, out var message));
-        Assert.Equal(MessageType.KeyframeRequest, message.Type);
+        Assert.Equal(MessageType.Presence, message.Type);
         Assert.Empty(message.Payload);
     }
 
     [Fact]
     public void FramingWaitsForWholeMessage()
     {
-        var framed = Framing.Encode(MessageType.Hello, new byte[] { 9, 9, 9 });
+        var framed = Framing.Encode(MessageType.StreamMeta, new byte[] { 9, 9, 9 });
         Assert.False(Framing.TryDecode(framed.AsSpan(0, framed.Length - 1), out _, out _));
         Assert.False(Framing.TryDecodeWhole(framed.Concat(new byte[] { 1 }).ToArray(), out _));
     }
@@ -79,37 +79,5 @@ public class ProtocolTests
         Assert.False(VideoPacket.TryParse(body, out _, out _));
     }
 
-    [Fact]
-    public async Task MessageStreamRoundTripsOverAPipe()
-    {
-        using var pipe = new MemoryStream();
-        await MessageStream.WriteJsonAsync(pipe, MessageType.Hello, new HelloMessage { Name = "Ana" }, CancellationToken.None);
-        await MessageStream.WriteAsync(pipe, MessageType.Ping, new byte[] { 7 }, CancellationToken.None);
-        pipe.Position = 0;
 
-        var first = await MessageStream.ReadAsync(pipe, CancellationToken.None);
-        var second = await MessageStream.ReadAsync(pipe, CancellationToken.None);
-        var end = await MessageStream.ReadAsync(pipe, CancellationToken.None);
-
-        Assert.NotNull(first);
-        Assert.Equal(MessageType.Hello, first.Value.Type);
-        Assert.Equal("Ana", Json.Deserialize<HelloMessage>(first.Value.Payload)?.Name);
-        Assert.NotNull(second);
-        Assert.Equal(MessageType.Ping, second.Value.Type);
-        Assert.Equal(new byte[] { 7 }, second.Value.Payload);
-        Assert.Null(end);
-    }
-
-    [Fact]
-    public void AuthProofVerifiesAndRejects()
-    {
-        var nonce = AuthProof.NewNonce();
-        var proof = AuthProof.Compute("hunter2", nonce);
-
-        Assert.True(AuthProof.Verify("hunter2", nonce, proof));
-        Assert.False(AuthProof.Verify("hunter3", nonce, proof));
-        Assert.False(AuthProof.Verify("hunter2", AuthProof.NewNonce(), proof));
-        Assert.False(AuthProof.Verify("hunter2", nonce, null));
-        Assert.False(AuthProof.Verify("hunter2", nonce, ""));
-    }
 }

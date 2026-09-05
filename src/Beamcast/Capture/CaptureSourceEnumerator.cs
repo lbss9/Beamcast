@@ -101,7 +101,8 @@ public static class CaptureSourceEnumerator
                         ProcessName(pid),
                         bounds.Width,
                         bounds.Height,
-                        false
+                        false,
+                        (int)pid
                     )
                 );
                 return true;

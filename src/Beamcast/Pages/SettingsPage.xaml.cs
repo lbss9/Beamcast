@@ -22,8 +22,6 @@ public sealed partial class SettingsPage : Page
         _loading = true;
         var settings = SettingsStore.Load();
         NameBox.Text = settings.DisplayName;
-        PortBox.Value = settings.Port;
-        MaxViewersBox.Value = settings.MaxViewers;
 
         LanguageBox.Items.Clear();
         LanguageBox.Items.Add(Loc.Get("Settings_LanguageSystem"));
@@ -46,8 +44,7 @@ public sealed partial class SettingsPage : Page
     {
         if (_loading)
             return;
-        var url = RelayUrlBox.Text.Trim();
-        if (!InviteCode.IsValidRelayUrl(url))
+        if (!LoungeProtocol.TryNormalizeServer(RelayUrlBox.Text, out var url))
             return;
         SettingsStore.Update(s => s.RelayUrl = url);
     }
@@ -58,19 +55,6 @@ public sealed partial class SettingsPage : Page
             return;
         var key = RelayKeyBox.Password.Trim();
         SettingsStore.Update(s => s.RelayAppKey = key);
-    }
-
-    private void OnRelayReset(object sender, RoutedEventArgs e)
-    {
-        _loading = true;
-        RelayUrlBox.Text = AppInfo.DefaultRelayUrl;
-        RelayKeyBox.Password = AppInfo.DefaultRelayAppKey;
-        _loading = false;
-        SettingsStore.Update(s =>
-        {
-            s.RelayUrl = AppInfo.DefaultRelayUrl;
-            s.RelayAppKey = AppInfo.DefaultRelayAppKey;
-        });
     }
 
     private void OnUpdatesToggled(object sender, RoutedEventArgs e)
@@ -91,22 +75,7 @@ public sealed partial class SettingsPage : Page
         SettingsStore.Update(s => s.DisplayName = name);
     }
 
-    private void OnPortChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
-    {
-        if (_loading || double.IsNaN(sender.Value))
-            return;
-        var port = (int)sender.Value;
-        if (!InviteCode.IsValidPort(port))
-            return;
-        SettingsStore.Update(s => s.Port = port);
-    }
 
-    private void OnMaxViewersChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
-    {
-        if (_loading || double.IsNaN(sender.Value))
-            return;
-        SettingsStore.Update(s => s.MaxViewers = (int)sender.Value);
-    }
 
     private void OnLanguageChanged(object sender, SelectionChangedEventArgs e)
     {

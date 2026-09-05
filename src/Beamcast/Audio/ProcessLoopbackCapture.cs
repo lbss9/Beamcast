@@ -21,6 +21,8 @@ public sealed class ProcessLoopbackCapture : IDisposable
     private AutoResetEvent? _sampleReady;
     private Thread? _thread;
     private volatile bool _running;
+    private long _packets;
+    private long _startedAt;
 
     public ProcessLoopbackCapture(int targetProcessId, bool excludeTree, int sampleRate = 48000, int channels = 2)
     {
@@ -32,6 +34,18 @@ public sealed class ProcessLoopbackCapture : IDisposable
 
     public int TargetProcessId { get; }
     public bool ExcludeTree { get; }
+
+    /// <summary>Buffers delivered since <see cref="Start"/>.</summary>
+    public long Packets => Interlocked.Read(ref _packets);
+
+    /// <summary>
+    /// True when the stream has been running for a while without ever delivering a buffer. The
+    /// process-loopback device occasionally comes up dead for a process that is clearly rendering;
+    /// activating it again fixes it, so the owner should recreate a stale capture.
+    /// </summary>
+    public bool IsStale => _running && Packets == 0 && System.Diagnostics.Stopwatch.GetElapsedTime(_startedAt) > StaleAfter;
+
+    public static readonly TimeSpan StaleAfter = TimeSpan.FromSeconds(3);
 
     /// <summary>Interleaved float samples, called on the capture thread.</summary>
     public event Action<ReadOnlyMemory<float>>? SamplesArrived;
@@ -66,6 +80,7 @@ public sealed class ProcessLoopbackCapture : IDisposable
         _captureClient = (IAudioCaptureClient)service;
 
         _running = true;
+        _startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
         _thread = new Thread(CaptureLoop) { Name = $"Beamcast audio pid {TargetProcessId}", IsBackground = true, Priority = ThreadPriority.Highest };
         _thread.Start();
         Marshal.ThrowExceptionForHR(_client.Start());
@@ -119,6 +134,7 @@ public sealed class ProcessLoopbackCapture : IDisposable
                         break;
 
                     Marshal.ThrowExceptionForHR(client.GetBuffer(out var data, out var frames, out var flags, out _, out _));
+                    Interlocked.Increment(ref _packets);
                     try
                     {
                         var samples = (int)frames * _channels;

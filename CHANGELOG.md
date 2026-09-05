@@ -2,6 +2,25 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.0.0
+
+- Modelo de salão (`Beamcast.Server`): qualquer pessoa sobe o servidor com `docker compose up -d --build`
+  a partir do repositório; no app, endereço do servidor + nome + criar salão (nome e senha
+  obrigatória) ou entrar (código e senha). Sem Actions nem registry para o servidor.
+- Dentro do salão: lista de membros e de transmissões; qualquer membro transmite, várias
+  transmissões ao mesmo tempo, cada um escolhe o que assistir e pode parar sem sair.
+- Segurança: PBKDF2 (200k) → chave do salão; o servidor guarda só um verificador HMAC e checa
+  a entrada por desafio/resposta; nomes, títulos, vídeo e áudio em AES-256-GCM (HKDF da chave).
+  O servidor nunca vê senha nem conteúdo. Salões persistem em volume; TTL opcional.
+- Áudio: loopback por processo (ActivateAudioInterfaceAsync + Process_Loopback) como Discord/Teams;
+  ao compartilhar janela captura só o app, ao compartilhar a tela captura tudo menos apps de voz
+  (Discord, Teams, Zoom, Slack, WhatsApp…) e o próprio Beamcast; mixer de 20 ms; Opus 128 kbps;
+  player com ocultação de perda; volume e mudo no espectador.
+- Configurações de transmissão (qualidade, fps, bitrate, codec, cursor, áudio, título) agora
+  ficam na aba Transmitir da sala.
+- Removidos: modo direto TCP, relay antigo (`Beamcast.Relay`), convite com segredo por sessão.
+  Protocolo v2 do salão: versões 1.x não conectam.
+
 ## 1.1.0
 
 - Relay (`Beamcast.Relay`): transmissão pela internet sem abrir porta; salas por código, chave do

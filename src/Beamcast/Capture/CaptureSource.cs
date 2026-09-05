@@ -14,7 +14,8 @@ public sealed record CaptureSource(
     string Subtitle,
     int Width,
     int Height,
-    bool IsPrimary
+    bool IsPrimary,
+    int ProcessId = 0
 )
 {
     public string Key => $"{Kind}:{Handle}";

@@ -101,14 +101,9 @@
                 <Thickness x:Key="NavigationViewContentGridBorderThickness">0</Thickness>
             </NavigationView.Resources>
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="BroadcastNav" x:Uid="Nav_Broadcast" Tag="broadcast">
+                <NavigationViewItem x:Name="LoungeNav" x:Uid="Nav_Lounge" Tag="lounge">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE714;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem x:Name="WatchNav" x:Uid="Nav_Watch" Tag="watch">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE7B3;" />
+                        <FontIcon Glyph="&#xE716;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>

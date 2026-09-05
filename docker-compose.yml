@@ -1,0 +1,27 @@
+# Beamcast server (salão). Build and run from a clone of this repository:
+#
+#   git clone https://github.com/lbss9/Beamcast.git && cd Beamcast
+#   docker compose up -d --build
+#
+# Then point the app at  ws://<ip-or-host>:47710  (or wss://… behind a reverse proxy / tunnel).
+# The server never sees passwords or content: everything is encrypted end to end by the app.
+services:
+  beamcast-server:
+    build:
+      context: .
+      dockerfile: src/Beamcast.Server/Dockerfile
+    image: beamcast-server:local
+    container_name: beamcast-server
+    restart: unless-stopped
+    environment:
+      # Optional. When set, the app must carry the same key (Settings > Server) to use this server.
+      BEAMCAST_APP_KEY: ${BEAMCAST_APP_KEY:-}
+      # Optional. Hours an empty lounge is kept; 0 (default) keeps lounges until the data file is removed.
+      BEAMCAST_LOUNGE_TTL_HOURS: ${BEAMCAST_LOUNGE_TTL_HOURS:-0}
+    ports:
+      - "${BEAMCAST_PORT:-47710}:8080"
+    volumes:
+      - beamcast_data:/data
+
+volumes:
+  beamcast_data:

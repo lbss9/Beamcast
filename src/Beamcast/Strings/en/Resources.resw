@@ -77,8 +77,6 @@
 
   <data name="Settings_IdentityHeader.Text" xml:space="preserve"><value>Identity and network</value></data>
   <data name="Settings_DisplayName.Header" xml:space="preserve"><value>Your name</value></data>
-  <data name="Settings_Port.Header" xml:space="preserve"><value>Default port</value></data>
-  <data name="Settings_MaxViewers.Header" xml:space="preserve"><value>Maximum viewers</value></data>
   <data name="Settings_LanguageHeader.Text" xml:space="preserve"><value>Language</value></data>
   <data name="Settings_LanguageSystem" xml:space="preserve"><value>Follow the system</value></data>
   <data name="Settings_ThemeHeader.Text" xml:space="preserve"><value>Theme</value></data>
@@ -163,8 +161,64 @@
   <data name="Error_Secret" xml:space="preserve"><value>Paste the full invite code; a typed address is not enough for this stream.</value></data>
   <data name="Error_GoLiveRelay" xml:space="preserve"><value>Could not open the room on the server: {0}</value></data>
   <data name="Settings_RelayHeader.Text" xml:space="preserve"><value>Server</value></data>
-  <data name="Settings_RelayDesc.Text" xml:space="preserve"><value>Internet broadcasts go through this server. Everyone must use the same address and key.</value></data>
-  <data name="Settings_RelayUrl.Header" xml:space="preserve"><value>Address (wss://…)</value></data>
-  <data name="Settings_RelayKey.Header" xml:space="preserve"><value>App key</value></data>
-  <data name="Settings_RelayReset.Content" xml:space="preserve"><value>Restore default</value></data>
+
+  <data name="Nav_Lounge.Content" xml:space="preserve"><value>Lounge</value></data>
+  <data name="Lounge_Heading.Text" xml:space="preserve"><value>Lounge</value></data>
+  <data name="Lounge_Summary.Text" xml:space="preserve"><value>Point at the server of whoever hosts Beamcast, create a lounge with a password or join one with its code. Inside, anyone can broadcast their screen and everyone picks what to watch.</value></data>
+  <data name="Lounge_Server.Header" xml:space="preserve"><value>Server (host or IP)</value></data>
+  <data name="Lounge_Server.PlaceholderText" xml:space="preserve"><value>192.168.0.4 or wss://beamcast.example.com</value></data>
+  <data name="Lounge_YourName.Header" xml:space="preserve"><value>Your name</value></data>
+  <data name="Lounge_CreateHeading.Text" xml:space="preserve"><value>Create a lounge</value></data>
+  <data name="Lounge_CreateHint.Text" xml:space="preserve"><value>The password is required: it becomes the key that encrypts everything end to end. The server never receives it.</value></data>
+  <data name="Lounge_Name.Header" xml:space="preserve"><value>Lounge name</value></data>
+  <data name="Lounge_Name.PlaceholderText" xml:space="preserve"><value>e.g. Friends' room</value></data>
+  <data name="Lounge_CreatePassword.Header" xml:space="preserve"><value>Password (min. 4 characters)</value></data>
+  <data name="Lounge_CreateButton.Content" xml:space="preserve"><value>Create lounge</value></data>
+  <data name="Lounge_JoinHeading.Text" xml:space="preserve"><value>Join a lounge</value></data>
+  <data name="Lounge_JoinHint.Text" xml:space="preserve"><value>Paste the code (or the BC-… invite) you were given and the lounge password.</value></data>
+  <data name="Lounge_Code.Header" xml:space="preserve"><value>Code or invite</value></data>
+  <data name="Lounge_Code.PlaceholderText" xml:space="preserve"><value>ABC234 or BC-…</value></data>
+  <data name="Lounge_JoinPassword.Header" xml:space="preserve"><value>Lounge password</value></data>
+  <data name="Lounge_JoinButton.Content" xml:space="preserve"><value>Join</value></data>
+  <data name="Lounge_SecurityNote.Text" xml:space="preserve"><value>Everything that flows through the lounge (names, titles, video and audio) is encrypted with AES-256-GCM under a key derived from the password. The server only sees ciphertext and a password proof; it cannot watch or listen.</value></data>
+  <data name="Lounge_WrongPassword" xml:space="preserve"><value>Wrong lounge password.</value></data>
+  <data name="Lounge_NotFound" xml:space="preserve"><value>That lounge does not exist on this server.</value></data>
+  <data name="Lounge_Unreachable" xml:space="preserve"><value>Could not reach the server. Check the address and that it is running.</value></data>
+  <data name="Lounge_BadCode" xml:space="preserve"><value>That code does not look valid.</value></data>
+  <data name="Lounge_Lost" xml:space="preserve"><value>Lost the connection to the server.</value></data>
+  <data name="Lounge_MemberPlaceholder" xml:space="preserve"><value>Member {0}</value></data>
+  <data name="Room_CopyInvite.Content" xml:space="preserve"><value>Copy invite</value></data>
+  <data name="Room_Leave.Content" xml:space="preserve"><value>Leave lounge</value></data>
+  <data name="Room_StreamsHeading.Text" xml:space="preserve"><value>Streams</value></data>
+  <data name="Room_StreamsEmpty.Text" xml:space="preserve"><value>Nobody is streaming. Use the Broadcast tab to start.</value></data>
+  <data name="Room_MembersHeading.Text" xml:space="preserve"><value>Who is here</value></data>
+  <data name="Room_WatchTab.Header" xml:space="preserve"><value>Watch</value></data>
+  <data name="Room_BroadcastTab.Header" xml:space="preserve"><value>Broadcast</value></data>
+  <data name="Room_WatchHint.Text" xml:space="preserve"><value>Pick a stream from the list on the left.</value></data>
+  <data name="Room_Watch" xml:space="preserve"><value>Watch</value></data>
+  <data name="Room_StopWatching.Content" xml:space="preserve"><value>Stop</value></data>
+  <data name="Room_Mine" xml:space="preserve"><value>Yours</value></data>
+  <data name="Room_Paused" xml:space="preserve"><value>paused</value></data>
+  <data name="Room_Mute.ToolTipService.ToolTip" xml:space="preserve"><value>Mute</value></data>
+  <data name="Room_WatchingTitle" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="Stream_Heading.Text" xml:space="preserve"><value>Your stream</value></data>
+  <data name="Stream_Title.Header" xml:space="preserve"><value>Title</value></data>
+  <data name="Stream_Title.PlaceholderText" xml:space="preserve"><value>e.g. Friday game night</value></data>
+  <data name="Stream_DefaultTitle" xml:space="preserve"><value>{0}'s screen</value></data>
+  <data name="Audio_Mode.Header" xml:space="preserve"><value>Audio</value></data>
+  <data name="Audio_Auto" xml:space="preserve"><value>Automatic (shared app or system)</value></data>
+  <data name="Audio_System" xml:space="preserve"><value>System, except voice apps</value></data>
+  <data name="Audio_App" xml:space="preserve"><value>Shared app only</value></data>
+  <data name="Audio_Off" xml:space="preserve"><value>No audio</value></data>
+  <data name="Audio_HintSystem" xml:space="preserve"><value>Captures each app's sound except Discord, Teams, Zoom and the like, so the call's voices are not sent twice.</value></data>
+  <data name="Audio_HintApp" xml:space="preserve"><value>Captures only the shared window's sound.</value></data>
+  <data name="Audio_HintOff" xml:space="preserve"><value>The stream goes out without sound.</value></data>
+  <data name="Audio_Unsupported" xml:space="preserve"><value>Per-app audio needs Windows 11 (build 20348+).</value></data>
+  <data name="Audio_DescSystem" xml:space="preserve"><value>Capturing system sound.</value></data>
+  <data name="Audio_DescSystemExcept" xml:space="preserve"><value>Capturing system sound, except: {0}.</value></data>
+  <data name="Audio_DescApp" xml:space="preserve"><value>Capturing the sound of {0}.</value></data>
+  <data name="Audio_DescAppGone" xml:space="preserve"><value>The shared app closed; no sound.</value></data>
+  <data name="Settings_RelayDesc.Text" xml:space="preserve"><value>Address of the Beamcast server (lounge) and, if it demands one, the app key. You can also change the server on the lounge screen.</value></data>
+  <data name="Settings_RelayUrl.Header" xml:space="preserve"><value>Server (host, IP or wss://…)</value></data>
+  <data name="Settings_RelayKey.Header" xml:space="preserve"><value>App key (optional)</value></data>
 </root>

@@ -1,45 +1,28 @@
 using System.Security.Cryptography;
-using System.Text;
 
 namespace Beamcast.Net;
 
 /// <summary>
-/// End-to-end encryption for everything after the first handshake message. The key is derived from
-/// the room secret that travels inside the invite code, so the relay (and anything between the two
-/// machines) only ever sees message types and flags. AES-256-GCM with a random 96-bit nonce per
-/// message; the 32-bit birthday bound is far beyond what a screen-share session produces.
+/// End-to-end encryption of every message members exchange. AES-256-GCM with a random 96-bit
+/// nonce per message; the message type and flags ride in the clear (and are authenticated as
+/// associated data) so the server can route media and apply the keyframe gate without reading
+/// anything. The 32-bit birthday bound on random nonces is far beyond what a lounge produces.
 /// </summary>
 public sealed class SecureChannel : IDisposable
 {
     public const int NonceSize = 12;
     public const int TagSize = 16;
-    public const int SecretBytes = 16;
-
-    private static readonly byte[] KeyInfo = Encoding.UTF8.GetBytes("beamcast/e2e/v2");
 
     private readonly AesGcm _aes;
 
-    private SecureChannel(byte[] key)
+    public SecureChannel(byte[] key)
     {
+        if (key.Length != 32)
+            throw new ArgumentException("Key must be 32 bytes.", nameof(key));
         _aes = new AesGcm(key, TagSize);
     }
 
-    /// <summary>Derives the channel from the invite secret and the optional room password.</summary>
-    public static SecureChannel FromSecret(string secret, string? password = null)
-    {
-        var ikm = Encoding.UTF8.GetBytes((secret ?? string.Empty) + "\n" + (password ?? string.Empty));
-        var key = HKDF.DeriveKey(HashAlgorithmName.SHA256, ikm, 32, salt: null, info: KeyInfo);
-        return new SecureChannel(key);
-    }
-
-    /// <summary>A fresh random room secret, URL-safe so it fits in the invite code.</summary>
-    public static string NewSecret()
-    {
-        var bytes = RandomNumberGenerator.GetBytes(SecretBytes);
-        return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-    }
-
-    /// <summary>Frames and encrypts a message. The type and flags stay readable for the relay.</summary>
+    /// <summary>Frames and encrypts a message. The type and flags stay readable for the server.</summary>
     public byte[] Seal(MessageType type, ReadOnlySpan<byte> plaintext, byte flags = MessageFlags.None)
     {
         var body = new byte[NonceSize + plaintext.Length + TagSize];
@@ -81,6 +64,17 @@ public sealed class SecureChannel : IDisposable
         }
         plaintext = output;
         return true;
+    }
+
+    /// <summary>Convenience: decrypt a framed blob (as stored by the server) into plaintext.</summary>
+    public bool TryOpenFramed(ReadOnlySpan<byte> framed, out MessageType type, out byte[] plaintext)
+    {
+        type = default;
+        plaintext = [];
+        if (!Framing.TryDecodeWhole(framed, out var message))
+            return false;
+        type = message.Type;
+        return TryOpen(message, out plaintext);
     }
 
     public void Dispose() => _aes.Dispose();

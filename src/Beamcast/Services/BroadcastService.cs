@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Diagnostics;
+using Beamcast.Audio;
 using Beamcast.Capture;
 using Beamcast.Codec;
 using Beamcast.Codec.Gpu;
@@ -18,18 +19,19 @@ public enum BroadcastState
     Live,
 }
 
-public sealed record HostStats(double Fps, double Kbps, double EncodeMs, int Width, int Height, int Viewers, string Codec)
+public sealed record HostStats(double Fps, double Kbps, double AudioKbps, double EncodeMs, int Width, int Height, string Codec)
 {
     public static readonly HostStats Empty = new(0, 0, 0, 0, 0, 0, string.Empty);
 }
 
 /// <summary>
-/// Owns the capture → convert → encode → fan-out pipeline for the broadcaster. Lives for the whole
-/// process so navigating between pages never interrupts a stream.
+/// Owns the capture → convert → encode pipeline and publishes the result as one stream in the
+/// lounge. Lives for the whole process so navigating between pages never interrupts a stream.
 ///
 /// GPU path (default): the captured BGRA texture is scaled and converted to NV12 by the D3D11 video
 /// processor and handed to the hardware encoder on the same device, so a 4K frame never crosses
 /// the PCIe bus. CPU path (VP8): the frame is read back and encoded with libvpx on a thread.
+/// Audio, when enabled, is captured per process and sent on the same stream.
 /// Every event is raised on the UI thread handed to <see cref="Initialize"/>.
 /// </summary>
 public sealed class BroadcastService
@@ -37,10 +39,13 @@ public sealed class BroadcastService
     public static BroadcastService Instance { get; } = new();
 
     private const int Nv12RingSize = 6;
+    private const int MaxPendingUpstreamFrames = 4;
     private static readonly TimeSpan PreviewInterval = TimeSpan.FromMilliseconds(33);
     private static readonly TimeSpan Vp8KeyframeInterval = TimeSpan.FromSeconds(10);
 
-    private readonly HostServer _server = new();
+    private readonly LoungeService _lounge = LoungeService.Instance;
+    private readonly AudioBroadcaster _audio = new();
+    private readonly FrameGate _upstreamGate = new(MaxPendingUpstreamFrames);
     private readonly SemaphoreSlim _frameSignal = new(0, 1);
     private readonly object _sync = new();
 
@@ -61,10 +66,13 @@ public sealed class BroadcastService
     private long _lastPreviewTicks;
     private volatile bool _paused;
     private volatile bool _live;
+    private uint _streamId;
+    private StreamMetaMessage _meta = new();
 
     private long _statsWindowStart;
     private int _statsFrames;
     private long _statsBytes;
+    private long _statsAudioBytes;
     private double _statsEncodeMs;
 
     private string _preset = QualityPreset.Source;
@@ -72,37 +80,35 @@ public sealed class BroadcastService
     private int _bitrateKbps = 30000;
     private bool _showCursor = true;
     private string _encoderPreference = EncoderPreference.Auto;
+    private string _audioMode = AudioMode.Auto;
 
     private BroadcastService()
     {
-        _server.KeyframeNeeded += OnKeyframeNeeded;
-        _server.ViewerJoined += _ => Post(() => ViewersChanged?.Invoke());
-        _server.ViewerLeft += _ => Post(() => ViewersChanged?.Invoke());
-        _server.Faulted += ex => Post(() => Error?.Invoke(ex.Message));
-        _server.RelayClosed += reason => Post(() =>
+        _lounge.KeyframeRequested += OnKeyframeRequested;
+        _lounge.StateChanged += state =>
         {
-            if (State != BroadcastState.Live)
-                return;
-            Error?.Invoke(Loc.Get("Error_RelayLost"));
-            StopLive();
-        });
+            if (state == LoungeState.Disconnected)
+                StopLive();
+        };
+        _audio.PacketReady += OnAudioPacket;
+        _audio.Faulted += message => Post(() => Error?.Invoke(message));
     }
 
     public event Action<BroadcastState>? StateChanged;
     public event Action<HostStats>? StatsChanged;
-    public event Action? ViewersChanged;
     public event Action<string>? Error;
     /// <summary>Raised on the UI thread once the first frame of a new source hit the preview.</summary>
     public event Action? PreviewStarted;
 
     public BroadcastState State { get; private set; }
     public CaptureSource? Source { get; private set; }
-    public HostOptions? Options { get; private set; }
     public HostStats LastStats { get; private set; } = HostStats.Empty;
-    public IReadOnlyList<ViewerInfo> Viewers => _server.Viewers;
     public bool IsPaused => _paused;
     public VideoCodec ActiveCodec { get; private set; } = VideoCodec.Vp8;
     public string EncoderName { get; private set; } = string.Empty;
+    public uint StreamId => _streamId;
+    public AudioCaptureInfo AudioInfo => _audio.Info;
+    public bool AudioActive => _audio.IsRunning;
 
     /// <summary>The presenter for the live preview; bind it to a GpuVideoView.</summary>
     public SwapChainPresenter Preview => _preview ??= new SwapChainPresenter(Gpu);
@@ -142,6 +148,17 @@ public sealed class BroadcastService
         set => _encoderPreference = EncoderPreference.Normalize(value);
     }
 
+    public string AudioModeValue
+    {
+        get => _audioMode;
+        set
+        {
+            _audioMode = AudioMode.Normalize(value);
+            if (_live)
+                RestartAudio();
+        }
+    }
+
     public bool ShowCursor
     {
         get => _showCursor;
@@ -162,6 +179,7 @@ public sealed class BroadcastService
         BitrateKbps = settings.BitrateKbps;
         ShowCursor = settings.ShowCursor;
         EncoderPreferenceValue = settings.Encoder;
+        _audioMode = AudioMode.Normalize(settings.AudioMode);
     }
 
     /// <summary>Starts (or switches) capture. Works both before and during a live session.</summary>
@@ -177,6 +195,8 @@ public sealed class BroadcastService
                 SetState(BroadcastState.Preview);
             Interlocked.Exchange(ref _keyframeRequested, 1);
         }
+        if (_live)
+            _audio.Retarget(_audioMode, source);
     }
 
     public void ClearSource()
@@ -192,36 +212,45 @@ public sealed class BroadcastService
         _preview?.Clear();
     }
 
-    /// <summary>The invite viewers need for the current session; null until live.</summary>
-    public InviteTarget? CurrentInvite { get; private set; }
-
-    public string? RoomCode => _server.RoomCode;
-
-    public async Task GoLiveAsync(HostOptions options, CancellationToken ct)
+    /// <summary>Publishes the current source as a stream in the lounge.</summary>
+    public async Task GoLiveAsync(string title, CancellationToken ct)
     {
         if (State != BroadcastState.Preview || Source is null)
             throw new InvalidOperationException("Pick something to share first.");
+        if (!_lounge.IsConnected)
+            throw new InvalidOperationException("Not in a lounge.");
 
         var codec = MfCodecs.Resolve(_encoderPreference);
-        _server.SetStreamInfo(0, 0, _fps, codec.ToWireName());
-        await _server.StartAsync(options, ct);
+        var audioMode = AudioBroadcaster.Resolve(_audioMode, Source);
+        var meta = new StreamMetaMessage
+        {
+            Title = title.Trim().Length == 0 ? Loc.Format("Stream_DefaultTitle", SettingsStore.Load().DisplayName) : title.Trim(),
+            Codec = codec.ToWireName(),
+            Fps = _fps,
+            Audio = audioMode != AudioMode.Off && AudioBroadcaster.IsSupported ? "opus" : null,
+            State = StreamStates.Live,
+        };
+        (meta.Width, meta.Height) = QualityPreset.Fit(_preset, Source.Width, Source.Height);
+
+        var streamId = await _lounge.PublishAsync(meta, ct);
 
         lock (_sync)
         {
             if (State != BroadcastState.Preview || Source is null)
             {
-                _server.Stop();
+                _lounge.Unpublish(streamId);
                 throw new InvalidOperationException("Pick something to share first.");
             }
 
             ActiveCodec = codec;
             EncoderName = ActiveCodec == VideoCodec.Vp8 ? "libvpx (CPU)" : string.Empty;
-            Options = options;
-            CurrentInvite = options.Kind == InviteKind.Relay
-                ? InviteTarget.Relay(options.RelayUrl!, _server.RoomCode ?? string.Empty, options.Secret, options.Password)
-                : InviteTarget.Direct(string.Empty, options.Port, options.Secret, options.Password);
+            _streamId = streamId;
+            _meta = meta;
             _paused = false;
+            lock (_upstreamGate)
+                _upstreamGate.RequestKeyframe();
             ResetStats();
+            _lounge.RegisterOwnStream(streamId, meta);
 
             if (ActiveCodec == VideoCodec.Vp8)
             {
@@ -239,11 +268,10 @@ public sealed class BroadcastService
             Interlocked.Exchange(ref _keyframeRequested, 1);
             SetState(BroadcastState.Live);
         }
-    }
 
-    /// <summary>Same invite with a different address, for the direct mode address picker.</summary>
-    public InviteTarget? InviteFor(string address) =>
-        CurrentInvite is { Kind: InviteKind.Direct } direct ? direct with { Host = address } : CurrentInvite;
+        if (meta.Audio is not null)
+            _audio.Start(_audioMode, Source);
+    }
 
     public void StopLive()
     {
@@ -261,7 +289,17 @@ public sealed class BroadcastService
         if (State != BroadcastState.Live || _paused == paused)
             return;
         _paused = paused;
-        _server.SetState(paused ? StreamStates.Paused : StreamStates.Live);
+        _meta = new StreamMetaMessage
+        {
+            Title = _meta.Title,
+            Codec = _meta.Codec,
+            Width = _meta.Width,
+            Height = _meta.Height,
+            Fps = _meta.Fps,
+            Audio = _meta.Audio,
+            State = paused ? StreamStates.Paused : StreamStates.Live,
+        };
+        _lounge.UpdateStreamMeta(_streamId, _meta);
         if (!paused)
             Interlocked.Exchange(ref _keyframeRequested, 1);
         Post(() => StateChanged?.Invoke(State));
@@ -278,6 +316,7 @@ public sealed class BroadcastService
             Source = null;
             State = BroadcastState.Idle;
         }
+        _audio.Dispose();
         _preview?.Dispose();
         _preview = null;
         DisposeGpuResources();
@@ -288,6 +327,7 @@ public sealed class BroadcastService
     private void StopLiveCore()
     {
         _live = false;
+        _audio.Stop();
 
         var cts = _vp8Cts;
         _vp8Cts = null;
@@ -300,9 +340,12 @@ public sealed class BroadcastService
         _gpuEncoder = null;
         encoder?.Dispose();
 
-        _server.Stop();
-        Options = null;
-        CurrentInvite = null;
+        if (_streamId != 0)
+        {
+            _lounge.Unpublish(_streamId);
+            _lounge.ForgetOwnStream(_streamId);
+            _streamId = 0;
+        }
         _paused = false;
 
         var stale = Interlocked.Exchange(ref _latest, null);
@@ -311,6 +354,17 @@ public sealed class BroadcastService
 
         LastStats = HostStats.Empty;
         Post(() => StatsChanged?.Invoke(LastStats));
+    }
+
+    private void RestartAudio()
+    {
+        if (!_live)
+            return;
+        var mode = AudioBroadcaster.Resolve(_audioMode, Source);
+        if (mode == AudioMode.Off || !AudioBroadcaster.IsSupported)
+            _audio.Stop();
+        else
+            _audio.Start(_audioMode, Source);
     }
 
     private ScreenCapture CreateCapture()
@@ -330,8 +384,10 @@ public sealed class BroadcastService
         });
     }
 
-    private void OnKeyframeNeeded()
+    private void OnKeyframeRequested(uint streamId)
     {
+        if (streamId != _streamId)
+            return;
         Diag.Log("broadcast: keyframe needed");
         Interlocked.Exchange(ref _keyframeRequested, 1);
         _gpuEncoder?.RequestKeyframe();
@@ -408,7 +464,6 @@ public sealed class BroadcastService
             _gpuEncoder = encoder;
             EncoderName = encoder.Name;
             Diag.Log($"broadcast: encoder {encoder.Name} {width}x{height}@{_fps} {_bitrateKbps} kbps");
-            _server.SetStreamInfo(width, height, _fps, ActiveCodec.ToWireName());
             Interlocked.Exchange(ref _keyframeRequested, 1);
         }
 
@@ -447,9 +502,42 @@ public sealed class BroadcastService
         if (!_live)
             return;
         if (frame.IsKeyframe || frame.Sequence % 120 == 1)
-            Diag.Log($"broadcast: frame #{frame.Sequence} key={frame.IsKeyframe} {frame.Data.Length} B viewers={_server.ViewerCount}");
-        _server.Broadcast(frame);
+            Diag.Log($"broadcast: frame #{frame.Sequence} key={frame.IsKeyframe} {frame.Data.Length} B");
+        Publish(frame);
         AccountFrame(frame, encodeMs);
+    }
+
+    /// <summary>Sends a frame once; the server fans it out. A slow uplink drops frames here, not in the server.</summary>
+    private void Publish(EncodedFrame frame)
+    {
+        var streamId = _streamId;
+        if (streamId == 0)
+            return;
+
+        GateDecision decision;
+        lock (_upstreamGate)
+        {
+            decision = _upstreamGate.Offer(frame.IsKeyframe, _lounge.PendingVideo(streamId));
+        }
+        if (decision == GateDecision.DropAndRequestKeyframe)
+        {
+            Interlocked.Exchange(ref _keyframeRequested, 1);
+            _gpuEncoder?.RequestKeyframe();
+            return;
+        }
+        if (decision != GateDecision.Send)
+            return;
+
+        var header = new VideoPacketHeader(frame.Sequence, frame.TimestampMs, frame.Width, frame.Height, frame.IsKeyframe);
+        _lounge.SendMedia(streamId, MessageType.Video, VideoPacket.Build(header, frame.Data), frame.IsKeyframe);
+    }
+
+    private void OnAudioPacket(byte[] packet)
+    {
+        if (!_live || _paused || _streamId == 0)
+            return;
+        _lounge.SendMedia(_streamId, MessageType.Audio, packet, false);
+        Interlocked.Add(ref _statsAudioBytes, packet.Length);
     }
 
     private void QueueForVp8(GpuFrame frame)
@@ -470,8 +558,6 @@ public sealed class BroadcastService
         using var encoder = new Vp8Encoder { BitrateKbps = _bitrateKbps };
         byte[]? encodeBuffer = null;
         var lastKeyframe = Stopwatch.GetTimestamp();
-        var lastWidth = 0;
-        var lastHeight = 0;
 
         try
         {
@@ -499,13 +585,6 @@ public sealed class BroadcastService
                     else
                         FrameScaler.Resize(raw.Pixels, raw.Width, raw.Height, encodeBuffer, width, height);
 
-                    if (width != lastWidth || height != lastHeight)
-                    {
-                        lastWidth = width;
-                        lastHeight = height;
-                        _server.SetStreamInfo(width, height, _fps, VideoCodecs.Vp8Name);
-                    }
-
                     encoder.BitrateKbps = _bitrateKbps;
                     var wantKey = Interlocked.Exchange(ref _keyframeRequested, 0) == 1
                         || Stopwatch.GetElapsedTime(lastKeyframe) >= Vp8KeyframeInterval;
@@ -520,7 +599,7 @@ public sealed class BroadcastService
                     if (encoded.IsKeyframe)
                         lastKeyframe = Stopwatch.GetTimestamp();
 
-                    _server.Broadcast(encoded);
+                    Publish(encoded);
                     AccountFrame(encoded, encodeMs);
                 }
                 finally
@@ -546,6 +625,7 @@ public sealed class BroadcastService
         _statsFrames = 0;
         _statsBytes = 0;
         _statsEncodeMs = 0;
+        Interlocked.Exchange(ref _statsAudioBytes, 0);
     }
 
     private void AccountFrame(EncodedFrame frame, double encodeMs)
@@ -558,17 +638,21 @@ public sealed class BroadcastService
             return;
 
         var seconds = elapsed.TotalSeconds;
+        var audioBytes = Interlocked.Exchange(ref _statsAudioBytes, 0);
         var stats = new HostStats(
             _statsFrames / seconds,
             _statsBytes * 8 / 1000.0 / seconds,
+            audioBytes * 8 / 1000.0 / seconds,
             _statsFrames > 0 ? _statsEncodeMs / _statsFrames : 0,
             frame.Width,
             frame.Height,
-            _server.ViewerCount,
             ActiveCodec.ToWireName().ToUpperInvariant()
         );
         LastStats = stats;
-        ResetStats();
+        _statsWindowStart = Stopwatch.GetTimestamp();
+        _statsFrames = 0;
+        _statsBytes = 0;
+        _statsEncodeMs = 0;
         Post(() => StatsChanged?.Invoke(stats));
     }
 

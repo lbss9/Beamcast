@@ -5,21 +5,10 @@ public static class AppInfo
 {
     public const string Name = "Beamcast";
 
-    /// <summary>Wire protocol version. Bump when the handshake or packet layout changes.</summary>
-    public const int ProtocolVersion = 1;
-
-    public const int DefaultPort = 47700;
-
     public const string DefaultRepoUrl = "https://github.com/lbss9/beamcast";
 
-    /// <summary>The relay every install talks to unless Settings says otherwise.</summary>
-    public const string DefaultRelayUrl = "wss://relay.example.com/ws";
-
-    /// <summary>
-    /// Shared key the relay demands. It only keeps strangers from using the relay's bandwidth;
-    /// stream contents are protected by the per-room secret, never by this key.
-    /// </summary>
-    public const string DefaultRelayAppKey = "";
+    /// <summary>Default server port for a bare host in Settings (ws://host → ws://host:47710/ws).</summary>
+    public const int DefaultServerPort = Net.LoungeProtocol.DefaultPort;
 
     public static string Version
     {

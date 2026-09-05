@@ -38,8 +38,10 @@ public sealed partial class MainWindow : Window
         AppWindow.Resize(new SizeInt32(1180, 820));
         SystemBackdrop = MicaController.IsSupported() ? new MicaBackdrop() : new DesktopAcrylicBackdrop();
 
+        LoungeService.Instance.Initialize(DispatcherQueue);
         BroadcastService.Instance.Initialize(DispatcherQueue);
         WatchService.Instance.Initialize(DispatcherQueue);
+        LoungeService.Instance.StateChanged += OnLoungeStateChanged;
         BroadcastService.Instance.ApplySettings(SettingsStore.Load());
         BroadcastService.Instance.StateChanged += _ => UpdateLiveBadge();
 
@@ -56,7 +58,7 @@ public sealed partial class MainWindow : Window
         AppWindow.Closing += OnClosing;
         NavView.Loaded += (_, _) =>
         {
-            NavView.SelectedItem = BroadcastNav;
+            NavView.SelectedItem = LoungeNav;
             _ = ShowDisclaimerIfNeededAsync();
         };
         StartUpdateTimer();
@@ -80,8 +82,7 @@ public sealed partial class MainWindow : Window
     {
         App.ApplyCulture(language);
         Loc.Reset();
-        BroadcastNav.Content = Loc.Get("Nav_Broadcast/Content");
-        WatchNav.Content = Loc.Get("Nav_Watch/Content");
+        LoungeNav.Content = Loc.Get("Nav_Lounge/Content");
         AboutNav.Content = Loc.Get("Nav_About/Content");
         var current = ContentFrame.CurrentSourcePageType;
         if (current is not null)
@@ -95,9 +96,8 @@ public sealed partial class MainWindow : Window
     {
         NavView.SelectedItem = tag switch
         {
-            "watch" => WatchNav,
             "about" => AboutNav,
-            _ => BroadcastNav,
+            _ => LoungeNav,
         };
     }
 
@@ -151,7 +151,7 @@ public sealed partial class MainWindow : Window
     {
         _updateTimer?.Stop();
         BroadcastService.Instance.Shutdown();
-        _ = WatchService.Instance.DisconnectAsync();
+        _ = LoungeService.Instance.LeaveAsync();
         Close();
     }
 
@@ -241,25 +241,42 @@ public sealed partial class MainWindow : Window
 
     private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        Type page = typeof(BroadcastPage);
+        Type page = LoungePageType;
         if (args.IsSettingsSelected)
             page = typeof(SettingsPage);
         else if (args.SelectedItem is NavigationViewItem item && item.Tag is string tag)
             page = tag switch
             {
-                "watch" => typeof(WatchPage),
                 "about" => typeof(AboutPage),
-                _ => typeof(BroadcastPage),
+                _ => LoungePageType,
             };
 
         if (ContentFrame.CurrentSourcePageType != page)
             ContentFrame.Navigate(page);
     }
 
+    /// <summary>Outside a lounge the tab shows the entry screen; inside, the room.</summary>
+    private static Type LoungePageType =>
+        LoungeService.Instance.State == LoungeState.Connected ? typeof(RoomPage) : typeof(LoungePage);
+
+    private void OnLoungeStateChanged(LoungeState state)
+    {
+        if (state == LoungeState.Connecting)
+            return;
+        if (ContentFrame.CurrentSourcePageType == typeof(LoungePage) || ContentFrame.CurrentSourcePageType == typeof(RoomPage))
+        {
+            var page = LoungePageType;
+            if (ContentFrame.CurrentSourcePageType != page)
+                ContentFrame.Navigate(page);
+        }
+        if (state == LoungeState.Disconnected && _fullscreenContent is not null)
+            ExitFullscreen();
+    }
+
     private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         _updateTimer?.Stop();
         BroadcastService.Instance.Shutdown();
-        _ = WatchService.Instance.DisconnectAsync();
+        _ = LoungeService.Instance.LeaveAsync();
     }
 }

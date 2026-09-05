@@ -77,8 +77,6 @@
 
   <data name="Settings_IdentityHeader.Text" xml:space="preserve"><value>Identidade e rede</value></data>
   <data name="Settings_DisplayName.Header" xml:space="preserve"><value>Seu nome</value></data>
-  <data name="Settings_Port.Header" xml:space="preserve"><value>Porta padrão</value></data>
-  <data name="Settings_MaxViewers.Header" xml:space="preserve"><value>Máximo de espectadores</value></data>
   <data name="Settings_LanguageHeader.Text" xml:space="preserve"><value>Idioma</value></data>
   <data name="Settings_LanguageSystem" xml:space="preserve"><value>Seguir o sistema</value></data>
   <data name="Settings_ThemeHeader.Text" xml:space="preserve"><value>Tema</value></data>
@@ -163,8 +161,64 @@
   <data name="Error_Secret" xml:space="preserve"><value>Cole o código de convite completo; endereço digitado não basta para esta transmissão.</value></data>
   <data name="Error_GoLiveRelay" xml:space="preserve"><value>Não deu para abrir a sala no servidor: {0}</value></data>
   <data name="Settings_RelayHeader.Text" xml:space="preserve"><value>Servidor</value></data>
-  <data name="Settings_RelayDesc.Text" xml:space="preserve"><value>Quem transmite pela internet passa por este servidor. Todos os participantes precisam usar o mesmo endereço e a mesma chave.</value></data>
-  <data name="Settings_RelayUrl.Header" xml:space="preserve"><value>Endereço (wss://…)</value></data>
-  <data name="Settings_RelayKey.Header" xml:space="preserve"><value>Chave do app</value></data>
-  <data name="Settings_RelayReset.Content" xml:space="preserve"><value>Restaurar padrão</value></data>
+
+  <data name="Nav_Lounge.Content" xml:space="preserve"><value>Salão</value></data>
+  <data name="Lounge_Heading.Text" xml:space="preserve"><value>Salão</value></data>
+  <data name="Lounge_Summary.Text" xml:space="preserve"><value>Aponte para o servidor de quem hospeda o Beamcast, crie um salão com senha ou entre em um com o código. Dentro do salão, qualquer pessoa transmite a tela e cada um escolhe o que assistir.</value></data>
+  <data name="Lounge_Server.Header" xml:space="preserve"><value>Servidor (host ou IP)</value></data>
+  <data name="Lounge_Server.PlaceholderText" xml:space="preserve"><value>192.168.0.4 ou wss://beamcast.exemplo.com</value></data>
+  <data name="Lounge_YourName.Header" xml:space="preserve"><value>Seu nome</value></data>
+  <data name="Lounge_CreateHeading.Text" xml:space="preserve"><value>Criar um salão</value></data>
+  <data name="Lounge_CreateHint.Text" xml:space="preserve"><value>A senha é obrigatória: ela vira a chave que cifra tudo de ponta a ponta. O servidor nunca a recebe.</value></data>
+  <data name="Lounge_Name.Header" xml:space="preserve"><value>Nome do salão</value></data>
+  <data name="Lounge_Name.PlaceholderText" xml:space="preserve"><value>Ex.: Sala dos amigos</value></data>
+  <data name="Lounge_CreatePassword.Header" xml:space="preserve"><value>Senha (mín. 4 caracteres)</value></data>
+  <data name="Lounge_CreateButton.Content" xml:space="preserve"><value>Criar salão</value></data>
+  <data name="Lounge_JoinHeading.Text" xml:space="preserve"><value>Entrar em um salão</value></data>
+  <data name="Lounge_JoinHint.Text" xml:space="preserve"><value>Cole o código (ou o convite BC-…) que a pessoa te mandou e a senha do salão.</value></data>
+  <data name="Lounge_Code.Header" xml:space="preserve"><value>Código ou convite</value></data>
+  <data name="Lounge_Code.PlaceholderText" xml:space="preserve"><value>ABC234 ou BC-…</value></data>
+  <data name="Lounge_JoinPassword.Header" xml:space="preserve"><value>Senha do salão</value></data>
+  <data name="Lounge_JoinButton.Content" xml:space="preserve"><value>Entrar</value></data>
+  <data name="Lounge_SecurityNote.Text" xml:space="preserve"><value>Tudo que circula no salão (nomes, títulos, vídeo e áudio) é cifrado com AES-256-GCM usando uma chave derivada da senha. O servidor só vê tráfego cifrado e prova de senha; ele não consegue assistir nem ouvir.</value></data>
+  <data name="Lounge_WrongPassword" xml:space="preserve"><value>Senha do salão incorreta.</value></data>
+  <data name="Lounge_NotFound" xml:space="preserve"><value>Esse salão não existe nesse servidor.</value></data>
+  <data name="Lounge_Unreachable" xml:space="preserve"><value>Não foi possível conectar ao servidor. Confira o endereço e se ele está no ar.</value></data>
+  <data name="Lounge_BadCode" xml:space="preserve"><value>Esse código não parece válido.</value></data>
+  <data name="Lounge_Lost" xml:space="preserve"><value>A conexão com o servidor caiu.</value></data>
+  <data name="Lounge_MemberPlaceholder" xml:space="preserve"><value>Membro {0}</value></data>
+  <data name="Room_CopyInvite.Content" xml:space="preserve"><value>Copiar convite</value></data>
+  <data name="Room_Leave.Content" xml:space="preserve"><value>Sair do salão</value></data>
+  <data name="Room_StreamsHeading.Text" xml:space="preserve"><value>Transmissões</value></data>
+  <data name="Room_StreamsEmpty.Text" xml:space="preserve"><value>Ninguém está transmitindo. Use a aba Transmitir para começar.</value></data>
+  <data name="Room_MembersHeading.Text" xml:space="preserve"><value>Quem está aqui</value></data>
+  <data name="Room_WatchTab.Header" xml:space="preserve"><value>Assistir</value></data>
+  <data name="Room_BroadcastTab.Header" xml:space="preserve"><value>Transmitir</value></data>
+  <data name="Room_WatchHint.Text" xml:space="preserve"><value>Escolha uma transmissão na lista à esquerda.</value></data>
+  <data name="Room_Watch" xml:space="preserve"><value>Assistir</value></data>
+  <data name="Room_StopWatching.Content" xml:space="preserve"><value>Parar</value></data>
+  <data name="Room_Mine" xml:space="preserve"><value>Sua</value></data>
+  <data name="Room_Paused" xml:space="preserve"><value>pausada</value></data>
+  <data name="Room_Mute.ToolTipService.ToolTip" xml:space="preserve"><value>Silenciar</value></data>
+  <data name="Room_WatchingTitle" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="Stream_Heading.Text" xml:space="preserve"><value>Sua transmissão</value></data>
+  <data name="Stream_Title.Header" xml:space="preserve"><value>Título</value></data>
+  <data name="Stream_Title.PlaceholderText" xml:space="preserve"><value>Ex.: Jogatina de sexta</value></data>
+  <data name="Stream_DefaultTitle" xml:space="preserve"><value>Tela de {0}</value></data>
+  <data name="Audio_Mode.Header" xml:space="preserve"><value>Áudio</value></data>
+  <data name="Audio_Auto" xml:space="preserve"><value>Automático (app compartilhado ou sistema)</value></data>
+  <data name="Audio_System" xml:space="preserve"><value>Sistema, exceto apps de voz</value></data>
+  <data name="Audio_App" xml:space="preserve"><value>Só o app compartilhado</value></data>
+  <data name="Audio_Off" xml:space="preserve"><value>Sem áudio</value></data>
+  <data name="Audio_HintSystem" xml:space="preserve"><value>Captura o som de cada app, menos Discord, Teams, Zoom e afins, para a voz da chamada não duplicar.</value></data>
+  <data name="Audio_HintApp" xml:space="preserve"><value>Captura só o som da janela compartilhada.</value></data>
+  <data name="Audio_HintOff" xml:space="preserve"><value>A transmissão vai sem som.</value></data>
+  <data name="Audio_Unsupported" xml:space="preserve"><value>Áudio por app precisa do Windows 11 (build 20348+).</value></data>
+  <data name="Audio_DescSystem" xml:space="preserve"><value>Capturando o som do sistema.</value></data>
+  <data name="Audio_DescSystemExcept" xml:space="preserve"><value>Capturando o som do sistema, exceto: {0}.</value></data>
+  <data name="Audio_DescApp" xml:space="preserve"><value>Capturando o som de {0}.</value></data>
+  <data name="Audio_DescAppGone" xml:space="preserve"><value>O app compartilhado fechou; sem som.</value></data>
+  <data name="Settings_RelayDesc.Text" xml:space="preserve"><value>Endereço do servidor Beamcast (salão) e, se ele exigir, a chave do app. Você também pode alterar o servidor na tela do salão.</value></data>
+  <data name="Settings_RelayUrl.Header" xml:space="preserve"><value>Servidor (host, IP ou wss://…)</value></data>
+  <data name="Settings_RelayKey.Header" xml:space="preserve"><value>Chave do app (opcional)</value></data>
 </root>

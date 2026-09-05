@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Beamcast.Audio;
 using Beamcast.Codec;
 using Beamcast.Codec.Gpu;
 using Beamcast.Net;
@@ -7,140 +8,163 @@ using Microsoft.UI.Dispatching;
 
 namespace Beamcast.Services;
 
-public enum WatchState
-{
-    Disconnected,
-    Connecting,
-    Watching,
-}
+public sealed record ViewerStats(double Fps, double Kbps, double AudioKbps, double DecodeMs, int Width, int Height);
 
 /// <summary>
-/// Process-wide viewer session so the stream survives page navigation. Decoding and presentation
-/// happen on the network thread: a packet arrives, the GPU decodes it, the swap chain shows it.
+/// The stream this member is watching. Decoding and presentation happen on the network thread:
+/// a packet arrives, the GPU decodes it, the swap chain shows it, the audio goes to WASAPI.
 /// No hop through the UI thread, no intermediate copy.
 /// </summary>
 public sealed class WatchService
 {
     public static WatchService Instance { get; } = new();
 
+    private readonly LoungeService _lounge = LoungeService.Instance;
     private DispatcherQueue? _ui;
     private GpuDevice? _gpu;
     private SwapChainPresenter? _presenter;
-    private ViewerClient? _client;
     private MfVideoDecoder? _gpuDecoder;
     private Vp8Decoder? _vp8Decoder;
+    private AudioPlayer? _audio;
     private VideoCodec _codec;
+    private uint _streamId;
     private int _firstFrame;
+    private float _volume = 1f;
+    private bool _muted;
 
-    private WatchService() { }
+    private long _windowStart;
+    private int _framesWindow;
+    private long _bytesWindow;
+    private long _audioBytesWindow;
+    private double _decodeWindowMs;
+    private int _width;
+    private int _height;
 
-    public event Action<WatchState>? StateChanged;
+    private WatchService()
+    {
+        _lounge.MediaReceived += OnMedia;
+        _lounge.StreamEnded += id =>
+        {
+            if (id == _streamId)
+                StopWatching("ended");
+        };
+        _lounge.StateChanged += state =>
+        {
+            if (state == LoungeState.Disconnected)
+                StopWatching("left");
+        };
+    }
+
+    public event Action<uint>? WatchingChanged;
     public event Action? FirstFrame;
-    public event Action<IReadOnlyList<string>>? ViewersChanged;
     public event Action<ViewerStats>? StatsChanged;
-    public event Action<string>? StreamStateChanged;
-    public event Action<string>? Closed;
+    public event Action<string>? Stopped;
 
-    public WatchState State { get; private set; }
-    public WelcomeMessage? Welcome { get; private set; }
-    public IReadOnlyList<string> Viewers { get; private set; } = [];
-    public ViewerStats? LastStats { get; private set; }
-    public string StreamState { get; private set; } = StreamStates.Live;
-    public InviteTarget? Target { get; private set; }
+    /// <summary>Zero when not watching anything.</summary>
+    public uint StreamId => _streamId;
+    public bool IsWatching => _streamId != 0;
     public bool HasFrame => Volatile.Read(ref _firstFrame) != 0;
+    public ViewerStats? LastStats { get; private set; }
 
     public GpuDevice Gpu => _gpu ??= new GpuDevice();
 
     public SwapChainPresenter Presenter => _presenter ??= new SwapChainPresenter(Gpu);
 
+    public float Volume
+    {
+        get => _volume;
+        set
+        {
+            _volume = Math.Clamp(value, 0f, 1f);
+            if (_audio is not null)
+                _audio.Volume = _volume;
+        }
+    }
+
+    public bool IsMuted
+    {
+        get => _muted;
+        set
+        {
+            _muted = value;
+            if (_audio is not null)
+                _audio.IsMuted = value;
+        }
+    }
+
     public void Initialize(DispatcherQueue ui) => _ui = ui;
 
-    public async Task<WelcomeMessage> ConnectAsync(InviteTarget target, string displayName, CancellationToken ct)
+    public void Watch(uint streamId)
     {
-        if (State != WatchState.Disconnected)
-            throw new InvalidOperationException("Already connected.");
+        var stream = _lounge.FindStream(streamId);
+        if (stream is null || stream.IsMine)
+            return;
+        if (_streamId == streamId)
+            return;
 
-        SetState(WatchState.Connecting);
-        var client = new ViewerClient();
-        client.VideoReceived += OnVideo;
-        client.ViewersChanged += viewers => Post(() =>
-        {
-            Viewers = viewers;
-            ViewersChanged?.Invoke(viewers);
-        });
-        client.StatsUpdated += stats => Post(() =>
-        {
-            LastStats = stats;
-            StatsChanged?.Invoke(stats);
-        });
-        client.StreamStateChanged += state => Post(() =>
-        {
-            StreamState = state;
-            StreamStateChanged?.Invoke(state);
-        });
-        client.Closed += reason => Post(() => OnClosed(client, reason));
-
-        try
-        {
-            var welcome = await client.ConnectAsync(target, displayName, ct);
-            if (!VideoCodecs.TryParse(welcome.Codec, out var codec))
-                throw new ConnectException("codec", "Unknown codec " + welcome.Codec);
-            if (codec.IsGpu() && !MfCodecs.HasDecoder(codec))
-                throw new ConnectException("codec", "This machine cannot decode " + welcome.Codec);
-
-            _codec = codec;
-            Interlocked.Exchange(ref _firstFrame, 0);
-            _client = client;
-            Welcome = welcome;
-            Target = target;
-            Viewers = welcome.Viewers;
-            StreamState = welcome.State;
-            LastStats = null;
-            SetState(WatchState.Watching);
-            return welcome;
-        }
-        catch
-        {
-            client.Dispose();
-            SetState(WatchState.Disconnected);
-            throw;
-        }
+        StopWatching("switched", notify: false);
+        VideoCodecs.TryParse(stream.Meta.Codec, out _codec);
+        _streamId = streamId;
+        Interlocked.Exchange(ref _firstFrame, 0);
+        LastStats = null;
+        _windowStart = Stopwatch.GetTimestamp();
+        _lounge.Subscribe(streamId);
+        Post(() => WatchingChanged?.Invoke(streamId));
     }
 
-    public async Task DisconnectAsync()
+    public void StopWatching(string reason = "stopped", bool notify = true)
     {
-        var client = _client;
-        if (client is null)
+        var streamId = Interlocked.Exchange(ref _streamId, 0);
+        if (streamId == 0)
             return;
-        await client.DisconnectAsync();
-    }
-
-    private void OnClosed(ViewerClient client, string reason)
-    {
-        if (!ReferenceEquals(_client, client))
-            return;
-        _client = null;
-        client.Dispose();
+        if (_lounge.IsConnected)
+            _lounge.Unsubscribe(streamId);
         DisposeDecoders();
-        Welcome = null;
-        Target = null;
-        SetState(WatchState.Disconnected);
-        Closed?.Invoke(reason);
+        if (notify)
+        {
+            Post(() =>
+            {
+                WatchingChanged?.Invoke(0);
+                Stopped?.Invoke(reason);
+            });
+        }
     }
 
     /// <summary>Network thread. Decodes and presents in place.</summary>
-    private double OnVideo(VideoPacketHeader header, ReadOnlyMemory<byte> bitstream)
+    private void OnMedia(uint streamId, MessageType type, bool keyframe, byte[] body)
     {
-        var presenter = _presenter;
-        var start = Stopwatch.GetTimestamp();
+        if (streamId != _streamId)
+            return;
 
+        if (type == MessageType.Audio)
+        {
+            if (!AudioPacket.TryParse(body, out var audioHeader, out var opus))
+                return;
+            _audio ??= new AudioPlayer { Volume = _volume, IsMuted = _muted };
+            _audio.Push(audioHeader, opus.Span);
+            Interlocked.Add(ref _audioBytesWindow, body.Length);
+            return;
+        }
+
+        if (type != MessageType.Video || !VideoPacket.TryParse(body, out var header, out var bitstream))
+            return;
+
+        var start = Stopwatch.GetTimestamp();
+        var presenter = _presenter;
         if (_codec.IsGpu())
         {
             var decoder = _gpuDecoder;
             if (decoder is null || decoder.Codec != _codec)
             {
                 decoder?.Dispose();
-                decoder = new MfVideoDecoder(Gpu, _codec, header.Width, header.Height);
+                try
+                {
+                    decoder = new MfVideoDecoder(Gpu, _codec, header.Width, header.Height);
+                }
+                catch (Exception)
+                {
+                    return;
+                }
                 _gpuDecoder = decoder;
             }
 
@@ -151,19 +175,16 @@ public sealed class WatchService
             }
             catch (Exception)
             {
-                // Corrupt or out-of-order data: rebuild the decoder and ask for a keyframe.
                 _gpuDecoder?.Dispose();
                 _gpuDecoder = null;
-                _client?.RequestKeyframe();
-                return 0;
+                _lounge.RequestKeyframe(streamId);
+                return;
             }
 
             if (picture is null)
-                return 0;
+                return;
             using (picture)
             {
-                // The decoder's surface is padded to macroblock size (e.g. 1088 for 1080); show the
-                // real picture area the host announced in the packet header.
                 var width = Math.Min(header.Width, picture.Width);
                 var height = Math.Min(header.Height, picture.Height);
                 presenter?.Present(picture.Texture, picture.Subresource, width, height, true);
@@ -179,17 +200,45 @@ public sealed class WatchService
             }
             catch (Exception)
             {
-                _client?.RequestKeyframe();
-                return 0;
+                _lounge.RequestKeyframe(streamId);
+                return;
             }
             if (frame is null)
-                return 0;
+                return;
             presenter?.PresentPixels(frame.Bgra, frame.Width, frame.Height);
         }
 
+        _width = header.Width;
+        _height = header.Height;
+        _framesWindow++;
+        _bytesWindow += body.Length;
+        _decodeWindowMs += Stopwatch.GetElapsedTime(start).TotalMilliseconds;
         if (Interlocked.Exchange(ref _firstFrame, 1) == 0)
             Post(() => FirstFrame?.Invoke());
-        return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        MaybePublishStats();
+    }
+
+    private void MaybePublishStats()
+    {
+        var elapsed = Stopwatch.GetElapsedTime(_windowStart);
+        if (elapsed.TotalMilliseconds < 1000)
+            return;
+        var seconds = elapsed.TotalSeconds;
+        var audioBytes = Interlocked.Exchange(ref _audioBytesWindow, 0);
+        var stats = new ViewerStats(
+            _framesWindow / seconds,
+            _bytesWindow * 8 / 1000.0 / seconds,
+            audioBytes * 8 / 1000.0 / seconds,
+            _framesWindow > 0 ? _decodeWindowMs / _framesWindow : 0,
+            _width,
+            _height
+        );
+        _framesWindow = 0;
+        _bytesWindow = 0;
+        _decodeWindowMs = 0;
+        _windowStart = Stopwatch.GetTimestamp();
+        LastStats = stats;
+        Post(() => StatsChanged?.Invoke(stats));
     }
 
     private void DisposeDecoders()
@@ -198,16 +247,10 @@ public sealed class WatchService
         _gpuDecoder = null;
         _vp8Decoder?.Dispose();
         _vp8Decoder = null;
+        _audio?.Dispose();
+        _audio = null;
         Interlocked.Exchange(ref _firstFrame, 0);
         _presenter?.Clear();
-    }
-
-    private void SetState(WatchState state)
-    {
-        if (State == state)
-            return;
-        State = state;
-        Post(() => StateChanged?.Invoke(state));
     }
 
     private void Post(Action action)

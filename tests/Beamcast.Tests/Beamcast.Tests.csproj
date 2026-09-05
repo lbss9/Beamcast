@@ -23,12 +23,12 @@
     <Compile Include="..\..\src\Beamcast\Logic\SafeTry.cs" Link="Logic\SafeTry.cs" />
     <Compile Include="..\..\src\Beamcast\Net\Protocol.cs" Link="Net\Protocol.cs" />
     <Compile Include="..\..\src\Beamcast\Net\Messages.cs" Link="Net\Messages.cs" />
-    <Compile Include="..\..\src\Beamcast\Net\AuthProof.cs" Link="Net\AuthProof.cs" />
-    <Compile Include="..\..\src\Beamcast\Net\InviteCode.cs" Link="Net\InviteCode.cs" />
     <Compile Include="..\..\src\Beamcast\Net\FrameGate.cs" Link="Net\FrameGate.cs" />
-    <Compile Include="..\..\src\Beamcast\Net\MessageStream.cs" Link="Net\MessageStream.cs" />
     <Compile Include="..\..\src\Beamcast\Net\SecureChannel.cs" Link="Net\SecureChannel.cs" />
-    <Compile Include="..\..\src\Beamcast\Net\RelayProtocol.cs" Link="Net\RelayProtocol.cs" />
+    <Compile Include="..\..\src\Beamcast\Net\LoungeProtocol.cs" Link="Net\LoungeProtocol.cs" />
+    <Compile Include="..\..\src\Beamcast\Net\LoungeCrypto.cs" Link="Net\LoungeCrypto.cs" />
+    <Compile Include="..\..\src\Beamcast\Net\LoungeInvite.cs" Link="Net\LoungeInvite.cs" />
+    <Compile Include="..\..\src\Beamcast\Audio\AudioMixer.cs" Link="Audio\AudioMixer.cs" />
     <Compile Include="..\..\src\Beamcast\Audio\AudioSourceSelector.cs" Link="Audio\AudioSourceSelector.cs" />
     <Compile Include="..\..\src\Beamcast\Audio\ProcessTable.cs" Link="Audio\ProcessTable.cs" />
     <Compile Include="..\..\src\Beamcast\Codec\Frames.cs" Link="Codec\Frames.cs" />

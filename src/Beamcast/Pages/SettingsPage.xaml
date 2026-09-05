@@ -15,22 +15,6 @@
                         MaxLength="32"
                         TextChanged="OnNameChanged"
                     />
-                    <NumberBox
-                        x:Name="PortBox"
-                        x:Uid="Settings_Port"
-                        Minimum="1"
-                        Maximum="65535"
-                        SpinButtonPlacementMode="Compact"
-                        ValueChanged="OnPortChanged"
-                    />
-                    <NumberBox
-                        x:Name="MaxViewersBox"
-                        x:Uid="Settings_MaxViewers"
-                        Minimum="1"
-                        Maximum="100"
-                        SpinButtonPlacementMode="Compact"
-                        ValueChanged="OnMaxViewersChanged"
-                    />
                 </StackPanel>
             </Border>
 
@@ -45,7 +29,6 @@
                         PasswordRevealMode="Peek"
                         PasswordChanged="OnRelayKeyChanged"
                     />
-                    <Button x:Uid="Settings_RelayReset" Click="OnRelayReset" />
                 </StackPanel>
             </Border>
 
