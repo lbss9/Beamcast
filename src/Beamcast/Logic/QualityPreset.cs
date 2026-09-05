@@ -41,6 +41,25 @@ public static class QualityPreset
     /// Computes the encoded size for a source of the given dimensions.
     /// Never upscales, keeps the aspect ratio and returns even dimensions (needed for 4:2:0 chroma).
     /// </summary>
+    /// <summary>
+    /// Where a frame of <paramref name="frameWidth"/>×<paramref name="frameHeight"/> lands inside a
+    /// stream of <paramref name="targetWidth"/>×<paramref name="targetHeight"/> when the aspect ratios
+    /// differ: scaled to fit, centred, even-aligned. Null when it fills the target exactly.
+    /// </summary>
+    public static (int X, int Y, int Width, int Height)? Letterbox(int frameWidth, int frameHeight, int targetWidth, int targetHeight)
+    {
+        if (frameWidth <= 0 || frameHeight <= 0 || targetWidth <= 0 || targetHeight <= 0)
+            return null;
+        if ((long)frameWidth * targetHeight == (long)targetWidth * frameHeight)
+            return null;
+        var scale = Math.Min(targetWidth / (double)frameWidth, targetHeight / (double)frameHeight);
+        var width = Math.Clamp((int)Math.Round(frameWidth * scale) & ~1, 2, targetWidth);
+        var height = Math.Clamp((int)Math.Round(frameHeight * scale) & ~1, 2, targetHeight);
+        var x = ((targetWidth - width) / 2) & ~1;
+        var y = ((targetHeight - height) / 2) & ~1;
+        return (x, y, width, height);
+    }
+
     public static (int Width, int Height) Fit(string preset, int width, int height)
     {
         if (width <= 0 || height <= 0)

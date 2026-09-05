@@ -1,3 +1,7 @@
+## 2.1.4
+
+- Escolher uma janela ou redimensioná-la durante a transmissão não encerra mais a transmissão: o vídeo mantém a resolução inicial e entra com barras pretas quando o formato muda.
+
 ## 2.1.3
 
 - Compartilhar a tela inteira não mostra mais a borda amarela em nenhuma versão do Windows (captura por Desktop Duplication).

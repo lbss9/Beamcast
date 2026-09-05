@@ -2,6 +2,14 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.1.4
+
+- A transmissão mantém uma única resolução do início ao fim: a anunciada ao iniciar (ou a do
+  preset escolhido durante a transmissão). Quadros de outro tamanho, como uma janela redimensionada
+  ou a troca de tela para janela no meio da transmissão, entram com barras pretas em vez de
+  recriar o encoder e mudar o formato para quem assiste. Corrige transmissões que se encerravam
+  ao escolher uma janela.
+
 ## 2.1.3
 
 - Captura de monitor migrada para DXGI Desktop Duplication: não passa pelo mecanismo da borda

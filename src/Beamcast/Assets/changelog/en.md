@@ -1,3 +1,7 @@
+## 2.1.4
+
+- Picking a window or resizing it while live no longer ends the broadcast: the stream keeps its initial resolution and letterboxes frames of another shape.
+
 ## 2.1.3
 
 - Sharing a whole screen no longer shows the yellow border on any Windows version (Desktop Duplication capture).

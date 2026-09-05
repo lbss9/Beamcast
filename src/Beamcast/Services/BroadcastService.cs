@@ -9,6 +9,7 @@ using Beamcast.Render;
 using Microsoft.UI.Dispatching;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
+using Vortice.Mathematics;
 
 namespace Beamcast.Services;
 
@@ -119,7 +120,47 @@ public sealed class BroadcastService
     public string Preset
     {
         get => _preset;
-        set => _preset = QualityPreset.Normalize(value);
+        set
+        {
+            _preset = QualityPreset.Normalize(value);
+            RefreshLiveSize();
+        }
+    }
+
+    /// <summary>
+    /// While live the stream keeps one resolution: the one announced at go-live, or the one the
+    /// preset now asks for. Frames of any other size (a window that was resized, a switch from a
+    /// monitor to a window) are letterboxed into it, so the encoder is never rebuilt behind the
+    /// viewers' backs and their decoders never see a mid-stream format change.
+    /// </summary>
+    private (int Width, int Height) StreamSize(int frameWidth, int frameHeight)
+    {
+        if (_live && _meta.Width > 0 && _meta.Height > 0)
+            return (_meta.Width, _meta.Height);
+        return QualityPreset.Fit(_preset, frameWidth, frameHeight);
+    }
+
+    private void RefreshLiveSize()
+    {
+        var source = Source;
+        if (!_live || source is null)
+            return;
+        var (width, height) = QualityPreset.Fit(_preset, source.Width, source.Height);
+        if (width <= 0 || height <= 0 || (width == _meta.Width && height == _meta.Height))
+            return;
+        _meta = new StreamMetaMessage
+        {
+            Title = _meta.Title,
+            Codec = _meta.Codec,
+            Width = width,
+            Height = height,
+            Fps = _meta.Fps,
+            Audio = _meta.Audio,
+            State = _meta.State,
+        };
+        _lounge.UpdateStreamMeta(_streamId, _meta);
+        Interlocked.Exchange(ref _keyframeRequested, 1);
+        Diag.Log($"broadcast: stream size now {width}x{height}");
     }
 
     public int Fps
@@ -486,7 +527,7 @@ public sealed class BroadcastService
 
     private void EncodeOnGpu(GpuFrame frame)
     {
-        var (width, height) = QualityPreset.Fit(_preset, frame.Width, frame.Height);
+        var (width, height) = StreamSize(frame.Width, frame.Height);
         if (width <= 0 || height <= 0)
             return;
 
@@ -522,7 +563,9 @@ public sealed class BroadcastService
 
         _converter ??= new VideoProcessorConverter(Gpu);
         var nv12 = NextNv12(width, height);
-        _converter.Convert(frame.Texture, 0, frame.Width, frame.Height, false, nv12, width, height, true);
+        var box = QualityPreset.Letterbox(frame.Width, frame.Height, width, height);
+        RectI? destRect = box is { } b ? new RectI(b.X, b.Y, b.Width, b.Height) : null;
+        _converter.Convert(frame.Texture, 0, frame.Width, frame.Height, false, nv12, width, height, true, destRect);
 
         if (Interlocked.Exchange(ref _keyframeRequested, 0) == 1)
             encoder.RequestKeyframe();
@@ -620,7 +663,7 @@ public sealed class BroadcastService
 
                 try
                 {
-                    var (width, height) = QualityPreset.Fit(_preset, raw.Width, raw.Height);
+                    var (width, height) = StreamSize(raw.Width, raw.Height);
                     if (width <= 0 || height <= 0)
                         continue;
 
@@ -628,7 +671,24 @@ public sealed class BroadcastService
                     if (encodeBuffer is null || encodeBuffer.Length != needed)
                         encodeBuffer = new byte[needed];
 
-                    if (width == raw.Width && height == raw.Height)
+                    var box = QualityPreset.Letterbox(raw.Width, raw.Height, width, height);
+                    if (box is { } b)
+                    {
+                        // Different aspect: scale into a centred box on black bars.
+                        var inner = ArrayPool<byte>.Shared.Rent(b.Width * b.Height * 4);
+                        try
+                        {
+                            FrameScaler.Resize(raw.Pixels, raw.Width, raw.Height, inner, b.Width, b.Height);
+                            Array.Clear(encodeBuffer, 0, needed);
+                            for (var row = 0; row < b.Height; row++)
+                                Buffer.BlockCopy(inner, row * b.Width * 4, encodeBuffer, ((b.Y + row) * width + b.X) * 4, b.Width * 4);
+                        }
+                        finally
+                        {
+                            ArrayPool<byte>.Shared.Return(inner);
+                        }
+                    }
+                    else if (width == raw.Width && height == raw.Height)
                         Buffer.BlockCopy(raw.Pixels, 0, encodeBuffer, 0, needed);
                     else
                         FrameScaler.Resize(raw.Pixels, raw.Width, raw.Height, encodeBuffer, width, height);
