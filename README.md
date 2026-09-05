@@ -5,7 +5,7 @@
 <h1 align="center">Beamcast</h1>
 
 <p align="center">
-  <strong>Um salão de compartilhamento de tela, self-hosted e cifrado de ponta a ponta.</strong><br />
+  <strong>Salas de compartilhamento de tela, self-hosted e cifradas de ponta a ponta.</strong><br />
   Projeto de estudo sobre captura, codecs, áudio por processo e transmissão em tempo real no Windows.
 </p>
 
@@ -38,31 +38,54 @@ empresarial separado e privado. Cada decisão prioriza aprendizado e medição, 
 
 O mesmo aviso aparece dentro do app no primeiro uso e na página Sobre.
 
-## Como funciona o salão
+## Como funciona
 
-1. Alguém sobe o **servidor** (um container Docker) em qualquer máquina com IP ou host
-   alcançável: um VPS, o PC de casa atrás de um túnel, um servidor na LAN.
-2. No app, cada pessoa digita o **endereço do servidor**, o **nome dela** e cria um salão
-   (nome + senha obrigatória) ou entra num salão existente (código + senha).
-3. Dentro do salão todo mundo vê quem está online e quais transmissões existem. **Qualquer um
-   transmite** a tela (monitor ou janela), com ou sem áudio; **cada um escolhe** qual transmissão
-   assistir, para de assistir quando quiser e continua no salão. Várias transmissões ao mesmo
-   tempo são normais.
+1. Alguém sobe o **host** (o servidor, um container Docker) em qualquer máquina alcançável:
+   um VPS, o PC de casa atrás de um túnel, um servidor na LAN. Um host tem quantas salas quiser.
+2. No app, você adiciona o host à sua lista (e pode favoritá-lo). Ao selecioná-lo, vê as
+   **salas públicas** dele, suas **salas favoritas** naquele host, um campo para **código ou
+   convite**, e o botão **Criar sala**.
+3. Uma sala tem nome, visibilidade (**pública** aparece na lista; **privada** só entra por
+   código ou convite), duração (**permanente** ou **temporária**, que some depois de ficar vazia
+   pelo tempo escolhido), **senha opcional**, quem pode transmitir (todo mundo ou só o dono) e
+   limite de pessoas.
+4. Dentro da sala todo mundo vê quem está online e quais transmissões existem. Qualquer membro
+   transmite (várias ao mesmo tempo, salvo se o dono restringir), cada um escolhe o que assistir
+   e pode parar sem sair.
+5. O **dono** (quem criou) gera **convites com validade** (1 h, 24 h, 7 dias ou sem prazo) e
+   número de usos, edita a sala, troca ou remove a senha, expulsa gente e apaga a sala. O token
+   de dono fica só no PC de quem criou, protegido pelo Windows (DPAPI).
+6. Se a internet cair, do seu lado ou do host, o app **reconecta sozinho** por até 5 minutos,
+   republica a sua transmissão e volta a assistir o que você assistia. A sala continua existindo
+   no host; ninguém precisa reenviar convite.
 
-O servidor nunca recebe a senha e não consegue ver nem ouvir nada:
+## Segurança
+
+O host nunca recebe senha nem chave e não consegue ver nem ouvir nada:
 
 ```
-chave       = PBKDF2-SHA256(senha, salt, 200 000 rodadas)   fica só nas máquinas dos membros
-verificador = HMAC(chave, "verify")                          o servidor guarda isto na criação
-prova       = HMAC(verificador, nonce)                        quem entra envia; o servidor confere
-conteúdo    = HKDF(chave, "content")                          AES-256-GCM em nomes, títulos, vídeo e áudio
+Salas com senha
+  chave       = PBKDF2-SHA256(senha, salt, 200 000 rodadas)   fica só nas máquinas dos membros
+  verificador = HMAC(chave, "verify")                          o host guarda isto na criação
+  prova       = HMAC(verificador, nonce)                        quem entra envia; o host confere
+  conteúdo    = HKDF(chave, "content")                          AES-256-GCM em nomes, títulos, vídeo e áudio
+
+Salas sem senha
+  chave da sala = aleatória, gerada pelo primeiro a entrar e guardada só pelos membros
+  quem entra manda uma chave pública efêmera (ECDH P-256); um membro embrulha a chave da sala
+  para ela (HKDF + AES-256-GCM) e o host apenas repassa o pacote, sem conseguir abri-lo
+
+Convites e dono
+  o convite carrega host, código, um token com validade/usos (o host guarda só o hash) e, em
+  salas com senha, a chave de conteúdo; o token de dono também é guardado só como hash
 ```
 
-O servidor só lê o tipo de cada mensagem e a flag de keyframe, que ele usa para descartar
-quadros de um espectador lento e pedir um keyframe ao transmissor sem prejudicar os outros.
-Quem sabe o código mas não a senha é recusado antes de ver qualquer coisa.
+Entradas erradas (senha, convite, código) são limitadas por endereço e por sala com janela de
+10 minutos. Salas privadas usam códigos de 10 caracteres. O host só lê o tipo de cada mensagem
+e a flag de keyframe, que usa para descartar quadros de um espectador lento e pedir um keyframe
+ao transmissor sem prejudicar os outros.
 
-## Subir o servidor (quem hospeda)
+## Subir o host (quem hospeda)
 
 Precisa só de Docker com Compose. Sem Actions, sem registry, sem conta:
 
@@ -72,23 +95,25 @@ cd Beamcast
 docker compose up -d --build
 ```
 
-O servidor escuta na porta `47710`. No app, o endereço é `ws://SEU-IP:47710` (ou só `SEU-IP`).
+O host escuta na porta `47710`. No app, o endereço é `ws://SEU-IP:47710` (ou só `SEU-IP`).
 Variáveis opcionais num `.env` ao lado do `docker-compose.yml`:
 
 | Variável | Efeito |
 | --- | --- |
 | `BEAMCAST_PORT` | porta publicada no host (padrão `47710`) |
+| `BEAMCAST_HOST_NAME` | nome que o app mostra para este host (padrão: nome da máquina) |
 | `BEAMCAST_APP_KEY` | quando definida, o app precisa carregar a mesma chave (Configurações → Servidor) |
-| `BEAMCAST_LOUNGE_TTL_HOURS` | horas que um salão vazio sobrevive; `0` (padrão) mantém até apagar o volume |
+| `BEAMCAST_LOUNGE_TTL_HOURS` | tempo padrão que uma sala **temporária** sobrevive vazia (padrão `24`) |
 
-Os salões (código, nome, salt e verificador; nunca conteúdo) ficam no volume `beamcast_data`
-e sobrevivem a reinícios. `GET /health` mostra salões, membros e transmissões ativos.
+As salas (código, nome, configurações, salt e verificador, hashes de convites e do dono; nunca
+conteúdo) ficam no volume `beamcast_data` e sobrevivem a reinícios. `GET /health` mostra salas,
+membros e transmissões ativos; `GET /rooms` lista as salas públicas.
 
 **Pela internet:** abra a porta `47710/tcp` no roteador, ou coloque o container atrás de um
 reverse proxy/túnel com TLS (Cloudflare Tunnel, Caddy, nginx) e use `wss://seu-host` no app.
 Como todo membro só faz conexão de saída, CGNAT e firewall de quem entra não importam.
 
-**Banda:** o servidor recebe cada transmissão uma vez e reenvia uma vez por espectador. 1080p60 a
+**Banda:** o host recebe cada transmissão uma vez e reenvia uma vez por espectador. 1080p60 a
 ~12 Mbps por espectador; 4K60 H.264 a ~40 Mbps; HEVC gasta ~35% menos.
 
 ## O que o app faz
@@ -102,8 +127,9 @@ Como todo membro só faz conexão de saída, CGNAT e firewall de quem entra não
   sessão de áudio **exceto** Discord, Teams, Zoom, Slack, WhatsApp e afins, para a voz da chamada
   não ser retransmitida. Mixagem em quadros de 20 ms e Opus a 128 kbps, com ocultação de perda
   no receptor.
-- **Rede**: um WebSocket por membro, mensagens cifradas, keyframe sob demanda, fila por
-  espectador no servidor. Presets até 2160p/120 fps.
+- **Rede**: um WebSocket por membro, heartbeat a cada 10 s (quem some é removido em 30 s mesmo
+  atrás de proxy), mensagens cifradas, keyframe sob demanda, fila por espectador no host,
+  reconexão automática. Presets até 2160p/120 fps.
 
 ## Compilar
 
@@ -116,7 +142,7 @@ dotnet test tests/Beamcast.Tests
 dotnet run --project src/Beamcast
 ```
 
-O servidor também roda sem Docker: `dotnet run --project src/Beamcast.Server` (porta 8080).
+O host também roda sem Docker: `dotnet run --project src/Beamcast.Server` (porta 8080).
 `scripts/pack.ps1` gera o MSI com Velopack; os workflows do GitHub publicam o release do app
 a partir da versão do csproj, e o app procura atualizações no GitHub Releases.
 
@@ -131,10 +157,10 @@ src/Beamcast          app WinUI 3
 ├── Capture/          Windows.Graphics.Capture + D3D11, enumeração de fontes
 ├── Codec/            VP8, encoders/decoders Media Foundation, conversor de vídeo
 ├── Audio/            loopback por processo, seletor de fontes, mixer, Opus, player
-├── Net/              protocolo do salão, criptografia, cliente
-├── Services/         LoungeService, BroadcastService, WatchService, UpdateService
-└── Pages/            Salão (entrada), Sala, Configurações, Sobre
-src/Beamcast.Server   servidor do salão (ASP.NET Core, WebSocket)
+├── Net/              protocolo das salas, criptografia, convites, cliente, limitador
+├── Services/         LoungeService (sala + reconexão), BroadcastService, WatchService, UpdateService
+└── Pages/            Salas (hosts e listagem), Sala, diálogos, Configurações, Sobre
+src/Beamcast.Server   host (ASP.NET Core, WebSocket + listagem HTTP)
 tests/Beamcast.Tests  testes xunit das partes de lógica pura
-docker-compose.yml    sobe o servidor a partir do código
+docker-compose.yml    sobe o host a partir do código
 ```

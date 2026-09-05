@@ -1,3 +1,11 @@
+## 2.1.0
+
+- New Rooms screen: favorite hosts, the host's public rooms, favorite rooms and join by code or invite.
+- Public or private rooms, permanent or temporary, optional password, member limit and owner-only broadcasting.
+- Room owner: edit, change the password, create invites with expiry and uses, kick and delete the room.
+- Automatic reconnection: when the internet drops, the app comes back on its own, republishes your stream and resumes what you were watching.
+- Everything stays end-to-end encrypted, including rooms without a password (members hand the key over).
+
 ## 2.0.1
 
 - Members that vanish without leaving are dropped within 30 s even behind a tunnel; their streams end for everyone.

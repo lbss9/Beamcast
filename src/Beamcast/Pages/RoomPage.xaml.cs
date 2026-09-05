@@ -29,7 +29,6 @@ public sealed partial class RoomPage : Page
     private readonly WatchService _watch = WatchService.Instance;
     private readonly ObservableCollection<CaptureSource> _monitors = [];
     private readonly ObservableCollection<CaptureSource> _windows = [];
-    private readonly ObservableCollection<LoungeMember> _members = [];
     private bool _loading = true;
     private bool _syncingSelection;
 
@@ -39,7 +38,6 @@ public sealed partial class RoomPage : Page
         InitializeComponent();
         MonitorsList.ItemsSource = _monitors;
         WindowsList.ItemsSource = _windows;
-        MembersList.ItemsSource = _members;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -108,6 +106,9 @@ public sealed partial class RoomPage : Page
 
         _lounge.MembersChanged += OnMembersChanged;
         _lounge.StreamsChanged += OnStreamsChanged;
+        _lounge.StateChanged += OnLoungeState;
+        _lounge.RoomChanged += ApplyRoomInfo;
+        _lounge.Notice += OnNotice;
         _broadcast.StateChanged += OnBroadcastState;
         _broadcast.PreviewStarted += OnPreviewStarted;
         _broadcast.StatsChanged += OnBroadcastStats;
@@ -119,9 +120,13 @@ public sealed partial class RoomPage : Page
         if (App.Main is not null)
             App.Main.FullscreenExited += OnFullscreenExited;
 
-        LoungeNameText.Text = _lounge.Name;
-        CodeText.Text = _lounge.Code;
-        LoungeInfoText.Text = _lounge.ServerUrl;
+        MenuInvite.Text = Loc.Get("Room_MenuInvite");
+        MenuEdit.Text = Loc.Get("Room_MenuEdit");
+        MenuRevoke.Text = Loc.Get("Room_MenuRevoke");
+        MenuDelete.Text = Loc.Get("Room_MenuDelete");
+        ApplyRoomInfo(_lounge.Room);
+        ApplyFavorite(LoungeService.IsFavorite(_lounge.ServerUrl, _lounge.Code));
+        OnLoungeState(_lounge.State);
         Preview.Bind(_broadcast.Preview);
         AttachVideo();
         SharedVideo.Bind(_watch.Presenter);
@@ -140,6 +145,9 @@ public sealed partial class RoomPage : Page
     {
         _lounge.MembersChanged -= OnMembersChanged;
         _lounge.StreamsChanged -= OnStreamsChanged;
+        _lounge.StateChanged -= OnLoungeState;
+        _lounge.RoomChanged -= ApplyRoomInfo;
+        _lounge.Notice -= OnNotice;
         _broadcast.StateChanged -= OnBroadcastState;
         _broadcast.PreviewStarted -= OnPreviewStarted;
         _broadcast.StatsChanged -= OnBroadcastStats;
@@ -177,10 +185,131 @@ public sealed partial class RoomPage : Page
 
     private void OnMembersChanged()
     {
-        _members.Clear();
-        foreach (var member in _lounge.Members)
-            _members.Add(member);
-        MembersCountText.Text = _members.Count.ToString();
+        var members = _lounge.Members;
+        MembersList.Items.Clear();
+        foreach (var member in members)
+            MembersList.Items.Add(BuildMemberRow(member));
+        MembersCountText.Text = members.Count.ToString();
+    }
+
+    private UIElement BuildMemberRow(LoungeMember member)
+    {
+        var grid = new Grid { ColumnSpacing = 8, Padding = new Thickness(0, 3, 0, 3) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(new FontIcon { Glyph = member.IsOwner ? "\uE735" : "\uE77B", FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 });
+        var name = new TextBlock { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        name.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = member.Name });
+        if (member.IsOwner)
+            name.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "  " + Loc.Get("Room_OwnerBadge"), FontSize = 11 });
+        Grid.SetColumn(name, 1);
+        grid.Children.Add(name);
+        if (_lounge.IsOwner && !member.IsMe)
+        {
+            var kick = new Button { Content = new FontIcon { Glyph = "\uE8BB", FontSize = 11 }, Style = (Style)Application.Current.Resources["GhostButtonStyle"] };
+            ToolTipService.SetToolTip(kick, Loc.Get("Room_Kick"));
+            var id = member.Id;
+            kick.Click += (_, _) => _lounge.Kick(id);
+            Grid.SetColumn(kick, 2);
+            grid.Children.Add(kick);
+        }
+        return grid;
+    }
+
+    private void ApplyRoomInfo(RoomInfo room)
+    {
+        LoungeNameText.Text = room.Name;
+        CodeText.Text = room.Code;
+        var badges = new List<string> { LoungeProtocol.DisplayHost(_lounge.ServerUrl), Loc.Get(room.IsPublic ? "Room_PublicBadge" : "Room_PrivateBadge") };
+        if (room.IsTemporary)
+            badges.Add(Loc.Get("Room_TemporaryBadge"));
+        if (room.HasPassword)
+            badges.Add(Loc.Get("Lounge_Locked"));
+        if (room.Broadcast == BroadcastPolicy.Owner)
+            badges.Add(Loc.Get("Broadcast_Owner"));
+        LoungeInfoText.Text = string.Join(" · ", badges);
+        OwnerMenu.Visibility = _lounge.IsOwner ? Visibility.Visible : Visibility.Collapsed;
+        var canBroadcast = _lounge.CanBroadcast;
+        BroadcastBlockedText.Visibility = canBroadcast ? Visibility.Collapsed : Visibility.Visible;
+        GoLiveButton.IsEnabled = canBroadcast && _broadcast.State == BroadcastState.Preview;
+        OnMembersChanged();
+    }
+
+    private void ApplyFavorite(bool favorite)
+    {
+        FavoriteButton.IsChecked = favorite;
+        FavoriteIcon.Glyph = favorite ? "\uE735" : "\uE734";
+    }
+
+    private void OnFavoriteToggled(object sender, RoutedEventArgs e)
+    {
+        var favorite = FavoriteButton.IsChecked == true;
+        LoungeService.SetFavorite(_lounge.ServerUrl, _lounge.Code, _lounge.Name, _lounge.Room.HasPassword, favorite);
+        ApplyFavorite(favorite);
+    }
+
+    private void OnLoungeState(LoungeState state)
+    {
+        ReconnectBar.IsOpen = state == LoungeState.Reconnecting;
+        if (state == LoungeState.Connected)
+            ApplyRoomInfo(_lounge.Room);
+    }
+
+    private void OnNotice(string reason) => ErrorText.Text = LoungePage.DescribeReason(reason);
+
+    private async void OnMenuInvite(object sender, RoutedEventArgs e)
+    {
+        var choice = await RoomDialogs.InviteAsync(XamlRoot);
+        if (choice is null)
+            return;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var invite = await _lounge.CreateInviteAsync(choice.Value.ExpiresIn, choice.Value.MaxUses, cts.Token);
+            var package = new DataPackage();
+            package.SetText(invite);
+            Clipboard.SetContent(package);
+            CopyInviteButton.Content = Loc.Get("Invite_Copied");
+            _ = ResetCopyLabelAsync();
+        }
+        catch (Exception)
+        {
+            ErrorText.Text = Loc.Get("Invite_Failed");
+        }
+    }
+
+    private async void OnMenuEdit(object sender, RoutedEventArgs e)
+    {
+        var result = await RoomDialogs.EditAsync(XamlRoot, _lounge.Room);
+        if (result is null)
+            return;
+        _lounge.UpdateRoom(result.Value.Update);
+        if (result.Value.NewPassword is { } password)
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await _lounge.ChangePasswordAsync(password, cts.Token);
+            }
+            catch (Exception ex)
+            {
+                ErrorText.Text = Loc.Format("Error_Generic", ex.Message);
+            }
+        }
+    }
+
+    private void OnMenuRevoke(object sender, RoutedEventArgs e) => _lounge.RevokeInvites();
+
+    private async void OnMenuDelete(object sender, RoutedEventArgs e)
+    {
+        if (!await RoomDialogs.ConfirmDeleteAsync(XamlRoot, _lounge.Name))
+            return;
+        if (App.Main?.IsFullscreen == true)
+            App.Main.ExitFullscreen();
+        _broadcast.StopLive();
+        _watch.StopWatching("left");
+        await _lounge.DeleteRoomAsync();
     }
 
     private void OnStreamsChanged()
@@ -568,7 +697,7 @@ public sealed partial class RoomPage : Page
         LiveBadge.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
         PausedBadge.Visibility = live && _broadcast.IsPaused ? Visibility.Visible : Visibility.Collapsed;
         GoLiveButton.Visibility = live ? Visibility.Collapsed : Visibility.Visible;
-        GoLiveButton.IsEnabled = state == BroadcastState.Preview;
+        GoLiveButton.IsEnabled = state == BroadcastState.Preview && _lounge.CanBroadcast;
         StopButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
         PauseButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
         PauseButton.Content = Loc.Get(_broadcast.IsPaused ? "Action_Resume" : "Action_Pause/Content");

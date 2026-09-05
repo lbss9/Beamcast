@@ -8,16 +8,20 @@ using Beamcast.Net;
 namespace Beamcast.Server;
 
 /// <summary>
-/// Lounges, their members and their streams. The server is deliberately blind: it checks
-/// password proofs against a verifier, forwards opaque encrypted blobs, and routes media from a
-/// publisher to whoever subscribed, applying a per-subscriber keyframe gate so a slow member never
-/// stalls anyone else. It cannot read names, titles or pictures.
+/// Rooms, their members and their streams. The server is deliberately blind: it checks password
+/// proofs against a verifier, forwards opaque encrypted blobs (including the wrapped room key a
+/// member hands to a newcomer), and routes media from a publisher to whoever subscribed, applying
+/// a per-subscriber keyframe gate so a slow member never stalls anyone else. It cannot read names,
+/// titles, keys or pictures.
 /// </summary>
 public sealed class LoungeHub
 {
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan LimiterWindow = TimeSpan.FromMinutes(10);
 
-    private readonly ConcurrentDictionary<string, Lounge> _lounges = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Room> _rooms = new(StringComparer.Ordinal);
+    private readonly JoinRateLimiter _perAddress = new(5, LimiterWindow);
+    private readonly JoinRateLimiter _perRoom = new(30, LimiterWindow);
     private readonly ServerOptions _options;
     private readonly LoungeStore _store;
     private readonly ILogger<LoungeHub> _log;
@@ -31,11 +35,35 @@ public sealed class LoungeHub
 
     public object Snapshot() => new
     {
-        lounges = _lounges.Count,
-        members = _lounges.Values.Sum(l => l.MemberCount),
-        streams = _lounges.Values.Sum(l => l.StreamCount),
+        rooms = _rooms.Count,
+        members = _rooms.Values.Sum(l => l.MemberCount),
+        streams = _rooms.Values.Sum(l => l.StreamCount),
         uptimeSeconds = Environment.TickCount64 / 1000,
     };
+
+    public HostInfo HostInfo(bool includeRooms)
+    {
+        var publicRooms = _rooms.Values.Where(r => r.Visibility == RoomVisibility.Public).OrderByDescending(r => r.MemberCount).ThenBy(r => r.Name).ToList();
+        return new HostInfo
+        {
+            Name = _options.HostName,
+            Version = typeof(LoungeHub).Assembly.GetName().Version?.ToString(3) ?? "0",
+            Protocol = LoungeProtocol.Version,
+            RequiresAppKey = !string.IsNullOrEmpty(_options.AppKey),
+            PublicRooms = publicRooms.Count,
+            MembersOnline = _rooms.Values.Sum(r => r.MemberCount),
+            Rooms = includeRooms ? publicRooms.Select(r => r.Info()).ToList() : [],
+        };
+    }
+
+    public bool KeyMatches(string? presented)
+    {
+        if (string.IsNullOrEmpty(_options.AppKey))
+            return true;
+        var expected = Encoding.UTF8.GetBytes(_options.AppKey);
+        var actual = Encoding.UTF8.GetBytes(presented ?? string.Empty);
+        return expected.Length == actual.Length && CryptographicOperations.FixedTimeEquals(expected, actual);
+    }
 
     public void LoadPersisted()
     {
@@ -43,46 +71,41 @@ public sealed class LoungeHub
         {
             try
             {
-                var lounge = new Lounge(record.Code, record.Name, Convert.FromBase64String(record.Salt), Convert.FromBase64String(record.Verifier), record.CreatedAt, _log)
-                {
-                    LastActiveAt = record.LastActiveAt,
-                };
-                _lounges.TryAdd(lounge.Code, lounge);
+                var room = Room.FromRecord(record, this, _log);
+                _rooms.TryAdd(room.Code, room);
             }
             catch (Exception ex)
             {
-                _log.LogWarning(ex, "Skipping malformed lounge record {Code}.", record.Code);
+                _log.LogWarning(ex, "Skipping malformed room record {Code}.", record.Code);
             }
         }
-        _log.LogInformation("{Count} lounge(s) restored.", _lounges.Count);
+        _log.LogInformation("{Count} room(s) restored.", _rooms.Count);
     }
 
-    private void Persist() =>
-        _store.Save(_lounges.Values.Select(l => new LoungeRecord
-        {
-            Code = l.Code,
-            Name = l.Name,
-            Salt = Convert.ToBase64String(l.Salt),
-            Verifier = Convert.ToBase64String(l.Verifier),
-            CreatedAt = l.CreatedAt,
-            LastActiveAt = l.LastActiveAt,
-        }));
+    internal void Persist() => _store.Save(_rooms.Values.Select(r => r.ToRecord()));
 
-    /// <summary>Drops lounges that have been empty longer than the configured TTL.</summary>
+    internal void Remove(Room room)
+    {
+        if (_rooms.TryRemove(room.Code, out _))
+        {
+            _log.LogInformation("Room {Code} deleted.", room.Code);
+            Persist();
+        }
+    }
+
+    /// <summary>Drops temporary rooms that have been empty longer than their TTL.</summary>
     public void Sweep()
     {
-        if (_options.EmptyLoungeTtl <= TimeSpan.Zero)
-            return;
-        var cutoff = DateTimeOffset.UtcNow - _options.EmptyLoungeTtl;
+        var now = DateTimeOffset.UtcNow;
         var removed = 0;
-        foreach (var lounge in _lounges.Values.Where(l => l.MemberCount == 0 && l.LastActiveAt < cutoff).ToList())
+        foreach (var room in _rooms.Values.Where(r => r.IsExpired(now)).ToList())
         {
-            if (_lounges.TryRemove(lounge.Code, out _))
+            if (_rooms.TryRemove(room.Code, out _))
                 removed++;
         }
         if (removed > 0)
         {
-            _log.LogInformation("Swept {Count} empty lounge(s).", removed);
+            _log.LogInformation("Swept {Count} expired temporary room(s).", removed);
             Persist();
         }
     }
@@ -103,27 +126,27 @@ public sealed class LoungeHub
 
         if (request is null)
         {
-            await SendJsonAsync(socket, new LoungeWelcome { Ok = false, Reason = LoungeProtocol.ReasonBadRequest }, ct);
+            await RefuseAsync(socket, LoungeProtocol.ReasonBadRequest, ct);
             return;
         }
         if (request.Version != LoungeProtocol.Version)
         {
-            await SendJsonAsync(socket, new LoungeWelcome { Ok = false, Reason = LoungeProtocol.ReasonVersion }, ct);
+            await RefuseAsync(socket, LoungeProtocol.ReasonVersion, ct);
             return;
         }
         if (!KeyMatches(request.AppKey))
         {
             _log.LogWarning("Refused {Remote}: bad app key.", remote);
-            await SendJsonAsync(socket, new LoungeWelcome { Ok = false, Reason = LoungeProtocol.ReasonBadKey }, ct);
+            await RefuseAsync(socket, LoungeProtocol.ReasonBadKey, ct);
             return;
         }
 
-        Lounge? lounge;
+        Admission? admission;
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(HandshakeTimeout);
-            lounge = request.Op == LoungeProtocol.OpCreate
+            admission = request.Op == LoungeProtocol.OpCreate
                 ? await CreateAsync(socket, request, remote, timeout.Token)
                 : await JoinAsync(socket, request, remote, timeout.Token);
         }
@@ -132,85 +155,173 @@ public sealed class LoungeHub
             return;
         }
 
-        if (lounge is null)
+        if (admission is null)
             return;
 
-        await lounge.RunMemberAsync(socket, remote, ct);
-        lounge.LastActiveAt = DateTimeOffset.UtcNow;
+        await admission.Room.RunMemberAsync(socket, remote, admission, ct);
     }
 
-    private bool KeyMatches(string? presented)
-    {
-        if (string.IsNullOrEmpty(_options.AppKey))
-            return true;
-        var expected = Encoding.UTF8.GetBytes(_options.AppKey);
-        var actual = Encoding.UTF8.GetBytes(presented ?? string.Empty);
-        return expected.Length == actual.Length && CryptographicOperations.FixedTimeEquals(expected, actual);
-    }
-
-    private async Task<Lounge?> CreateAsync(WebSocket socket, LoungeRequest request, string remote, CancellationToken ct)
+    private async Task<Admission?> CreateAsync(WebSocket socket, LoungeRequest request, string remote, CancellationToken ct)
     {
         var name = (request.Name ?? string.Empty).Trim();
-        byte[] salt;
-        byte[] verifier;
-        try
+        if (name.Length == 0 || name.Length > LoungeProtocol.MaxNameLength || !TryReadPassword(request.Salt, request.Verifier, out var salt, out var verifier))
         {
-            salt = Convert.FromBase64String(request.Salt ?? string.Empty);
-            verifier = Convert.FromBase64String(request.Verifier ?? string.Empty);
-        }
-        catch (FormatException)
-        {
-            salt = [];
-            verifier = [];
-        }
-
-        if (name.Length == 0 || name.Length > LoungeProtocol.MaxNameLength || salt.Length != LoungeCrypto.SaltBytes || verifier.Length != 32)
-        {
-            await SendJsonAsync(socket, new LoungeWelcome { Ok = false, Reason = LoungeProtocol.ReasonBadRequest }, ct);
+            await RefuseAsync(socket, LoungeProtocol.ReasonBadRequest, ct);
             return null;
         }
 
-        Lounge lounge;
+        var visibility = RoomVisibility.Normalize(request.Visibility);
+        var ownerToken = LoungeCrypto.NewToken();
+        Room room;
         while (true)
         {
-            lounge = new Lounge(LoungeProtocol.NewCode(), name, salt, verifier, DateTimeOffset.UtcNow, _log);
-            if (_lounges.TryAdd(lounge.Code, lounge))
+            var code = LoungeProtocol.NewCode(visibility == RoomVisibility.Public ? LoungeProtocol.PublicCodeLength : LoungeProtocol.PrivateCodeLength);
+            room = new Room(code, name, this, _log)
+            {
+                Visibility = visibility,
+                Kind = RoomKind.Normalize(request.Kind),
+                TtlHours = request.TtlHours > 0 ? LoungeProtocol.ClampTtlHours(request.TtlHours) : _options.DefaultTemporaryTtlHours,
+                Broadcast = BroadcastPolicy.Normalize(request.Broadcast),
+                MaxMembers = LoungeProtocol.ClampMaxMembers(request.MaxMembers),
+                Salt = salt,
+                Verifier = verifier,
+                OwnerTokenHash = LoungeCrypto.TokenHash(ownerToken),
+            };
+            if (_rooms.TryAdd(room.Code, room))
                 break;
         }
         Persist();
-        _log.LogInformation("Lounge {Code} \"{Name}\" created by {Remote}.", lounge.Code, name, remote);
-        return lounge;
+        _log.LogInformation("Room {Code} \"{Name}\" ({Visibility}, {Kind}, password {Password}) created by {Remote}.",
+            room.Code, name, room.Visibility, room.Kind, room.HasPassword ? "yes" : "no", remote);
+        return new Admission(room, IsOwner: true, NeedsKey: false, JoinKey: null, OwnerToken: ownerToken);
     }
 
-    private async Task<Lounge?> JoinAsync(WebSocket socket, LoungeRequest request, string remote, CancellationToken ct)
+    private async Task<Admission?> JoinAsync(WebSocket socket, LoungeRequest request, string remote, CancellationToken ct)
     {
+        var now = Environment.TickCount64;
+        if (_perAddress.IsBlocked(remote, now))
+        {
+            _log.LogWarning("Rate limited {Remote}.", remote);
+            await RefuseAsync(socket, LoungeProtocol.ReasonRateLimited, ct);
+            return null;
+        }
+
         var code = LoungeProtocol.NormalizeCode(request.Code);
-        if (!_lounges.TryGetValue(code, out var lounge))
+        if (!_rooms.TryGetValue(code, out var room))
         {
-            await SendJsonAsync(socket, new LoungeChallenge { Ok = false, Reason = LoungeProtocol.ReasonNoLounge }, ct);
+            _perAddress.RecordFailure(remote, now);
+            await RefuseAsync(socket, LoungeProtocol.ReasonNoLounge, ct);
+            return null;
+        }
+        if (_perRoom.IsBlocked(room.Code, now))
+        {
+            _log.LogWarning("Room {Code} rate limited (too many failed joins).", room.Code);
+            await RefuseAsync(socket, LoungeProtocol.ReasonRateLimited, ct);
             return null;
         }
 
-        var nonce = LoungeCrypto.NewNonce();
-        await SendJsonAsync(socket, new LoungeChallenge
+        var isOwner = LoungeCrypto.TokenMatches(room.OwnerTokenHash, request.OwnerToken);
+        var admittedByInvite = false;
+        if (!string.IsNullOrEmpty(request.Invite))
         {
-            Ok = true,
-            Code = lounge.Code,
-            Name = lounge.Name,
-            Salt = Convert.ToBase64String(lounge.Salt),
-            Nonce = nonce,
-        }, ct);
+            if (!room.TryConsumeInvite(request.Invite))
+            {
+                _perAddress.RecordFailure(remote, now);
+                _perRoom.RecordFailure(room.Code, now);
+                _log.LogWarning("Bad or expired invite for room {Code} from {Remote}.", room.Code, remote);
+                await RefuseAsync(socket, LoungeProtocol.ReasonInviteExpired, ct);
+                return null;
+            }
+            admittedByInvite = true;
+        }
 
-        var proof = await ReadJsonAsync<LoungeProof>(socket, ct);
-        if (proof is null || !LoungeCrypto.VerifyProof(lounge.Verifier, nonce, proof.Proof))
+        if (room.HasPassword && !admittedByInvite && !isOwner)
         {
-            _log.LogWarning("Wrong password for lounge {Code} from {Remote}.", lounge.Code, remote);
-            await SendJsonAsync(socket, new LoungeWelcome { Ok = false, Reason = LoungeProtocol.ReasonBadPassword }, ct);
+            var nonce = LoungeCrypto.NewNonce();
+            await SendJsonAsync(socket, new LoungeReply
+            {
+                Ok = true,
+                Stage = LoungeReply.StageChallenge,
+                Salt = Convert.ToBase64String(room.Salt),
+                Nonce = nonce,
+            }, ct);
+
+            var proof = await ReadJsonAsync<LoungeProof>(socket, ct);
+            if (proof is null || !LoungeCrypto.VerifyProof(room.Verifier, nonce, proof.Proof))
+            {
+                _perAddress.RecordFailure(remote, now);
+                _perRoom.RecordFailure(room.Code, now);
+                _log.LogWarning("Wrong password for room {Code} from {Remote}.", room.Code, remote);
+                await RefuseAsync(socket, LoungeProtocol.ReasonBadPassword, ct);
+                return null;
+            }
+        }
+        else if (room.HasPassword && isOwner)
+        {
+            // The owner token proves ownership, but the content key still comes from the password;
+            // the owner's app derives it locally, so a challenge is still needed to hand it the salt.
+            var nonce = LoungeCrypto.NewNonce();
+            await SendJsonAsync(socket, new LoungeReply { Ok = true, Stage = LoungeReply.StageChallenge, Salt = Convert.ToBase64String(room.Salt), Nonce = nonce }, ct);
+            var proof = await ReadJsonAsync<LoungeProof>(socket, ct);
+            if (proof is null || !LoungeCrypto.VerifyProof(room.Verifier, nonce, proof.Proof))
+            {
+                _perAddress.RecordFailure(remote, now);
+                await RefuseAsync(socket, LoungeProtocol.ReasonBadPassword, ct);
+                return null;
+            }
+        }
+
+        if (room.IsFull)
+        {
+            await RefuseAsync(socket, LoungeProtocol.ReasonRoomFull, ct);
             return null;
         }
 
-        return lounge;
+        // Password rooms: the key comes from the password or the invite. Otherwise a member inside
+        // hands it over, unless nobody is inside, in which case the newcomer mints a fresh key.
+        var needsKey = !room.HasPassword && room.MemberCount > 0;
+        byte[]? joinKey = null;
+        if (needsKey)
+        {
+            if (!TryDecodeBase64(request.JoinKey, out joinKey) || joinKey.Length is < 30 or > 200)
+            {
+                await RefuseAsync(socket, LoungeProtocol.ReasonBadRequest, ct);
+                return null;
+            }
+        }
+        _perAddress.Clear(remote);
+        return new Admission(room, isOwner, needsKey, joinKey, OwnerToken: null);
     }
+
+    private static bool TryReadPassword(string? saltText, string? verifierText, out byte[] salt, out byte[] verifier)
+    {
+        salt = [];
+        verifier = [];
+        if (string.IsNullOrEmpty(saltText) && string.IsNullOrEmpty(verifierText))
+            return true;
+        if (!TryDecodeBase64(saltText, out salt) || !TryDecodeBase64(verifierText, out verifier))
+            return false;
+        return salt.Length == LoungeCrypto.SaltBytes && verifier.Length == 32;
+    }
+
+    private static bool TryDecodeBase64(string? text, out byte[] bytes)
+    {
+        bytes = [];
+        if (string.IsNullOrEmpty(text))
+            return false;
+        try
+        {
+            bytes = Convert.FromBase64String(text);
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private static Task RefuseAsync(WebSocket socket, string reason, CancellationToken ct) =>
+        SendJsonAsync(socket, new LoungeReply { Ok = false, Reason = reason }, ct);
 
     internal static async Task<T?> ReadJsonAsync<T>(WebSocket socket, CancellationToken ct)
     {
@@ -234,9 +345,11 @@ public sealed class LoungeHub
         socket.State == WebSocketState.Open
             ? socket.SendAsync(Json.Serialize(value), WebSocketMessageType.Text, true, ct)
             : Task.CompletedTask;
+
+    internal sealed record Admission(Room Room, bool IsOwner, bool NeedsKey, byte[]? JoinKey, string? OwnerToken);
 }
 
-/// <summary>Periodically drops lounges nobody has used for a long time (when a TTL is configured).</summary>
+/// <summary>Periodically drops temporary rooms nobody has used for their TTL.</summary>
 public sealed class LoungeJanitor : BackgroundService
 {
     private readonly LoungeHub _hub;
@@ -248,57 +361,156 @@ public sealed class LoungeJanitor : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(10));
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
         while (await timer.WaitForNextTickAsync(stoppingToken))
             _hub.Sweep();
     }
 }
 
-/// <summary>One lounge: members, streams, and the routing between them.</summary>
-internal sealed class Lounge
+/// <summary>One room: settings, members, streams, invites, and the routing between members.</summary>
+internal sealed class Room
 {
     private const int MaxPendingFramesPerSubscriber = 4;
+    private const int MaxInvites = 50;
+    private static readonly TimeSpan SponsorTimeout = TimeSpan.FromSeconds(3);
 
     private readonly ConcurrentDictionary<uint, Member> _members = new();
-    private readonly ConcurrentDictionary<uint, LoungeStream> _streams = new();
+    private readonly ConcurrentDictionary<uint, RoomStream> _streams = new();
+    private readonly List<InviteRecord> _invites = [];
+    private readonly LoungeHub _hub;
     private readonly ILogger _log;
     private uint _nextMemberId;
     private uint _nextStreamId;
 
-    public Lounge(string code, string name, byte[] salt, byte[] verifier, DateTimeOffset createdAt, ILogger log)
+    public Room(string code, string name, LoungeHub hub, ILogger log)
     {
         Code = code;
         Name = name;
-        Salt = salt;
-        Verifier = verifier;
-        CreatedAt = createdAt;
-        LastActiveAt = createdAt;
+        _hub = hub;
         _log = log;
+        CreatedAt = DateTimeOffset.UtcNow;
+        LastActiveAt = CreatedAt;
     }
 
     public string Code { get; }
-    public string Name { get; }
-    public byte[] Salt { get; }
-    public byte[] Verifier { get; }
-    public DateTimeOffset CreatedAt { get; }
+    public string Name { get; set; }
+    public string Visibility { get; set; } = RoomVisibility.Private;
+    public string Kind { get; set; } = RoomKind.Permanent;
+    public double TtlHours { get; set; } = LoungeProtocol.DefaultTtlHours;
+    public string Broadcast { get; set; } = BroadcastPolicy.Everyone;
+    public int MaxMembers { get; set; }
+    public byte[] Salt { get; set; } = [];
+    public byte[] Verifier { get; set; } = [];
+    public string OwnerTokenHash { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset LastActiveAt { get; set; }
+
+    public bool HasPassword => Verifier.Length > 0;
     public int MemberCount => _members.Count;
     public int StreamCount => _streams.Count;
+    public bool IsFull => MaxMembers > 0 && _members.Count >= MaxMembers;
 
-    public async Task RunMemberAsync(WebSocket socket, string remote, CancellationToken ct)
+    public bool IsExpired(DateTimeOffset now) =>
+        Kind == RoomKind.Temporary && _members.IsEmpty && LastActiveAt + TimeSpan.FromHours(TtlHours) < now;
+
+    public static Room FromRecord(RoomRecord record, LoungeHub hub, ILogger log)
     {
-        var member = new Member(Interlocked.Increment(ref _nextMemberId), socket);
+        var room = new Room(record.Code, record.Name, hub, log)
+        {
+            CreatedAt = record.CreatedAt,
+            LastActiveAt = record.LastActiveAt,
+            Visibility = RoomVisibility.Normalize(record.Visibility),
+            Kind = RoomKind.Normalize(record.Kind),
+            TtlHours = LoungeProtocol.ClampTtlHours(record.TtlHours),
+            Broadcast = BroadcastPolicy.Normalize(record.Broadcast),
+            MaxMembers = LoungeProtocol.ClampMaxMembers(record.MaxMembers),
+            Salt = string.IsNullOrEmpty(record.Salt) ? [] : Convert.FromBase64String(record.Salt),
+            Verifier = string.IsNullOrEmpty(record.Verifier) ? [] : Convert.FromBase64String(record.Verifier),
+            OwnerTokenHash = record.OwnerTokenHash ?? string.Empty,
+        };
+        if (!LoungeProtocol.IsValidCode(room.Code))
+            throw new FormatException("bad code");
+        lock (room._invites)
+            room._invites.AddRange(record.Invites ?? []);
+        return room;
+    }
+
+    public RoomRecord ToRecord()
+    {
+        lock (_invites)
+        {
+            return new RoomRecord
+            {
+                Code = Code,
+                Name = Name,
+                Visibility = Visibility,
+                Kind = Kind,
+                TtlHours = TtlHours,
+                Broadcast = Broadcast,
+                MaxMembers = MaxMembers,
+                Salt = Salt.Length == 0 ? string.Empty : Convert.ToBase64String(Salt),
+                Verifier = Verifier.Length == 0 ? string.Empty : Convert.ToBase64String(Verifier),
+                OwnerTokenHash = OwnerTokenHash,
+                Invites = _invites.ToList(),
+                CreatedAt = CreatedAt,
+                LastActiveAt = LastActiveAt,
+            };
+        }
+    }
+
+    public RoomInfo Info() => new()
+    {
+        Code = Code,
+        Name = Name,
+        Visibility = Visibility,
+        Kind = Kind,
+        TtlHours = TtlHours,
+        HasPassword = HasPassword,
+        Broadcast = Broadcast,
+        MaxMembers = MaxMembers,
+        Members = _members.Count,
+        Streams = _streams.Count,
+        CreatedAt = CreatedAt,
+    };
+
+    public bool TryConsumeInvite(string token)
+    {
+        var hash = LoungeCrypto.TokenHash(token);
+        var now = DateTimeOffset.UtcNow;
+        lock (_invites)
+        {
+            _invites.RemoveAll(i => !i.IsUsable(now));
+            var invite = _invites.FirstOrDefault(i => i.TokenHash == hash);
+            if (invite is null)
+                return false;
+            invite.Uses++;
+        }
+        _hub.Persist();
+        return true;
+    }
+
+    public async Task RunMemberAsync(WebSocket socket, string remote, LoungeHub.Admission admission, CancellationToken ct)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var member = new Member(Interlocked.Increment(ref _nextMemberId), socket, admission.IsOwner, linked)
+        {
+            KeyPending = admission.NeedsKey,
+            JoinKey = admission.JoinKey,
+        };
         _members[member.Id] = member;
         LastActiveAt = DateTimeOffset.UtcNow;
 
-        var welcome = new LoungeWelcome
+        var welcome = new LoungeReply
         {
             Ok = true,
-            Code = Code,
-            Name = Name,
+            Stage = LoungeReply.StageWelcome,
             MemberId = member.Id,
+            Room = Info(),
+            IsOwner = member.IsOwner,
+            OwnerToken = admission.OwnerToken,
+            NeedsKey = admission.NeedsKey,
             Members = _members.Values.Where(m => m.Id != member.Id)
-                .Select(m => new LoungeMemberInfo { Id = m.Id, Presence = m.Presence is null ? null : Convert.ToBase64String(m.Presence) })
+                .Select(m => new LoungeMemberInfo { Id = m.Id, IsOwner = m.IsOwner, Presence = m.Presence is null ? null : Convert.ToBase64String(m.Presence) })
                 .ToList(),
             Streams = _streams.Values
                 .Select(s => new LoungeStreamInfo { Id = s.Id, Owner = s.Owner, Meta = Convert.ToBase64String(s.Meta) })
@@ -315,11 +527,12 @@ internal sealed class Lounge
             return;
         }
 
-        _log.LogInformation("Member {Id} from {Remote} entered lounge {Code} ({Count} online).", member.Id, remote, Code, _members.Count);
-        Broadcast(LoungeMux.Encode(LoungeMux.MemberJoined, member.Id, 0, ReadOnlySpan<byte>.Empty), except: member.Id);
+        _log.LogInformation("Member {Id} from {Remote} entered room {Code} ({Count} online{Owner}).", member.Id, remote, Code, _members.Count, member.IsOwner ? ", owner" : "");
+        SendAll(LoungeMux.Encode(LoungeMux.MemberJoined, member.Id, member.IsOwner ? 1u : 0u, ReadOnlySpan<byte>.Empty), except: member.Id);
+        if (member.KeyPending)
+            _ = Task.Run(() => KeyHandoffAsync(member));
 
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var sender = member.SendLoopAsync(linked.Token);
+        member.Sender = member.SendLoopAsync(linked.Token);
         var scratch = new byte[64 * 1024];
         try
         {
@@ -335,7 +548,7 @@ internal sealed class Lounge
                     }
                     catch (OperationCanceledException) when (!linked.IsCancellationRequested)
                     {
-                        _log.LogInformation("Member {Id} in lounge {Code} timed out.", member.Id, Code);
+                        _log.LogInformation("Member {Id} in room {Code} timed out.", member.Id, Code);
                         break;
                     }
                 }
@@ -356,9 +569,9 @@ internal sealed class Lounge
             linked.Cancel();
             Leave(member);
             member.Complete();
-            await SafeAwait(sender);
+            await SafeAwait(member.Sender);
             await SafeCloseAsync(socket);
-            _log.LogInformation("Member {Id} left lounge {Code} ({Count} online).", member.Id, Code, _members.Count);
+            _log.LogInformation("Member {Id} left room {Code} ({Count} online).", member.Id, Code, _members.Count);
         }
     }
 
@@ -369,21 +582,35 @@ internal sealed class Lounge
             case LoungeMux.Heartbeat:
                 member.Enqueue(LoungeMux.Encode(LoungeMux.Heartbeat, 0, 0, ReadOnlySpan<byte>.Empty), 0);
                 break;
+
             case LoungeMux.Presence:
                 member.Presence = payload;
-                Broadcast(LoungeMux.Encode(LoungeMux.Presence, member.Id, 0, payload), except: member.Id);
+                SendAll(LoungeMux.Encode(LoungeMux.Presence, member.Id, 0, payload), except: member.Id);
                 break;
 
             case LoungeMux.Control:
-                Broadcast(LoungeMux.Encode(LoungeMux.Control, member.Id, 0, payload), except: member.Id);
+                SendAll(LoungeMux.Encode(LoungeMux.Control, member.Id, 0, payload), except: member.Id);
+                break;
+
+            case LoungeMux.KeyGrant:
+                if (_members.TryGetValue(a, out var newcomer) && newcomer.KeyPending && !member.KeyPending)
+                {
+                    newcomer.KeyPending = false;
+                    newcomer.Enqueue(LoungeMux.Encode(LoungeMux.KeyGrant, member.Id, 0, payload), 0);
+                }
                 break;
 
             case LoungeMux.Publish:
             {
-                var stream = new LoungeStream(Interlocked.Increment(ref _nextStreamId), member.Id, payload);
+                if (Broadcast == BroadcastPolicy.Owner && !member.IsOwner)
+                {
+                    member.Enqueue(LoungeMux.Encode(LoungeMux.PublishAck, 0, a, ReadOnlySpan<byte>.Empty), 0);
+                    break;
+                }
+                var stream = new RoomStream(Interlocked.Increment(ref _nextStreamId), member.Id, payload);
                 _streams[stream.Id] = stream;
                 member.Enqueue(LoungeMux.Encode(LoungeMux.PublishAck, stream.Id, a, ReadOnlySpan<byte>.Empty), 0);
-                Broadcast(LoungeMux.Encode(LoungeMux.StreamStarted, stream.Id, member.Id, payload), except: member.Id);
+                SendAll(LoungeMux.Encode(LoungeMux.StreamStarted, stream.Id, member.Id, payload), except: member.Id);
                 _log.LogInformation("Member {Id} publishes stream {Stream} in {Code}.", member.Id, stream.Id, Code);
                 break;
             }
@@ -420,10 +647,174 @@ internal sealed class Lounge
                     RequestKeyframe(wanted);
                 }
                 break;
+
+            case LoungeMux.RoomUpdate:
+            case LoungeMux.InviteCreate:
+            case LoungeMux.InviteRevokeAll:
+            case LoungeMux.Kick:
+            case LoungeMux.RoomDelete:
+                if (!member.IsOwner)
+                {
+                    Notify(member, LoungeProtocol.ReasonNotOwner, a);
+                    break;
+                }
+                HandleOwner(member, kind, a, payload);
+                break;
         }
     }
 
-    private void RouteMedia(LoungeStream stream, byte[] framed)
+    private void HandleOwner(Member owner, byte kind, uint tag, byte[] payload)
+    {
+        switch (kind)
+        {
+            case LoungeMux.RoomUpdate:
+                if (Json.Deserialize<RoomUpdateMessage>(payload) is { } update)
+                    ApplyUpdate(owner, update);
+                break;
+
+            case LoungeMux.InviteCreate:
+            {
+                var request = Json.Deserialize<InviteRequestMessage>(payload) ?? new InviteRequestMessage();
+                var token = LoungeCrypto.NewToken(18);
+                var record = new InviteRecord
+                {
+                    TokenHash = LoungeCrypto.TokenHash(token),
+                    ExpiresAt = request.ExpiresInSeconds > 0 ? DateTimeOffset.UtcNow.AddSeconds(Math.Min(request.ExpiresInSeconds, 365L * 86400)) : null,
+                    MaxUses = Math.Clamp(request.MaxUses, 0, 1000),
+                    CreatedAt = DateTimeOffset.UtcNow,
+                };
+                lock (_invites)
+                {
+                    _invites.RemoveAll(i => !i.IsUsable(DateTimeOffset.UtcNow));
+                    if (_invites.Count >= MaxInvites)
+                        _invites.RemoveAt(0);
+                    _invites.Add(record);
+                }
+                _hub.Persist();
+                var created = new InviteCreatedMessage { Token = token, ExpiresAt = record.ExpiresAt, MaxUses = record.MaxUses };
+                owner.Enqueue(LoungeMux.Encode(LoungeMux.InviteCreated, 0, tag, Json.Serialize(created)), 0);
+                _log.LogInformation("Invite created for room {Code} (expires {Expires}, uses {Uses}).", Code, record.ExpiresAt?.ToString("u") ?? "never", record.MaxUses == 0 ? "unlimited" : record.MaxUses.ToString());
+                break;
+            }
+
+            case LoungeMux.InviteRevokeAll:
+                lock (_invites)
+                    _invites.Clear();
+                _hub.Persist();
+                Notify(owner, "invites_revoked", tag);
+                break;
+
+            case LoungeMux.Kick:
+                if (_members.TryGetValue(tag, out var victim) && !victim.IsOwner)
+                {
+                    _log.LogInformation("Member {Id} kicked from room {Code}.", victim.Id, Code);
+                    victim.CloseWith(LoungeProtocol.ReasonKicked);
+                }
+                break;
+
+            case LoungeMux.RoomDelete:
+                _hub.Remove(this);
+                foreach (var member in _members.Values)
+                    member.CloseWith(LoungeProtocol.ReasonRoomDeleted);
+                break;
+        }
+    }
+
+    private void ApplyUpdate(Member owner, RoomUpdateMessage update)
+    {
+        var passwordChanged = false;
+        if (update.Name is { } name && name.Trim().Length is > 0 and <= LoungeProtocol.MaxNameLength)
+            Name = name.Trim();
+        if (update.Visibility is not null)
+            Visibility = RoomVisibility.Normalize(update.Visibility);
+        if (update.Kind is not null)
+            Kind = RoomKind.Normalize(update.Kind);
+        if (update.TtlHours is { } ttl)
+            TtlHours = LoungeProtocol.ClampTtlHours(ttl);
+        if (update.Broadcast is not null)
+            Broadcast = BroadcastPolicy.Normalize(update.Broadcast);
+        if (update.MaxMembers is { } max)
+            MaxMembers = LoungeProtocol.ClampMaxMembers(max);
+        if (update.ClearPassword)
+        {
+            Salt = [];
+            Verifier = [];
+        }
+        else if (!string.IsNullOrEmpty(update.Salt) && !string.IsNullOrEmpty(update.Verifier))
+        {
+            try
+            {
+                var salt = Convert.FromBase64String(update.Salt);
+                var verifier = Convert.FromBase64String(update.Verifier);
+                if (salt.Length == LoungeCrypto.SaltBytes && verifier.Length == 32)
+                {
+                    Salt = salt;
+                    Verifier = verifier;
+                    passwordChanged = true;
+                }
+            }
+            catch (FormatException) { }
+        }
+
+        if (Broadcast == BroadcastPolicy.Owner)
+        {
+            foreach (var stream in _streams.Values.Where(s => s.Owner != owner.Id).ToList())
+                EndStream(stream);
+        }
+
+        _hub.Persist();
+        SendAll(LoungeMux.Encode(LoungeMux.RoomInfo, 0, 0, Json.Serialize(Info())), except: null);
+        _log.LogInformation("Room {Code} updated by its owner.", Code);
+
+        if (passwordChanged)
+        {
+            // Everyone else holds a key derived from the old password; they must come back with the new one.
+            foreach (var member in _members.Values.Where(m => m.Id != owner.Id).ToList())
+                member.CloseWith(LoungeProtocol.ReasonPasswordChanged);
+        }
+    }
+
+    private void Notify(Member member, string reason, uint tag) =>
+        member.Enqueue(LoungeMux.Encode(LoungeMux.Notice, tag, 0, Json.Serialize(new ServerNotice { Reason = reason })), 0);
+
+    /// <summary>Asks members holding the key, one at a time, to wrap it for the newcomer.</summary>
+    private async Task KeyHandoffAsync(Member newcomer)
+    {
+        var tried = new HashSet<uint>();
+        var deadline = DateTimeOffset.UtcNow + LoungeProtocol.KeyHandoffTimeout;
+        while (newcomer.KeyPending && _members.ContainsKey(newcomer.Id) && DateTimeOffset.UtcNow < deadline)
+        {
+            var sponsor = _members.Values
+                .Where(m => m.Id != newcomer.Id && !m.KeyPending && !tried.Contains(m.Id))
+                .OrderBy(m => m.Id)
+                .FirstOrDefault();
+            if (sponsor is null)
+            {
+                if (!_members.Values.Any(m => m.Id != newcomer.Id && !m.KeyPending))
+                {
+                    // Everyone who held the key is gone: the newcomer starts a fresh key.
+                    newcomer.KeyPending = false;
+                    newcomer.Enqueue(LoungeMux.Encode(LoungeMux.KeyGrant, 0, 0, ReadOnlySpan<byte>.Empty), 0);
+                    return;
+                }
+                tried.Clear();
+                await Task.Delay(500);
+                continue;
+            }
+            tried.Add(sponsor.Id);
+            sponsor.Enqueue(LoungeMux.Encode(LoungeMux.KeyRequest, newcomer.Id, 0, newcomer.JoinKey ?? []), 0);
+            var waitUntil = DateTimeOffset.UtcNow + SponsorTimeout;
+            while (newcomer.KeyPending && DateTimeOffset.UtcNow < waitUntil)
+                await Task.Delay(100);
+        }
+        if (newcomer.KeyPending && _members.ContainsKey(newcomer.Id))
+        {
+            _log.LogWarning("No member handed the key to {Id} in room {Code}.", newcomer.Id, Code);
+            newcomer.CloseWith(LoungeProtocol.ReasonNoKey);
+        }
+    }
+
+    private void RouteMedia(RoomStream stream, byte[] framed)
     {
         Framing.TryPeek(framed, out var type, out var flags);
         var isVideo = type == MessageType.Video;
@@ -453,7 +844,7 @@ internal sealed class Lounge
             RequestKeyframe(stream);
     }
 
-    private void RequestKeyframe(LoungeStream stream)
+    private void RequestKeyframe(RoomStream stream)
     {
         var now = Environment.TickCount64;
         var last = Interlocked.Read(ref stream.LastKeyframeRequestTicks);
@@ -464,7 +855,7 @@ internal sealed class Lounge
             owner.Enqueue(LoungeMux.Encode(LoungeMux.KeyframeRequest, stream.Id, 0, ReadOnlySpan<byte>.Empty), 0);
     }
 
-    private void EndStream(LoungeStream stream)
+    private void EndStream(RoomStream stream)
     {
         if (!_streams.TryRemove(stream.Id, out _))
             return;
@@ -473,7 +864,7 @@ internal sealed class Lounge
             if (_members.TryGetValue(subscriberId, out var subscriber))
                 subscriber.Unsubscribe(stream.Id);
         }
-        Broadcast(LoungeMux.Encode(LoungeMux.StreamEnded, stream.Id, stream.Owner, ReadOnlySpan<byte>.Empty), except: null);
+        SendAll(LoungeMux.Encode(LoungeMux.StreamEnded, stream.Id, stream.Owner, ReadOnlySpan<byte>.Empty), except: null);
     }
 
     private void Leave(Member member)
@@ -484,11 +875,11 @@ internal sealed class Lounge
             EndStream(stream);
         foreach (var stream in _streams.Values)
             stream.Subscribers.TryRemove(member.Id, out _);
-        Broadcast(LoungeMux.Encode(LoungeMux.MemberLeft, member.Id, 0, ReadOnlySpan<byte>.Empty), except: null);
+        SendAll(LoungeMux.Encode(LoungeMux.MemberLeft, member.Id, 0, ReadOnlySpan<byte>.Empty), except: null);
         LastActiveAt = DateTimeOffset.UtcNow;
     }
 
-    private void Broadcast(byte[] frame, uint? except)
+    private void SendAll(byte[] frame, uint? except)
     {
         foreach (var member in _members.Values)
         {
@@ -523,8 +914,10 @@ internal sealed class Lounge
         }
     }
 
-    private static async Task SafeAwait(Task task)
+    private static async Task SafeAwait(Task? task)
     {
+        if (task is null)
+            return;
         try
         {
             await task;
@@ -546,9 +939,9 @@ internal sealed class Lounge
     }
 
     /// <summary>A published stream: owner, opaque metadata and who listens.</summary>
-    private sealed class LoungeStream
+    private sealed class RoomStream
     {
-        public LoungeStream(uint id, uint owner, byte[] meta)
+        public RoomStream(uint id, uint owner, byte[] meta)
         {
             Id = id;
             Owner = owner;
@@ -568,16 +961,24 @@ internal sealed class Lounge
         private readonly Channel<(byte[] Bytes, uint StreamId)> _outbox =
             Channel.CreateUnbounded<(byte[], uint)>(new UnboundedChannelOptions { SingleReader = true });
         private readonly ConcurrentDictionary<uint, Subscription> _subscriptions = new();
+        private readonly CancellationTokenSource _lifetime;
+        private int _closing;
 
-        public Member(uint id, WebSocket socket)
+        public Member(uint id, WebSocket socket, bool isOwner, CancellationTokenSource lifetime)
         {
             Id = id;
             Socket = socket;
+            IsOwner = isOwner;
+            _lifetime = lifetime;
         }
 
         public uint Id { get; }
         public WebSocket Socket { get; }
+        public bool IsOwner { get; }
         public byte[]? Presence { get; set; }
+        public volatile bool KeyPending;
+        public byte[]? JoinKey { get; set; }
+        public Task? Sender { get; set; }
 
         public void Subscribe(uint streamId, int maxPending) => _subscriptions[streamId] = new Subscription(maxPending);
 
@@ -615,6 +1016,24 @@ internal sealed class Lounge
         public void Enqueue(byte[] frame, uint streamId) => _outbox.Writer.TryWrite((frame, streamId));
 
         public void Complete() => _outbox.Writer.TryComplete();
+
+        /// <summary>Tells the member why and then closes: the reason is flushed before the socket goes.</summary>
+        public void CloseWith(string reason)
+        {
+            if (Interlocked.Exchange(ref _closing, 1) != 0)
+                return;
+            Enqueue(LoungeMux.Encode(LoungeMux.Bye, 0, 0, Json.Serialize(new ServerNotice { Reason = reason })), 0);
+            Complete();
+            _ = Task.Run(async () =>
+            {
+                await SafeAwait(Sender);
+                try
+                {
+                    _lifetime.Cancel();
+                }
+                catch (ObjectDisposedException) { }
+            });
+        }
 
         public async Task SendLoopAsync(CancellationToken ct)
         {

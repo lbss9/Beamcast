@@ -8,6 +8,8 @@ public enum LoungeState
     Disconnected,
     Connecting,
     Connected,
+    /// <summary>The connection dropped; the service is trying to get back into the same room.</summary>
+    Reconnecting,
 }
 
 public sealed class LoungeMember
@@ -15,6 +17,7 @@ public sealed class LoungeMember
     public uint Id { get; init; }
     public string Name { get; set; } = string.Empty;
     public bool IsMe { get; init; }
+    public bool IsOwner { get; init; }
 }
 
 public sealed class LoungeStream
@@ -27,8 +30,10 @@ public sealed class LoungeStream
 }
 
 /// <summary>
-/// The member's seat in a lounge: who is here, what is being streamed, and the pipe the
-/// broadcast and watch services publish to and subscribe from. Lives for the whole process.
+/// The member's seat in a room: who is here, what is being streamed, the room's settings, and the
+/// pipe the broadcast and watch services publish to and subscribe from. Lives for the whole
+/// process. When the connection drops it keeps the seat and reconnects on its own; the broadcast
+/// and watch services listen to <see cref="Reconnected"/> to pick up where they were.
 /// Events are raised on the UI thread except <see cref="MediaReceived"/> and
 /// <see cref="KeyframeRequested"/>, which stay on the network thread for latency.
 /// </summary>
@@ -36,11 +41,16 @@ public sealed class LoungeService
 {
     public static LoungeService Instance { get; } = new();
 
+    private static readonly TimeSpan ReconnectBudget = TimeSpan.FromMinutes(5);
+    private static readonly int[] ReconnectDelaysSeconds = [1, 2, 4, 8, 15];
+
     private readonly object _sync = new();
     private readonly Dictionary<uint, LoungeMember> _members = new();
     private readonly Dictionary<uint, LoungeStream> _streams = new();
     private DispatcherQueue? _ui;
     private LoungeClient? _client;
+    private Session? _session;
+    private CancellationTokenSource? _reconnectCts;
     private string _displayName = string.Empty;
 
     private LoungeService() { }
@@ -49,23 +59,31 @@ public sealed class LoungeService
     public event Action? MembersChanged;
     public event Action? StreamsChanged;
     public event Action<uint>? StreamEnded;
+    public event Action<RoomInfo>? RoomChanged;
     public event Action<string>? Closed;
+    public event Action<string>? Notice;
+    /// <summary>Back in the same room after a drop: member and stream ids are new.</summary>
+    public event Action? Reconnected;
     public event Action<uint, MessageType, bool, byte[]>? MediaReceived;
     public event Action<uint>? KeyframeRequested;
 
     public LoungeState State { get; private set; }
-    public string Code => _client?.Code ?? string.Empty;
-    public string Name => _client?.Name ?? string.Empty;
-    public string ServerUrl => _client?.ServerUrl ?? string.Empty;
+    public RoomInfo Room => _client?.Room ?? _session?.LastRoom ?? new RoomInfo();
+    public string Code => Room.Code;
+    public string Name => Room.Name;
+    public string ServerUrl => _client?.ServerUrl ?? _session?.ServerUrl ?? string.Empty;
     public uint MemberId => _client?.MemberId ?? 0;
+    public bool IsOwner => _client?.IsOwner ?? _session?.IsOwner ?? false;
     public bool IsConnected => State == LoungeState.Connected && _client?.IsOpen == true;
+    public bool InRoom => State is LoungeState.Connected or LoungeState.Reconnecting;
+    public bool CanBroadcast => Room.Broadcast != BroadcastPolicy.Owner || IsOwner;
 
     public IReadOnlyList<LoungeMember> Members
     {
         get
         {
             lock (_sync)
-                return _members.Values.OrderByDescending(m => m.IsMe).ThenBy(m => m.Name).ToList();
+                return _members.Values.OrderByDescending(m => m.IsMe).ThenByDescending(m => m.IsOwner).ThenBy(m => m.Name).ToList();
         }
     }
 
@@ -78,20 +96,163 @@ public sealed class LoungeService
         }
     }
 
-    public string InviteCode => _client is null ? string.Empty : LoungeInvite.Encode(new LoungeTarget(_client.ServerUrl, _client.Code));
+    /// <summary>A plain pointer to the room (host + code): no token, no key.</summary>
+    public string InviteCode => ServerUrl.Length == 0 ? string.Empty : LoungeInvite.Encode(new LoungeTarget(ServerUrl, Code));
 
     public void Initialize(DispatcherQueue ui) => _ui = ui;
 
-    public Task CreateAsync(string serverUrl, string loungeName, string password, string displayName, CancellationToken ct) =>
-        ConnectAsync(() => LoungeClient.CreateAsync(serverUrl, loungeName, password, SettingsStore.Load().RelayAppKey, ct), displayName);
+    // ----- hosts -----
 
-    public Task JoinAsync(string serverUrl, string code, string password, string displayName, CancellationToken ct) =>
-        ConnectAsync(() => LoungeClient.JoinAsync(serverUrl, code, password, SettingsStore.Load().RelayAppKey, ct), displayName);
+    public static string AppKeyFor(string serverUrl)
+    {
+        var settings = SettingsStore.Load();
+        var host = settings.Hosts.FirstOrDefault(h => string.Equals(h.Url, serverUrl, StringComparison.OrdinalIgnoreCase));
+        return host?.AppKey ?? (string.Equals(settings.RelayUrl, serverUrl, StringComparison.OrdinalIgnoreCase) ? settings.RelayAppKey : string.Empty);
+    }
 
-    private async Task ConnectAsync(Func<Task<LoungeClient>> connect, string displayName)
+    public Task<HostInfo> ListRoomsAsync(string serverUrl, CancellationToken ct)
+    {
+        if (!LoungeProtocol.TryNormalizeServer(serverUrl, out var url))
+            throw new LoungeException(LoungeProtocol.ReasonBadRequest);
+        return LoungeClient.ListRoomsAsync(url, AppKeyFor(url), ct);
+    }
+
+    public static void RememberHost(string serverUrl, string? name = null, string? appKey = null, bool? favorite = null)
+    {
+        if (!LoungeProtocol.TryNormalizeServer(serverUrl, out var url))
+            return;
+        SettingsStore.Update(s =>
+        {
+            var host = s.Hosts.FirstOrDefault(h => string.Equals(h.Url, url, StringComparison.OrdinalIgnoreCase));
+            if (host is null)
+            {
+                host = new SavedHost { Url = url, Name = LoungeProtocol.DisplayHost(url) };
+                s.Hosts.Add(host);
+            }
+            if (!string.IsNullOrWhiteSpace(name))
+                host.Name = name.Trim();
+            if (appKey is not null)
+                host.AppKey = appKey.Trim();
+            if (favorite is { } fav)
+                host.Favorite = fav;
+            host.LastUsedAt = DateTimeOffset.UtcNow;
+            s.RelayUrl = url;
+            s.RelayAppKey = host.AppKey;
+        });
+    }
+
+    public static void ForgetHost(string serverUrl) =>
+        SettingsStore.Update(s => s.Hosts.RemoveAll(h => string.Equals(h.Url, serverUrl, StringComparison.OrdinalIgnoreCase)));
+
+    // ----- favorites -----
+
+    public static bool IsFavorite(string serverUrl, string code) =>
+        SettingsStore.Load().FavoriteRooms.Any(r => Same(r.ServerUrl, r.Code, serverUrl, code));
+
+    public static void SetFavorite(string serverUrl, string code, string name, bool hasPassword, bool favorite, string? rememberPassword = null)
+    {
+        SettingsStore.Update(s =>
+        {
+            s.FavoriteRooms.RemoveAll(r => Same(r.ServerUrl, r.Code, serverUrl, code));
+            if (!favorite)
+                return;
+            s.FavoriteRooms.Insert(0, new SavedRoom
+            {
+                ServerUrl = serverUrl,
+                Code = code,
+                Name = name,
+                HasPassword = hasPassword,
+                ProtectedPassword = rememberPassword is { Length: > 0 } ? SecretStore.Protect(rememberPassword) : string.Empty,
+                LastUsedAt = DateTimeOffset.UtcNow,
+            });
+        });
+    }
+
+    public static string RememberedPassword(string serverUrl, string code)
+    {
+        var saved = SettingsStore.Load().FavoriteRooms.FirstOrDefault(r => Same(r.ServerUrl, r.Code, serverUrl, code));
+        return saved is null ? string.Empty : SecretStore.Unprotect(saved.ProtectedPassword);
+    }
+
+    public static string? OwnerTokenFor(string serverUrl, string code)
+    {
+        var owned = SettingsStore.Load().OwnedRooms.FirstOrDefault(r => Same(r.ServerUrl, r.Code, serverUrl, code));
+        var token = owned is null ? string.Empty : SecretStore.Unprotect(owned.ProtectedToken);
+        return token.Length == 0 ? null : token;
+    }
+
+    private static bool Same(string url1, string code1, string url2, string code2) =>
+        string.Equals(url1, url2, StringComparison.OrdinalIgnoreCase) && string.Equals(code1, code2, StringComparison.Ordinal);
+
+    // ----- connect -----
+
+    public async Task CreateAsync(string serverUrl, RoomCreateOptions options, string displayName, CancellationToken ct)
+    {
+        if (!LoungeProtocol.TryNormalizeServer(serverUrl, out var url))
+            throw new LoungeException(LoungeProtocol.ReasonBadRequest);
+        var appKey = AppKeyFor(url);
+        var client = await ConnectAsync(() => LoungeClient.CreateAsync(url, options, appKey, ct), displayName);
+
+        if (client.OwnerToken is { Length: > 0 } token)
+        {
+            SettingsStore.Update(s =>
+            {
+                s.OwnedRooms.RemoveAll(r => Same(r.ServerUrl, r.Code, url, client.Code));
+                s.OwnedRooms.Add(new OwnedRoom { ServerUrl = url, Code = client.Code, Name = client.Name, ProtectedToken = SecretStore.Protect(token) });
+            });
+        }
+        _session = new Session(url, appKey, new RoomJoinOptions
+        {
+            Code = client.Code,
+            PasswordKey = client.PasswordKey,
+            OwnerToken = client.OwnerToken,
+        })
+        { LastRoom = client.Room, IsOwner = true };
+        RememberHost(url);
+        SettingsStore.Update(s =>
+        {
+            s.LastLoungeCode = client.Code;
+            s.LastLoungeName = client.Name;
+        });
+    }
+
+    public async Task JoinAsync(string serverUrl, RoomJoinOptions options, string displayName, CancellationToken ct)
+    {
+        if (!LoungeProtocol.TryNormalizeServer(serverUrl, out var url))
+            throw new LoungeException(LoungeProtocol.ReasonBadRequest);
+        var appKey = AppKeyFor(url);
+        options.Code = LoungeProtocol.NormalizeCode(options.Code);
+        options.OwnerToken ??= OwnerTokenFor(url, options.Code);
+        var client = await ConnectAsync(() => LoungeClient.JoinAsync(url, options, appKey, ct), displayName);
+
+        _session = new Session(url, appKey, new RoomJoinOptions
+        {
+            Code = client.Code,
+            PasswordKey = client.PasswordKey,
+            InviteToken = options.InviteToken,
+            InviteKey = options.InviteKey,
+            OwnerToken = options.OwnerToken,
+        })
+        { LastRoom = client.Room, IsOwner = client.IsOwner };
+        RememberHost(url);
+        SettingsStore.Update(s =>
+        {
+            s.LastLoungeCode = client.Code;
+            s.LastLoungeName = client.Name;
+            var favorite = s.FavoriteRooms.FirstOrDefault(r => Same(r.ServerUrl, r.Code, url, client.Code));
+            if (favorite is not null)
+            {
+                favorite.Name = client.Name;
+                favorite.HasPassword = client.Room.HasPassword;
+                favorite.LastUsedAt = DateTimeOffset.UtcNow;
+            }
+        });
+    }
+
+    private async Task<LoungeClient> ConnectAsync(Func<Task<LoungeClient>> connect, string displayName)
     {
         if (State != LoungeState.Disconnected)
-            throw new InvalidOperationException("Already in a lounge.");
+            throw new InvalidOperationException("Already in a room.");
 
         _displayName = displayName.Trim().Length == 0 ? Environment.UserName : displayName.Trim();
         SetState(LoungeState.Connecting);
@@ -106,15 +267,28 @@ public sealed class LoungeService
             throw;
         }
 
+        Attach(client);
+        SetState(LoungeState.Connected);
+        Post(() =>
+        {
+            MembersChanged?.Invoke();
+            StreamsChanged?.Invoke();
+            RoomChanged?.Invoke(client.Room);
+        });
+        return client;
+    }
+
+    private void Attach(LoungeClient client)
+    {
         lock (_sync)
         {
             _members.Clear();
             _streams.Clear();
-            _members[client.MemberId] = new LoungeMember { Id = client.MemberId, Name = _displayName, IsMe = true };
+            _members[client.MemberId] = new LoungeMember { Id = client.MemberId, Name = _displayName, IsMe = true, IsOwner = client.IsOwner };
             foreach (var info in client.InitialMembers)
             {
                 var presence = client.Open<PresenceMessage>(info.Presence);
-                _members[info.Id] = new LoungeMember { Id = info.Id, Name = presence?.Name ?? Placeholder(info.Id) };
+                _members[info.Id] = new LoungeMember { Id = info.Id, Name = presence?.Name ?? Placeholder(info.Id), IsOwner = info.IsOwner };
             }
             foreach (var info in client.InitialStreams)
             {
@@ -129,27 +303,150 @@ public sealed class LoungeService
         client.StreamStarted += OnStreamStarted;
         client.StreamEnded += OnStreamEnded;
         client.StreamMetaUpdated += OnStreamMetaUpdated;
+        client.RoomUpdated += info =>
+        {
+            if (_session is not null)
+                _session.LastRoom = info;
+            Post(() => RoomChanged?.Invoke(info));
+        };
+        client.Notice += reason => Post(() => Notice?.Invoke(reason));
         client.MediaReceived += (id, type, key, body) => MediaReceived?.Invoke(id, type, key, body);
         client.KeyframeRequested += id => KeyframeRequested?.Invoke(id);
         client.Closed += reason => Post(() => OnClosed(client, reason));
 
         _client = client;
         client.SendPresence(new PresenceMessage { Name = _displayName, AppVersion = AppInfo.Version });
-        SetState(LoungeState.Connected);
-        Post(() =>
-        {
-            MembersChanged?.Invoke();
-            StreamsChanged?.Invoke();
-        });
     }
 
     public async Task LeaveAsync()
     {
+        _session = null;
+        var reconnect = _reconnectCts;
+        if (reconnect is not null)
+        {
+            reconnect.Cancel();
+            return;
+        }
         var client = _client;
         if (client is null)
             return;
         await client.LeaveAsync();
     }
+
+    // ----- reconnection -----
+
+    private void OnClosed(LoungeClient client, string reason)
+    {
+        if (!ReferenceEquals(_client, client))
+            return;
+        _client = null;
+        client.Dispose();
+
+        var session = _session;
+        if (session is not null && reason is "lost" or "timeout" or "closed")
+        {
+            lock (_sync)
+            {
+                _members.Clear();
+            }
+            SetState(LoungeState.Reconnecting);
+            MembersChanged?.Invoke();
+            _reconnectCts = new CancellationTokenSource();
+            _ = ReconnectAsync(session, _reconnectCts.Token);
+            return;
+        }
+
+        Finish(reason);
+    }
+
+    private void Finish(string reason)
+    {
+        _session = null;
+        lock (_sync)
+        {
+            _members.Clear();
+            _streams.Clear();
+        }
+        SetState(LoungeState.Disconnected);
+        MembersChanged?.Invoke();
+        StreamsChanged?.Invoke();
+        Closed?.Invoke(reason);
+    }
+
+    private async Task ReconnectAsync(Session session, CancellationToken ct)
+    {
+        var started = DateTimeOffset.UtcNow;
+        var attempt = 0;
+        var reason = "lost";
+        try
+        {
+            while (!ct.IsCancellationRequested && DateTimeOffset.UtcNow - started < ReconnectBudget)
+            {
+                var delay = ReconnectDelaysSeconds[Math.Min(attempt, ReconnectDelaysSeconds.Length - 1)];
+                attempt++;
+                await Task.Delay(TimeSpan.FromSeconds(delay), ct);
+                if (!ReferenceEquals(_session, session))
+                    return;
+
+                LoungeClient client;
+                try
+                {
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    timeout.CancelAfter(TimeSpan.FromSeconds(20));
+                    client = await LoungeClient.JoinAsync(session.ServerUrl, session.Join, session.AppKey, timeout.Token);
+                }
+                catch (LoungeException ex) when (ex.Reason is "unreachable" or "timeout" or LoungeProtocol.ReasonRateLimited or LoungeProtocol.ReasonNoKey)
+                {
+                    continue;
+                }
+                catch (LoungeException ex)
+                {
+                    reason = ex.Reason;
+                    break;
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                if (!ReferenceEquals(_session, session) || ct.IsCancellationRequested)
+                {
+                    client.Dispose();
+                    return;
+                }
+
+                session.LastRoom = client.Room;
+                session.IsOwner = client.IsOwner;
+                session.Join.PasswordKey = client.PasswordKey;
+                Attach(client);
+                _reconnectCts?.Dispose();
+                _reconnectCts = null;
+                SetState(LoungeState.Connected);
+                Post(() =>
+                {
+                    MembersChanged?.Invoke();
+                    StreamsChanged?.Invoke();
+                    RoomChanged?.Invoke(client.Room);
+                    Reconnected?.Invoke();
+                });
+                return;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            reason = "left";
+        }
+        finally
+        {
+            _reconnectCts?.Dispose();
+            _reconnectCts = null;
+        }
+        if (ct.IsCancellationRequested)
+            reason = "left";
+        Post(() => Finish(reason));
+    }
+
+    // ----- room events -----
 
     private string Placeholder(uint id) => Loc.Format("Lounge_MemberPlaceholder", id);
 
@@ -159,15 +456,15 @@ public sealed class LoungeService
             return _members.TryGetValue(memberId, out var m) ? m.Name : Placeholder(memberId);
     }
 
-    private void OnMemberJoined(uint id)
+    private void OnMemberJoined(uint id, bool isOwner)
     {
         lock (_sync)
         {
             if (!_members.ContainsKey(id))
-                _members[id] = new LoungeMember { Id = id, Name = Placeholder(id) };
+                _members[id] = new LoungeMember { Id = id, Name = Placeholder(id), IsOwner = isOwner };
         }
         // Newcomers need our name too.
-        _client?.SendPresence(new PresenceMessage { Name = _displayName, AppVersion = AppInfo.Version });
+        SafeTry.Run(() => _client?.SendPresence(new PresenceMessage { Name = _displayName, AppVersion = AppInfo.Version }));
         Post(() => MembersChanged?.Invoke());
     }
 
@@ -254,26 +551,51 @@ public sealed class LoungeService
         Post(() => StreamsChanged?.Invoke());
     }
 
-    private void OnClosed(LoungeClient client, string reason)
+    // ----- owner operations -----
+
+    /// <summary>Creates an expiring invite and returns the shareable BC- string.</summary>
+    public async Task<string> CreateInviteAsync(TimeSpan? expiresIn, int maxUses, CancellationToken ct)
     {
-        if (!ReferenceEquals(_client, client))
-            return;
-        _client = null;
-        client.Dispose();
-        lock (_sync)
-        {
-            _members.Clear();
-            _streams.Clear();
-        }
-        SetState(LoungeState.Disconnected);
-        MembersChanged?.Invoke();
-        StreamsChanged?.Invoke();
-        Closed?.Invoke(reason);
+        var client = _client ?? throw new InvalidOperationException("Not in a room.");
+        var created = await client.CreateInviteAsync(expiresIn, maxUses, ct);
+        var key = client.Room.HasPassword ? client.ContentKey : null;
+        return LoungeInvite.Encode(new LoungeTarget(client.ServerUrl, client.Code, created.Token, key));
     }
 
-    // Pipe for the broadcast/watch services.
+    public void RevokeInvites() => _client?.RevokeInvites();
+
+    public void Kick(uint memberId) => _client?.Kick(memberId);
+
+    public void UpdateRoom(RoomUpdateMessage update) => _client?.UpdateRoom(update);
+
+    public Task ChangePasswordAsync(string newPassword, CancellationToken ct)
+    {
+        var client = _client ?? throw new InvalidOperationException("Not in a room.");
+        return client.ChangePasswordAsync(newPassword, ct);
+    }
+
+    public async Task DeleteRoomAsync()
+    {
+        var client = _client;
+        if (client is null)
+            return;
+        var url = client.ServerUrl;
+        var code = client.Code;
+        _session = null;
+        client.DeleteRoom();
+        await Task.Delay(300);
+        SettingsStore.Update(s =>
+        {
+            s.OwnedRooms.RemoveAll(r => Same(r.ServerUrl, r.Code, url, code));
+            s.FavoriteRooms.RemoveAll(r => Same(r.ServerUrl, r.Code, url, code));
+        });
+        await client.LeaveAsync();
+    }
+
+    // ----- pipe for the broadcast/watch services -----
+
     public Task<uint> PublishAsync(StreamMetaMessage meta, CancellationToken ct) =>
-        (_client ?? throw new InvalidOperationException("Not in a lounge.")).PublishAsync(meta, ct);
+        (_client ?? throw new InvalidOperationException("Not in a room.")).PublishAsync(meta, ct);
 
     public void Unpublish(uint streamId) => _client?.Unpublish(streamId);
 
@@ -305,6 +627,16 @@ public sealed class LoungeService
             return _streams.TryGetValue(streamId, out var s) ? s : null;
     }
 
+    /// <summary>After a reconnect: the stream that looks like the one we were watching (same owner and title).</summary>
+    public LoungeStream? FindStreamLike(string ownerName, string title)
+    {
+        lock (_sync)
+        {
+            return _streams.Values.FirstOrDefault(s => !s.IsMine && s.OwnerName == ownerName && s.Meta.Title == title)
+                ?? _streams.Values.FirstOrDefault(s => !s.IsMine && s.OwnerName == ownerName);
+        }
+    }
+
     private void SetState(LoungeState state)
     {
         if (State == state)
@@ -320,5 +652,21 @@ public sealed class LoungeService
             action();
         else
             ui.TryEnqueue(() => action());
+    }
+
+    private sealed class Session
+    {
+        public Session(string serverUrl, string appKey, RoomJoinOptions join)
+        {
+            ServerUrl = serverUrl;
+            AppKey = appKey;
+            Join = join;
+        }
+
+        public string ServerUrl { get; }
+        public string AppKey { get; }
+        public RoomJoinOptions Join { get; }
+        public RoomInfo? LastRoom { get; set; }
+        public bool IsOwner { get; set; }
     }
 }

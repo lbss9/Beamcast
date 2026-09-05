@@ -90,6 +90,7 @@ public sealed class BroadcastService
             if (state == LoungeState.Disconnected)
                 StopLive();
         };
+        _lounge.Reconnected += () => _ = RepublishAsync();
         _audio.PacketReady += OnAudioPacket;
         _audio.Faulted += message => Post(() => Error?.Invoke(message));
     }
@@ -282,6 +283,48 @@ public sealed class BroadcastService
             StopLiveCore();
             SetState(Source is null ? BroadcastState.Idle : BroadcastState.Preview);
         }
+    }
+
+    /// <summary>
+    /// The connection came back with a fresh member id: announce the same stream again so viewers
+    /// find it under the same title, and start with a keyframe. Capture and encoder never stopped.
+    /// </summary>
+    private async Task RepublishAsync()
+    {
+        if (!_live)
+            return;
+        var meta = _meta;
+        uint streamId;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            streamId = await _lounge.PublishAsync(meta, timeout.Token);
+        }
+        catch (Exception ex)
+        {
+            Diag.Log($"republish failed: {ex.Message}");
+            Post(() =>
+            {
+                Error?.Invoke(ex.Message);
+                StopLive();
+            });
+            return;
+        }
+
+        lock (_sync)
+        {
+            if (!_live)
+            {
+                _lounge.Unpublish(streamId);
+                return;
+            }
+            _streamId = streamId;
+            lock (_upstreamGate)
+                _upstreamGate.RequestKeyframe();
+            _lounge.RegisterOwnStream(streamId, meta);
+            Interlocked.Exchange(ref _keyframeRequested, 1);
+        }
+        Diag.Log($"republished as stream {streamId}");
     }
 
     public void SetPaused(bool paused)

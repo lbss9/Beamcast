@@ -57,35 +57,62 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" ColumnSpacing="10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0" Spacing="0" VerticalAlignment="Center">
-                <TextBlock x:Name="LoungeNameText" Style="{ThemeResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis" />
-                <TextBlock x:Name="LoungeInfoText" Style="{StaticResource HintTextStyle}" />
-            </StackPanel>
-            <Border
-                Grid.Column="1"
-                CornerRadius="8"
-                Padding="10,4"
-                VerticalAlignment="Center"
-                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-            >
-                <TextBlock
-                    x:Name="CodeText"
-                    FontFamily="Cascadia Mono, Consolas, Courier New"
-                    FontSize="16"
-                    FontWeight="SemiBold"
+        <StackPanel Grid.Row="0" Spacing="8">
+            <InfoBar x:Name="ReconnectBar" x:Uid="Room_ReconnectBar" IsOpen="False" IsClosable="False" Severity="Warning" />
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Spacing="0" VerticalAlignment="Center">
+                    <TextBlock x:Name="LoungeNameText" Style="{ThemeResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="LoungeInfoText" Style="{StaticResource HintTextStyle}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Border
+                    Grid.Column="1"
+                    CornerRadius="8"
+                    Padding="10,4"
                     VerticalAlignment="Center"
-                />
-            </Border>
-            <Button x:Name="CopyInviteButton" x:Uid="Room_CopyInvite" Grid.Column="2" VerticalAlignment="Center" Click="OnCopyInvite" />
-            <Button x:Uid="Room_Leave" Grid.Column="3" VerticalAlignment="Center" Click="OnLeave" />
-        </Grid>
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                >
+                    <TextBlock
+                        x:Name="CodeText"
+                        FontFamily="Cascadia Mono, Consolas, Courier New"
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        VerticalAlignment="Center"
+                    />
+                </Border>
+                <ToggleButton x:Name="FavoriteButton" x:Uid="Room_Favorite" Grid.Column="2" VerticalAlignment="Center" Click="OnFavoriteToggled">
+                    <FontIcon x:Name="FavoriteIcon" Glyph="&#xE734;" FontSize="14" />
+                </ToggleButton>
+                <DropDownButton x:Name="OwnerMenu" x:Uid="Room_OwnerMenu" Grid.Column="3" VerticalAlignment="Center" Visibility="Collapsed">
+                    <DropDownButton.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuFlyoutItem x:Name="MenuInvite" Click="OnMenuInvite">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8F7;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="MenuEdit" Click="OnMenuEdit">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE70F;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="MenuRevoke" Click="OnMenuRevoke">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8F8;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutItem x:Name="MenuDelete" Click="OnMenuDelete">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+                <Button x:Name="CopyInviteButton" x:Uid="Room_CopyInvite" Grid.Column="4" VerticalAlignment="Center" Click="OnCopyInvite" />
+                <Button x:Uid="Room_Leave" Grid.Column="5" VerticalAlignment="Center" Click="OnLeave" />
+            </Grid>
+        </StackPanel>
 
         <Grid Grid.Row="1" ColumnSpacing="14">
             <Grid.ColumnDefinitions>
@@ -108,7 +135,7 @@
                                 <TextBlock x:Uid="Room_MembersHeading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
                                 <TextBlock x:Name="MembersCountText" HorizontalAlignment="Right" Opacity="0.7" Style="{ThemeResource CaptionTextBlockStyle}" />
                             </Grid>
-                            <ListView x:Name="MembersList" SelectionMode="None" ItemTemplate="{StaticResource MemberTemplate}" />
+                            <ItemsControl x:Name="MembersList" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -231,6 +258,7 @@
                                     <Button x:Name="PauseButton" x:Uid="Action_Pause" Visibility="Collapsed" Click="OnPause" />
                                     <Button x:Name="StopButton" x:Uid="Action_Stop" Visibility="Collapsed" Click="OnStop" />
                                     <TextBlock x:Name="ErrorText" Foreground="{StaticResource BeamAccentBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="BroadcastBlockedText" x:Uid="Room_OnlyOwnerBroadcasts" Visibility="Collapsed" VerticalAlignment="Center" Style="{StaticResource HintTextStyle}" />
                                 </StackPanel>
 
                                 <Grid ColumnSpacing="12">

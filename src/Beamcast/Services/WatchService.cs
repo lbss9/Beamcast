@@ -53,6 +53,36 @@ public sealed class WatchService
             if (state == LoungeState.Disconnected)
                 StopWatching("left");
         };
+        _lounge.Reconnected += OnReconnected;
+    }
+
+    private string _watchedOwner = string.Empty;
+    private string _watchedTitle = string.Empty;
+
+    /// <summary>Stream ids are new after a reconnect; follow the stream with the same owner and title.</summary>
+    private void OnReconnected()
+    {
+        var previous = Interlocked.Exchange(ref _streamId, 0);
+        if (previous == 0)
+            return;
+        var again = _lounge.FindStreamLike(_watchedOwner, _watchedTitle);
+        if (again is null)
+        {
+            DisposeDecoders();
+            Post(() =>
+            {
+                WatchingChanged?.Invoke(0);
+                Stopped?.Invoke("ended");
+            });
+            return;
+        }
+        DisposeDecoders();
+        VideoCodecs.TryParse(again.Meta.Codec, out _codec);
+        _streamId = again.Id;
+        Interlocked.Exchange(ref _firstFrame, 0);
+        _windowStart = Stopwatch.GetTimestamp();
+        _lounge.Subscribe(again.Id);
+        Post(() => WatchingChanged?.Invoke(again.Id));
     }
 
     public event Action<uint>? WatchingChanged;
@@ -104,6 +134,8 @@ public sealed class WatchService
 
         StopWatching("switched", notify: false);
         VideoCodecs.TryParse(stream.Meta.Codec, out _codec);
+        _watchedOwner = stream.OwnerName;
+        _watchedTitle = stream.Meta.Title;
         _streamId = streamId;
         Interlocked.Exchange(ref _firstFrame, 0);
         LastStats = null;

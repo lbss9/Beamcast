@@ -1,3 +1,4 @@
+using Beamcast.Net;
 using Beamcast.Server;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -6,12 +7,17 @@ builder.Logging.AddSimpleConsole(o =>
     o.SingleLine = true;
     o.TimestampFormat = "HH:mm:ss ";
 });
+builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 
+var ttlEnv = Environment.GetEnvironmentVariable("BEAMCAST_LOUNGE_TTL_HOURS");
 var options = new ServerOptions
 {
     AppKey = Environment.GetEnvironmentVariable("BEAMCAST_APP_KEY"),
+    HostName = Environment.GetEnvironmentVariable("BEAMCAST_HOST_NAME") is { Length: > 0 } hostName ? hostName : Environment.MachineName,
     DataDirectory = Environment.GetEnvironmentVariable("BEAMCAST_DATA") ?? Path.Combine(AppContext.BaseDirectory, "data"),
-    EmptyLoungeTtl = TimeSpan.FromHours(double.TryParse(Environment.GetEnvironmentVariable("BEAMCAST_LOUNGE_TTL_HOURS"), out var hours) ? hours : 0),
+    DefaultTemporaryTtlHours = double.TryParse(ttlEnv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hours) && hours > 0
+        ? LoungeProtocol.ClampTtlHours(hours)
+        : LoungeProtocol.DefaultTtlHours,
 };
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<LoungeStore>();
@@ -24,7 +30,17 @@ app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSecond
 app.MapGet("/", () => Results.Text("beamcast server v" + typeof(LoungeHub).Assembly.GetName().Version, "text/plain"));
 app.MapGet("/health", (LoungeHub hub) => Results.Json(hub.Snapshot()));
 
-app.Map("/ws", async (HttpContext context, LoungeHub hub) =>
+app.MapGet(LoungeProtocol.InfoPath, (HttpContext context, LoungeHub hub) =>
+    hub.KeyMatches(context.Request.Headers[LoungeProtocol.AppKeyHeader].FirstOrDefault())
+        ? Results.Json(hub.HostInfo(includeRooms: false))
+        : Results.Json(new { reason = LoungeProtocol.ReasonBadKey }, statusCode: StatusCodes.Status403Forbidden));
+
+app.MapGet(LoungeProtocol.RoomsPath, (HttpContext context, LoungeHub hub) =>
+    hub.KeyMatches(context.Request.Headers[LoungeProtocol.AppKeyHeader].FirstOrDefault())
+        ? Results.Json(hub.HostInfo(includeRooms: true))
+        : Results.Json(new { reason = LoungeProtocol.ReasonBadKey }, statusCode: StatusCodes.Status403Forbidden));
+
+app.Map(LoungeProtocol.DefaultPath, async (HttpContext context, LoungeHub hub) =>
 {
     if (!context.WebSockets.IsWebSocketRequest)
     {
@@ -34,15 +50,25 @@ app.Map("/ws", async (HttpContext context, LoungeHub hub) =>
     }
 
     using var socket = await context.WebSockets.AcceptWebSocketAsync();
-    var remote = context.Connection.RemoteIpAddress?.ToString() ?? "?";
-    await hub.HandleAsync(socket, remote, context.RequestAborted);
+    await hub.HandleAsync(socket, ClientAddress(context), context.RequestAborted);
 });
 
 app.Services.GetRequiredService<LoungeHub>().LoadPersisted();
 app.Logger.LogInformation(
-    "Beamcast server up. App key {Key}; data in {Data}; empty-lounge TTL {Ttl}.",
-    string.IsNullOrEmpty(options.AppKey) ? "not set (anyone with the address can create lounges)" : "set",
+    "Beamcast server \"{Host}\" up. App key {Key}; data in {Data}; temporary rooms live {Ttl} h when empty.",
+    options.HostName,
+    string.IsNullOrEmpty(options.AppKey) ? "not set (anyone with the address can create rooms)" : "set",
     options.DataDirectory,
-    options.EmptyLoungeTtl == TimeSpan.Zero ? "forever" : options.EmptyLoungeTtl.ToString()
+    options.DefaultTemporaryTtlHours
 );
 app.Run();
+
+// Behind Cloudflare or a reverse proxy every socket arrives from the proxy; the forwarded header
+// is the only per-client handle for rate limiting. Trusting it only lets a client dodge its own
+// limit, never someone else's.
+static string ClientAddress(HttpContext context)
+{
+    var forwarded = context.Request.Headers["CF-Connecting-IP"].FirstOrDefault()
+        ?? context.Request.Headers["X-Forwarded-For"].FirstOrDefault()?.Split(',')[0].Trim();
+    return string.IsNullOrWhiteSpace(forwarded) ? context.Connection.RemoteIpAddress?.ToString() ?? "?" : forwarded;
+}

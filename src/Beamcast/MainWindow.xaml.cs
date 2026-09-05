@@ -257,11 +257,11 @@ public sealed partial class MainWindow : Window
 
     /// <summary>Outside a lounge the tab shows the entry screen; inside, the room.</summary>
     private static Type LoungePageType =>
-        LoungeService.Instance.State == LoungeState.Connected ? typeof(RoomPage) : typeof(LoungePage);
+        LoungeService.Instance.InRoom ? typeof(RoomPage) : typeof(LoungePage);
 
     private void OnLoungeStateChanged(LoungeState state)
     {
-        if (state == LoungeState.Connecting)
+        if (state is LoungeState.Connecting or LoungeState.Reconnecting)
             return;
         if (ContentFrame.CurrentSourcePageType == typeof(LoungePage) || ContentFrame.CurrentSourcePageType == typeof(RoomPage))
         {

@@ -1,3 +1,11 @@
+## 2.1.0
+
+- Nova tela Salas: lista de hosts favoritos, salas públicas do host, salas favoritas e entrada por código ou convite.
+- Salas públicas ou privadas, permanentes ou temporárias, com senha opcional, limite de pessoas e opção de só o dono transmitir.
+- Dono da sala: edita, troca a senha, gera convites com validade e usos, expulsa e apaga a sala.
+- Reconexão automática: se a internet cair, o app volta sozinho, republica sua transmissão e retoma o que você assistia.
+- Tudo continua cifrado de ponta a ponta, inclusive salas sem senha (a chave é entregue entre os membros).
+
 ## 2.0.1
 
 - Quem cai sem avisar sai do salão em até 30 s, mesmo atrás de túnel; a transmissão dele é encerrada para os outros.

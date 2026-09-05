@@ -1,5 +1,35 @@
 namespace Beamcast;
 
+/// <summary>A host (server) the person uses; the app key is the one that host demands, if any.</summary>
+public sealed class SavedHost
+{
+    public string Name { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+    public string AppKey { get; set; } = string.Empty;
+    public bool Favorite { get; set; }
+    public DateTimeOffset LastUsedAt { get; set; }
+}
+
+/// <summary>A room the person starred. The password, when remembered, is DPAPI-protected for this Windows account.</summary>
+public sealed class SavedRoom
+{
+    public string ServerUrl { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public bool HasPassword { get; set; }
+    public string ProtectedPassword { get; set; } = string.Empty;
+    public DateTimeOffset LastUsedAt { get; set; }
+}
+
+/// <summary>A room this person created: the DPAPI-protected owner token is what lets them manage it.</summary>
+public sealed class OwnedRoom
+{
+    public string ServerUrl { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string ProtectedToken { get; set; } = string.Empty;
+}
+
 /// <summary>User preferences plus the last values used on the broadcast and watch screens.</summary>
 public sealed class AppSettings
 {
@@ -20,11 +50,17 @@ public sealed class AppSettings
 
     public bool ShowCursor { get; set; } = true;
 
-    /// <summary>The Beamcast server (salão) this machine talks to, e.g. ws://192.168.1.20:47710.</summary>
+    /// <summary>The host used last, e.g. ws://192.168.1.20:47710/ws.</summary>
     public string RelayUrl { get; set; } = string.Empty;
 
-    /// <summary>Optional key the server may demand (BEAMCAST_APP_KEY on the server).</summary>
+    /// <summary>Optional key the last host may demand (BEAMCAST_APP_KEY on the server).</summary>
     public string RelayAppKey { get; set; } = string.Empty;
+
+    public List<SavedHost> Hosts { get; set; } = [];
+
+    public List<SavedRoom> FavoriteRooms { get; set; } = [];
+
+    public List<OwnedRoom> OwnedRooms { get; set; } = [];
 
     public string LastLoungeCode { get; set; } = string.Empty;
 

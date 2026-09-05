@@ -28,6 +28,7 @@
     <Compile Include="..\..\src\Beamcast\Net\LoungeProtocol.cs" Link="Net\LoungeProtocol.cs" />
     <Compile Include="..\..\src\Beamcast\Net\LoungeCrypto.cs" Link="Net\LoungeCrypto.cs" />
     <Compile Include="..\..\src\Beamcast\Net\LoungeInvite.cs" Link="Net\LoungeInvite.cs" />
+    <Compile Include="..\..\src\Beamcast\Net\JoinRateLimiter.cs" Link="Net\JoinRateLimiter.cs" />
     <Compile Include="..\..\src\Beamcast\Audio\AudioMixer.cs" Link="Audio\AudioMixer.cs" />
     <Compile Include="..\..\src\Beamcast\Audio\AudioSourceSelector.cs" Link="Audio\AudioSourceSelector.cs" />
     <Compile Include="..\..\src\Beamcast\Audio\ProcessTable.cs" Link="Audio\ProcessTable.cs" />

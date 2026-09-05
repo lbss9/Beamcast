@@ -64,7 +64,7 @@ public class LoungeProtocolTests
     {
         for (var i = 0; i < 200; i++)
         {
-            var code = LoungeProtocol.NewCode();
+            var code = LoungeProtocol.NewCode(LoungeProtocol.PublicCodeLength);
             Assert.True(LoungeProtocol.IsValidCode(code));
             Assert.DoesNotContain('0', code);
             Assert.DoesNotContain('O', code);

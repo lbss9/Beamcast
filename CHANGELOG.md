@@ -2,6 +2,28 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.1.0
+
+- Hosts e salas: o app guarda uma lista de hosts (favoritáveis); ao selecionar um, mostra as
+  salas públicas dele (`GET /rooms`), as salas favoritas e o campo de código/convite.
+- Salas com nome, visibilidade (pública/privada), duração (permanente/temporária com TTL após
+  ficar vazia), senha opcional, política de transmissão (todos ou só o dono) e limite de pessoas.
+  Salas privadas usam códigos de 10 caracteres e não aparecem em lista.
+- Dono da sala: token gerado na criação (o host guarda só o hash; o app guarda com DPAPI).
+  O dono edita a sala, troca ou remove a senha, gera convites com validade (1 h/24 h/7 d/sem
+  prazo) e número de usos, revoga convites, expulsa membros e apaga a sala.
+- Salas sem senha continuam cifradas de ponta a ponta: a chave é aleatória e um membro a entrega
+  a quem entra por ECDH P-256 + HKDF + AES-256-GCM; o host só repassa o pacote.
+- Convites `BC-` v3 carregam host, código, token e (em salas com senha) a chave: quem tem o link
+  entra sem digitar a senha enquanto ele valer.
+- Reconexão automática: se a conexão cair, o app tenta voltar por até 5 minutos com espera
+  crescente, republica a transmissão em andamento e retoma o que estava sendo assistido.
+- Favoritos: estrela em hosts e salas; senha da sala pode ser lembrada (DPAPI).
+- Segurança: limite de tentativas por endereço (5/10 min) e por sala (30/10 min) para senha,
+  convite e código; IP real lido de `CF-Connecting-IP`/`X-Forwarded-For` atrás de proxy.
+- Servidor: `rooms.json` (migra `lounges.json` da 2.0), `BEAMCAST_HOST_NAME`, varredura de salas
+  temporárias a cada minuto. Protocolo v3: apps 2.0.x não conectam.
+
 ## 2.0.1
 
 - Heartbeat entre app e servidor: quem some sem avisar (queda de rede, app fechado à força) é
