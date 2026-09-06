@@ -1,3 +1,9 @@
+## 2.2.1
+
+### Fixes
+
+- The Rooms screen had an empty gap between the host header and "Public rooms". It was the error message slot, which took a line even with no text. It now shows only when there is something to say.
+
 ## 2.2.0
 
 ### New

@@ -75,7 +75,7 @@
                             <Button x:Name="CreateButton" x:Uid="Lounge_CreateButton" Grid.Column="3" Style="{StaticResource AccentButtonStyle}" Click="OnCreate" />
                         </Grid>
 
-                        <StackPanel Spacing="8">
+                        <StackPanel x:Name="ErrorPanel" Spacing="8" Visibility="Collapsed">
                             <TextBlock
                                 x:Name="ErrorText"
                                 Foreground="{StaticResource BeamAccentBrush}"

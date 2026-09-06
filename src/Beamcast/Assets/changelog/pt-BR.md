@@ -1,3 +1,9 @@
+## 2.2.1
+
+### Correções
+
+- Na tela Salas havia um espaço vazio entre o cabeçalho do host e "Salas públicas". Era o lugar da mensagem de erro, que ocupava uma linha mesmo sem texto. Agora só aparece quando há algo a dizer.
+
 ## 2.2.0
 
 ### Novidades

@@ -210,6 +210,8 @@ public sealed partial class LoungePage : Page
     {
         ErrorText.Text = text;
         HostKeyButton.Visibility = needsKey && _server.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // An empty TextBlock still reserves a line, so hide the whole block when there is nothing to say.
+        ErrorPanel.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnAddHostChanged(object sender, TextChangedEventArgs e) =>

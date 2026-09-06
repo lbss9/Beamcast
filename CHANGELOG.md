@@ -2,6 +2,12 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.2.1
+
+- `LoungePage`: o `StackPanel` de erro (`ErrorText` + botão da chave) fica `Collapsed` quando
+  não há texto (`ShowErrorText`). Um `TextBlock` vazio reserva a altura de uma linha, e o
+  `Spacing` do painel pai contava duas vezes: ~44 px de vão acima de "Salas públicas".
+
 ## 2.2.0
 
 - **Servidor 2.2.0**: em `JoinAsync`, sala com `OwnerTokenHash` vazio (migrada da 2.0) é
