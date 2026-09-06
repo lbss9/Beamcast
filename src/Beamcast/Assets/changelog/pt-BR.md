@@ -1,3 +1,9 @@
+## 2.1.8
+
+### Correções
+
+- O botão "⋯" do host na tela Salas não abria o menu: o clique também selecionava o host e a lista era reconstruída antes de o menu aparecer. Agora o menu abre normalmente.
+
 ## 2.1.7
 
 ### Novidades

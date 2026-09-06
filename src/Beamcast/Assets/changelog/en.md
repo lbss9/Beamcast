@@ -1,3 +1,9 @@
+## 2.1.8
+
+### Fixes
+
+- The host's "⋯" button on the Rooms screen did not open its menu: the click also selected the host and the list was rebuilt before the menu could show. The menu opens normally now.
+
 ## 2.1.7
 
 ### New

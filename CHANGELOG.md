@@ -2,6 +2,13 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.1.8
+
+- `LoungePage.BuildHostRow`: o `Tapped` da linha do host disparava também no clique dos botões
+  (estrela e "⋯"); `SelectHost` → `RefreshHosts` limpava o `ItemsControl` e o `MenuFlyout`,
+  ancorado num botão já removido, fechava na hora. Os botões marcam `Tapped` como tratado e o
+  menu é aberto por `ShowAt` no `Click`. Comportamento relatado pelo autor na 2.1.7.
+
 ## 2.1.7
 
 - Chave do app por host: `SavedHost.ProtectedAppKey` (DPAPI via `SecretStore`) substitui o campo

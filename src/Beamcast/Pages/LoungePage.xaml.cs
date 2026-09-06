@@ -121,6 +121,9 @@ public sealed partial class LoungePage : Page
             LoungeService.RememberHost(host.Url, favorite: star.IsChecked == true);
             RefreshHosts();
         };
+        // Clicks on the buttons must not reach the row's Tapped handler: selecting the host rebuilds
+        // the list, which would tear down the button (and any flyout anchored to it) mid-click.
+        star.Tapped += (_, e) => e.Handled = true;
         Grid.SetColumn(star, 1);
         grid.Children.Add(star);
 
@@ -143,8 +146,10 @@ public sealed partial class LoungePage : Page
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(removeItem);
 
-        var more = new Button { Content = new FontIcon { Glyph = "\uE712", FontSize = 12 }, Style = (Style)Application.Current.Resources["GhostButtonStyle"], Flyout = menu };
+        var more = new Button { Content = new FontIcon { Glyph = "\uE712", FontSize = 12 }, Style = (Style)Application.Current.Resources["GhostButtonStyle"] };
         ToolTipService.SetToolTip(more, Loc.Get("Lounge_HostMore"));
+        more.Tapped += (_, e) => e.Handled = true;
+        more.Click += (_, _) => menu.ShowAt(more);
         Grid.SetColumn(more, 2);
         grid.Children.Add(more);
 
