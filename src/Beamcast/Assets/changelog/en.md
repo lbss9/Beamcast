@@ -1,3 +1,12 @@
+## 2.3.0
+
+### New
+
+- **Adaptive quality** (Broadcast tab, on by default). When your upload cannot keep up, the bitrate steps down to as low as 20% of the chosen value and climbs back on its own when the connection frees up. The bitrate you pick stays the ceiling. Stats show "adapted" while it happens.
+- **Visible delay.** Every stream shows the real delay between the broadcaster's screen and yours, plus the ping to the host. Needs the host on 2.3.0; on older hosts the delay is not shown.
+- **Watch several streams at once.** The Watch tab is now a grid: one full, two side by side, four in 2×2. Each tile has title, stats, full screen and stop; "Stop all" clears the grid.
+- **A sound when someone starts or stops watching your stream**, with a viewer counter next to LIVE and a note with the name. The sound can be turned off in the Broadcast tab. Needs host 2.3.0.
+
 ## 2.2.2
 
 ### Fixes

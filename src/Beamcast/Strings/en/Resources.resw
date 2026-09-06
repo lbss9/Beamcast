@@ -200,6 +200,22 @@
   <data name="Room_Paused" xml:space="preserve"><value>paused</value></data>
   <data name="Room_Mute.ToolTipService.ToolTip" xml:space="preserve"><value>Mute</value></data>
   <data name="Room_WatchingTitle" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="Room_StopAllWatching.Content" xml:space="preserve"><value>Stop all</value></data>
+  <data name="Room_WatchingCount" xml:space="preserve"><value>{0} stream(s) on screen</value></data>
+  <data name="Watch_Ping" xml:space="preserve"><value>ping {0} ms</value></data>
+  <data name="Watch_Latency" xml:space="preserve"><value>delay {0} ms</value></data>
+  <data name="Watch_TileFullscreen" xml:space="preserve"><value>Full screen (double-click)</value></data>
+  <data name="Quality_Adaptive.Header" xml:space="preserve"><value>Adaptive quality</value></data>
+  <data name="Quality_Adaptive.OnContent" xml:space="preserve"><value>On</value></data>
+  <data name="Quality_Adaptive.OffContent" xml:space="preserve"><value>Off</value></data>
+  <data name="Quality_AdaptiveHint.Text" xml:space="preserve"><value>When the upload cannot keep up, the bitrate steps down to as low as 20% of the chosen value and climbs back on its own. The chosen bitrate is the ceiling.</value></data>
+  <data name="Stream_ViewerSounds.Header" xml:space="preserve"><value>Sound when someone starts or stops watching</value></data>
+  <data name="Stream_ViewerSounds.OnContent" xml:space="preserve"><value>On</value></data>
+  <data name="Stream_ViewerSounds.OffContent" xml:space="preserve"><value>Off</value></data>
+  <data name="Stream_Viewers" xml:space="preserve"><value>{0} watching</value></data>
+  <data name="Stream_ViewerJoined" xml:space="preserve"><value>{0} started watching.</value></data>
+  <data name="Stream_ViewerLeft" xml:space="preserve"><value>{0} stopped watching.</value></data>
+  <data name="Stream_Adapted" xml:space="preserve"><value>adapted {0} kbps</value></data>
   <data name="Stream_Heading.Text" xml:space="preserve"><value>Your stream</value></data>
   <data name="Stream_Title.Header" xml:space="preserve"><value>Title</value></data>
   <data name="Stream_Title.PlaceholderText" xml:space="preserve"><value>e.g. Friday game night</value></data>

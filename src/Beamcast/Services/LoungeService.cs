@@ -64,8 +64,22 @@ public sealed class LoungeService
     public event Action<string>? Notice;
     /// <summary>Back in the same room after a drop: member and stream ids are new.</summary>
     public event Action? Reconnected;
-    public event Action<uint, MessageType, bool, byte[]>? MediaReceived;
+    public event Action<uint, MessageType, bool, byte[], uint>? MediaReceived;
     public event Action<uint>? KeyframeRequested;
+    /// <summary>Someone started/stopped watching one of my streams: stream id, viewer id, viewer name. UI thread.</summary>
+    public event Action<uint, uint, string>? ViewerJoined;
+    public event Action<uint, uint, string>? ViewerLeft;
+
+    /// <summary>Round trip to the host in ms (0 until the first heartbeat echo).</summary>
+    public int RoundTripMs => _client?.RoundTripMs ?? 0;
+
+    /// <summary>True once the host answered a heartbeat with its clock (host 2.3.0+).</summary>
+    public bool ClockSynced => _client?.ClockSynced ?? false;
+
+    /// <summary>The host's folded clock right now, or 0 when unknown; the unit media stamps use.</summary>
+    public uint ServerClockNow() => _client?.ServerClockNow() ?? 0;
+
+    public string MemberName(uint memberId) => NameOf(memberId);
 
     public LoungeState State { get; private set; }
     public RoomInfo Room => _client?.Room ?? _session?.LastRoom ?? new RoomInfo();
@@ -327,8 +341,10 @@ public sealed class LoungeService
             Post(() => RoomChanged?.Invoke(info));
         };
         client.Notice += reason => Post(() => Notice?.Invoke(reason));
-        client.MediaReceived += (id, type, key, body) => MediaReceived?.Invoke(id, type, key, body);
+        client.MediaReceived += (id, type, key, body, stamp) => MediaReceived?.Invoke(id, type, key, body, stamp);
         client.KeyframeRequested += id => KeyframeRequested?.Invoke(id);
+        client.ViewerJoined += (streamId, viewerId) => Post(() => ViewerJoined?.Invoke(streamId, viewerId, NameOf(viewerId)));
+        client.ViewerLeft += (streamId, viewerId) => Post(() => ViewerLeft?.Invoke(streamId, viewerId, NameOf(viewerId)));
         client.Closed += reason => Post(() => OnClosed(client, reason));
 
         _client = client;
@@ -627,8 +643,8 @@ public sealed class LoungeService
         Post(() => StreamsChanged?.Invoke());
     }
 
-    public void SendMedia(uint streamId, MessageType type, ReadOnlySpan<byte> body, bool keyframe) =>
-        _client?.SendMedia(streamId, type, body, keyframe);
+    public void SendMedia(uint streamId, MessageType type, ReadOnlySpan<byte> body, bool keyframe, uint sendStamp = 0) =>
+        _client?.SendMedia(streamId, type, body, keyframe, sendStamp);
 
     public int PendingVideo(uint streamId) => _client?.PendingVideo(streamId) ?? 0;
 

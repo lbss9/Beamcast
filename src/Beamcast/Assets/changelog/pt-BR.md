@@ -1,3 +1,12 @@
+## 2.3.0
+
+### Novidades
+
+- **Qualidade adaptativa** (aba Transmitir, ligada por padrão). Quando o seu upload não acompanha, o bitrate cai em degraus até 20% do escolhido e volta sozinho quando a conexão folga. O bitrate que você escolhe continua sendo o teto. As estatísticas mostram "adaptado" enquanto isso acontece.
+- **Atraso visível.** Cada transmissão mostra o atraso real entre a tela de quem transmite e a sua, mais o ping até o host. Precisa do host na versão 2.3.0; em hosts antigos o atraso não aparece.
+- **Assistir várias transmissões ao mesmo tempo.** A aba Assistir virou uma grade: uma tela inteira, duas lado a lado, quatro em 2×2. Cada bloco tem título, estatísticas, tela cheia e parar; o botão "Parar todas" limpa a grade.
+- **Som quando alguém entra ou sai da sua transmissão**, com contador de quem está assistindo ao lado do LIVE e um aviso com o nome. Dá para desligar o som na aba Transmitir. Precisa do host 2.3.0.
+
 ## 2.2.2
 
 ### Correções

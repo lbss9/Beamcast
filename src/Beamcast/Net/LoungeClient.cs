@@ -126,8 +126,25 @@ public sealed class LoungeClient : IDisposable
     public event Action<uint, PresenceMessage>? PresenceReceived;
     public event Action<uint, uint, StreamMetaMessage>? StreamStarted;
     public event Action<uint>? StreamEnded;
-    /// <summary>Decrypted media: stream id, message type, keyframe flag, plaintext body.</summary>
-    public event Action<uint, MessageType, bool, byte[]>? MediaReceived;
+    /// <summary>Decrypted media: stream id, message type, keyframe flag, plaintext body, publisher's send stamp (0 = unknown).</summary>
+    public event Action<uint, MessageType, bool, byte[], uint>? MediaReceived;
+    /// <summary>Someone started watching one of our streams: stream id, viewer member id (server 2.3.0+).</summary>
+    public event Action<uint, uint>? ViewerJoined;
+    public event Action<uint, uint>? ViewerLeft;
+
+    private int _clockOffsetMs;
+    private int _clockKnown;
+    private int _roundTripMs;
+
+    /// <summary>Last measured round trip to the server, ms; 0 until the first heartbeat echo.</summary>
+    public int RoundTripMs => Volatile.Read(ref _roundTripMs);
+
+    /// <summary>True once a heartbeat echo carried the server clock (server 2.3.0+).</summary>
+    public bool ClockSynced => Volatile.Read(ref _clockKnown) != 0;
+
+    /// <summary>The server's folded clock right now, or 0 when it is still unknown.</summary>
+    public uint ServerClockNow() =>
+        ClockSynced ? unchecked(LoungeMux.ClockNow() + (uint)Volatile.Read(ref _clockOffsetMs)) : 0;
     public event Action<uint, StreamMetaMessage>? StreamMetaUpdated;
     public event Action<uint>? KeyframeRequested;
     public event Action<RoomInfo>? RoomUpdated;
@@ -423,7 +440,8 @@ public sealed class LoungeClient : IDisposable
     /// <summary>Queued video frames for a stream that have not hit the socket yet (for the publisher's own gate).</summary>
     public int PendingVideo(uint streamId) => _pendingVideo.TryGetValue(streamId, out var n) ? n : 0;
 
-    public void SendMedia(uint streamId, MessageType type, ReadOnlySpan<byte> body, bool keyframe)
+    /// <param name="sendStamp">Server-clock stamp of this frame (<see cref="ServerClockNow"/>), 0 when unknown.</param>
+    public void SendMedia(uint streamId, MessageType type, ReadOnlySpan<byte> body, bool keyframe, uint sendStamp = 0)
     {
         var channel = _channel;
         if (channel is null)
@@ -432,7 +450,7 @@ public sealed class LoungeClient : IDisposable
         var isVideo = type == MessageType.Video;
         if (isVideo)
             _pendingVideo.AddOrUpdate(streamId, 1, (_, n) => n + 1);
-        _outbox.Writer.TryWrite((LoungeMux.Encode(LoungeMux.Media, streamId, 0, framed), streamId, isVideo));
+        _outbox.Writer.TryWrite((LoungeMux.Encode(LoungeMux.Media, streamId, sendStamp, framed), streamId, isVideo));
     }
 
     // ----- owner operations -----
@@ -520,7 +538,7 @@ public sealed class LoungeClient : IDisposable
         {
             using var timer = new PeriodicTimer(LoungeProtocol.HeartbeatInterval);
             while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
-                Enqueue(LoungeMux.Encode(LoungeMux.Heartbeat, 0, 0, ReadOnlySpan<byte>.Empty));
+                Enqueue(LoungeMux.Encode(LoungeMux.Heartbeat, LoungeMux.ClockNow(), 0, ReadOnlySpan<byte>.Empty));
         }
         catch (Exception) { }
     }
@@ -569,6 +587,7 @@ public sealed class LoungeClient : IDisposable
         switch (kind)
         {
             case LoungeMux.Heartbeat:
+                OnHeartbeatEcho(a, b);
                 return;
             case LoungeMux.Bye:
                 _byeReason = Json.Deserialize<ServerNotice>(payload)?.Reason ?? "closed";
@@ -594,6 +613,23 @@ public sealed class LoungeClient : IDisposable
             }
         }
         Dispatch(kind, a, b, payload);
+    }
+
+    /// <summary>
+    /// a = our send time echoed back, b = the server clock when it answered (both 0 on servers
+    /// before 2.3.0). Offset = server time minus our time at the midpoint of the round trip.
+    /// </summary>
+    private void OnHeartbeatEcho(uint sentAt, uint serverNow)
+    {
+        if (sentAt == 0 || serverNow == 0)
+            return;
+        var rtt = LoungeMux.ClockDelta(LoungeMux.ClockNow(), sentAt);
+        if (rtt < 0 || rtt > 60_000)
+            return;
+        var midpoint = unchecked(sentAt + (uint)(rtt / 2));
+        Volatile.Write(ref _roundTripMs, rtt);
+        Volatile.Write(ref _clockOffsetMs, LoungeMux.ClockDelta(serverNow, midpoint));
+        Volatile.Write(ref _clockKnown, 1);
     }
 
     private void OnKeyGrant(byte[] payload)
@@ -674,7 +710,13 @@ public sealed class LoungeClient : IDisposable
                 break;
             case LoungeMux.Media:
                 if (channel is not null && Framing.TryDecodeWhole(payload, out var message) && channel.TryOpen(message, out var body))
-                    MediaReceived?.Invoke(a, message.Type, message.IsKeyframe, body);
+                    MediaReceived?.Invoke(a, message.Type, message.IsKeyframe, body, b);
+                break;
+            case LoungeMux.ViewerJoined:
+                ViewerJoined?.Invoke(a, b);
+                break;
+            case LoungeMux.ViewerLeft:
+                ViewerLeft?.Invoke(a, b);
                 break;
             case LoungeMux.RoomInfo:
                 if (Json.Deserialize<RoomInfo>(payload) is { } info)

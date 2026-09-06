@@ -2,6 +2,37 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.3.0
+
+- **Protocolo (mesma versão 3, compatível)**: `Heartbeat` leva `a` = relógio do cliente (unix ms
+  mod 2^32) e o servidor devolve `a` + `b` = relógio dele; `Media` carrega em `b` o carimbo de
+  envio do transmissor (relógio do servidor), repassado sem mexer; kinds novos `ViewerJoined = 26`
+  e `ViewerLeft = 27` (servidor → transmissor, `a` = stream, `b` = membro). Servidores antigos
+  deixam tudo em 0 = "desconhecido"; clientes antigos ignoram os kinds novos.
+- **Servidor 2.3.0**: `NotifyViewer` em Subscribe/Unsubscribe/saída da sala/limpeza de assinante
+  morto; eco do heartbeat com relógio; `RouteMedia` preserva o carimbo.
+- `LoungeClient`: `OnHeartbeatEcho` calcula RTT e offset (meio do RTT), `ServerClockNow()`,
+  `ClockSynced`, `RoundTripMs`; `SendMedia(..., sendStamp)`; `MediaReceived` ganha o carimbo;
+  eventos `ViewerJoined/Left`.
+- `Logic/AdaptiveBitrate.cs` (puro, 5 testes): níveis 100/66/45/30/20%, desce ao máximo uma vez
+  por 1,5 s quando o `FrameGate` de subida descarta, sobe um nível após 10 s sem descartes.
+  `BroadcastService` aplica via `SetBitrate` (MF) ou `BitrateKbps` (VP8); `HostStats` ganha
+  `Viewers`, `TargetKbps`, `Adapted`; toggle `AdaptiveQuality` em `AppSettings`.
+- `BroadcastService`: conjunto de espectadores por stream, evento `ViewerChanged(nome, entrou)`,
+  `ViewerCount`; `Audio/SoundEffects.cs` toca `Assets/Sounds/viewer-in.wav` / `viewer-out.wav`
+  (NAudio, saída própria por clipe); toggle `ViewerSounds`.
+- `WatchService` reescrito para N streams: classe interna `Viewer` (decoder, presenter, áudio,
+  stats, latência = média da janela com EMA 0,5 a partir do carimbo); `Watch/StopWatching(id)/
+  StopAll`, eventos com id; reconexão religa cada viewer pela mesma dupla dono+título.
+  `ViewerStats.LatencyMs` (negativo = desconhecido).
+- `RoomPage`: `WatchTile` (Border + GpuVideoView + overlay + cabeçalho com título/stats/tela
+  cheia/parar) num dicionário estático; `LayoutTiles` (1 / 2 colunas até 4 / 3 colunas);
+  tela cheia por bloco (`MainWindow.FullscreenContent`); barra inferior com mudo, volume e
+  "Parar todas"; badge "N assistindo" e nota "Fulano começou a assistir"; toggles de adaptativo
+  e som.
+- Harness `managecheck` cenário 5 (30 checks): ViewerJoined ao assinar, carimbo 0xDEADBEEF
+  passa intacto, ViewerLeft ao cancelar e ao sair da sala, relógio sincroniza pelo heartbeat.
+
 ## 2.2.2
 
 - `SwapChainPresenter`: `ResizeBuffers` só acontecia dentro de `Present`/`Clear`, então sem

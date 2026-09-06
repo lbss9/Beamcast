@@ -174,10 +174,7 @@
                                     VerticalAlignment="Center"
                                     ValueChanged="OnVolumeChanged"
                                 />
-                                <Button x:Name="FullscreenButton" x:Uid="Watch_Fullscreen" Grid.Column="3" Click="OnToggleFullscreen">
-                                    <FontIcon Glyph="&#xE740;" FontSize="14" />
-                                </Button>
-                                <Button x:Name="StopWatchButton" x:Uid="Room_StopWatching" Grid.Column="4" Click="OnStopWatching" />
+                                <Button x:Name="StopWatchButton" x:Uid="Room_StopAllWatching" Grid.Column="4" IsEnabled="False" Click="OnStopWatching" />
                             </Grid>
                         </Border>
                     </Grid>
@@ -227,6 +224,12 @@
                                             <Border x:Name="PausedBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,2" Background="#CC333B48">
                                                 <TextBlock x:Uid="Preview_Paused" FontSize="11" FontWeight="Bold" Foreground="White" />
                                             </Border>
+                                            <Border x:Name="ViewersBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,2" Background="#B3000000">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon Glyph="&#xE7B3;" FontSize="11" Foreground="White" VerticalAlignment="Center" />
+                                                    <TextBlock x:Name="ViewersText" FontSize="11" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
                                         </StackPanel>
                                         <Border x:Name="StatsBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,3" Margin="12" Background="#B3000000" HorizontalAlignment="Right" VerticalAlignment="Bottom">
                                             <TextBlock x:Name="StatsText" Foreground="White" FontFamily="Cascadia Mono, Consolas, Courier New" Style="{ThemeResource CaptionTextBlockStyle}" />
@@ -240,6 +243,7 @@
                                     <Button x:Name="StopButton" x:Uid="Action_Stop" Visibility="Collapsed" Click="OnStop" />
                                     <TextBlock x:Name="ErrorText" Foreground="{StaticResource BeamAccentBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                     <TextBlock x:Name="BroadcastBlockedText" x:Uid="Room_OnlyOwnerBroadcasts" Visibility="Collapsed" VerticalAlignment="Center" Style="{StaticResource HintTextStyle}" />
+                                    <TextBlock x:Name="ViewerNoteText" VerticalAlignment="Center" Style="{StaticResource HintTextStyle}" />
                                 </StackPanel>
 
                                 <Grid ColumnSpacing="12">
@@ -255,6 +259,8 @@
                                             <ComboBox x:Name="FpsBox" x:Uid="Quality_Fps" HorizontalAlignment="Stretch" SelectionChanged="OnQualityChanged" />
                                             <NumberBox x:Name="BitrateBox" x:Uid="Quality_Bitrate" Minimum="300" Maximum="150000" SmallChange="250" LargeChange="1000" SpinButtonPlacementMode="Compact" ValueChanged="OnBitrateChanged" />
                                             <ToggleSwitch x:Name="CursorSwitch" x:Uid="Quality_Cursor" Toggled="OnCursorToggled" />
+                                            <ToggleSwitch x:Name="AdaptiveSwitch" x:Uid="Quality_Adaptive" Toggled="OnAdaptiveToggled" />
+                                            <TextBlock x:Uid="Quality_AdaptiveHint" Style="{StaticResource HintTextStyle}" />
                                         </StackPanel>
                                     </Border>
                                     <Border Grid.Column="1" Style="{StaticResource CardStyle}">
@@ -263,6 +269,7 @@
                                             <TextBox x:Name="TitleBox" x:Uid="Stream_Title" MaxLength="48" />
                                             <ComboBox x:Name="AudioBox" x:Uid="Audio_Mode" HorizontalAlignment="Stretch" SelectionChanged="OnAudioChanged" />
                                             <TextBlock x:Name="AudioHintText" Style="{StaticResource HintTextStyle}" />
+                                            <ToggleSwitch x:Name="ViewerSoundsSwitch" x:Uid="Stream_ViewerSounds" Toggled="OnViewerSoundsToggled" />
                                             <TextBlock x:Uid="Invite_StudyNote" Style="{StaticResource HintTextStyle}" Foreground="{StaticResource BeamAccentBrush}" Opacity="0.9" />
                                         </StackPanel>
                                     </Border>

@@ -21,6 +21,7 @@
     <Compile Include="..\..\src\Beamcast\Logic\AppLanguage.cs" Link="Logic\AppLanguage.cs" />
     <Compile Include="..\..\src\Beamcast\Logic\QualityPreset.cs" Link="Logic\QualityPreset.cs" />
     <Compile Include="..\..\src\Beamcast\Logic\SafeTry.cs" Link="Logic\SafeTry.cs" />
+    <Compile Include="..\..\src\Beamcast\Logic\AdaptiveBitrate.cs" Link="Logic\AdaptiveBitrate.cs" />
     <Compile Include="..\..\src\Beamcast\Net\Protocol.cs" Link="Net\Protocol.cs" />
     <Compile Include="..\..\src\Beamcast\Net\Messages.cs" Link="Net\Messages.cs" />
     <Compile Include="..\..\src\Beamcast\Net\FrameGate.cs" Link="Net\FrameGate.cs" />

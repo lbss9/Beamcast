@@ -62,6 +62,12 @@ public sealed class AppSettings
 
     public bool ShowCursor { get; set; } = true;
 
+    /// <summary>Lower the bitrate while the uplink cannot keep up, and raise it back when it can (the chosen bitrate is the ceiling).</summary>
+    public bool AdaptiveQuality { get; set; } = true;
+
+    /// <summary>Play a sound when someone starts or stops watching my stream.</summary>
+    public bool ViewerSounds { get; set; } = true;
+
     /// <summary>The host used last, e.g. ws://192.168.1.20:47710/ws. Always one of <see cref="Hosts"/>.</summary>
     public string RelayUrl { get; set; } = string.Empty;
 

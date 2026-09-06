@@ -58,7 +58,11 @@ O mesmo aviso aparece dentro do app no primeiro uso e na página Sobre.
    Salas, o menu "⋯" de cada sala copia o convite, favorita e, nas suas, edita ou apaga sem
    entrar. O token de dono fica só no PC de quem criou, protegido pelo Windows (DPAPI). Salas
    antigas sem dono passam a ser da primeira pessoa que entrar.
-6. Se a internet cair, do seu lado ou do host, o app **reconecta sozinho** por até 5 minutos,
+6. **Qualidade adaptativa**: se o seu upload não acompanha, o bitrate cai em degraus e volta
+   sozinho; o valor escolhido é o teto. Cada transmissão assistida mostra o **atraso real** e o
+   ping, dá para **assistir várias ao mesmo tempo** em grade, e quem transmite ouve um **som** e vê
+   o nome quando alguém entra ou sai da transmissão (host 2.3.0+).
+7. Se a internet cair, do seu lado ou do host, o app **reconecta sozinho** por até 5 minutos,
    republica a sua transmissão e volta a assistir o que você assistia. A sala continua existindo
    no host; ninguém precisa reenviar convite.
 

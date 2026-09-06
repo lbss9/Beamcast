@@ -328,7 +328,11 @@ public static class LoungeMux
     /// <summary>Client→server: a=streamId.</summary>
     public const byte Unpublish = 3;
 
-    /// <summary>Both ways: a=streamId, payload is a framed Video/Audio message.</summary>
+    /// <summary>
+    /// Both ways: a=streamId, payload is a framed Video/Audio message. b is the publisher's send
+    /// stamp (server clock, unix ms mod 2^32, 0 = unknown); the server passes it through untouched
+    /// so viewers can measure glass-to-glass latency. The stamp is not secret, so it rides in the clear.
+    /// </summary>
     public const byte Media = 4;
 
     public const byte Subscribe = 5;
@@ -355,7 +359,10 @@ public static class LoungeMux
     /// <summary>
     /// Both ways, empty payload. Clients send one every <see cref="LoungeProtocol.HeartbeatInterval"/>
     /// and the server echoes it, so each side can tell a dead peer from a quiet one even through a
-    /// proxy that keeps the origin socket open after the client vanished.
+    /// proxy that keeps the origin socket open after the client vanished. Since 2.3.0 the client puts
+    /// its send time in a (unix ms mod 2^32) and the server echoes a and fills b with its own clock,
+    /// which gives every client a round trip and an offset to the server clock (older servers leave
+    /// both at 0, which means "unknown").
     /// </summary>
     public const byte Heartbeat = 14;
 
@@ -391,6 +398,18 @@ public static class LoungeMux
 
     /// <summary>Server→client right before closing: JSON <see cref="ServerNotice"/> with the reason.</summary>
     public const byte Bye = 25;
+
+    /// <summary>Server→publisher (2.3.0): a=streamId, b=memberId of a viewer that started watching.</summary>
+    public const byte ViewerJoined = 26;
+
+    /// <summary>Server→publisher (2.3.0): a=streamId, b=memberId of a viewer that stopped (or left the room).</summary>
+    public const byte ViewerLeft = 27;
+
+    /// <summary>Unix milliseconds folded to 32 bits, the unit the heartbeat and media stamps use.</summary>
+    public static uint ClockNow() => unchecked((uint)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+    /// <summary>Signed difference of two folded clocks, correct across the 2^32 wrap.</summary>
+    public static int ClockDelta(uint later, uint earlier) => unchecked((int)(later - earlier));
 
     public static byte[] Encode(byte kind, uint a, uint b, ReadOnlySpan<byte> payload)
     {

@@ -593,7 +593,8 @@ internal sealed class Room
         switch (kind)
         {
             case LoungeMux.Heartbeat:
-                member.Enqueue(LoungeMux.Encode(LoungeMux.Heartbeat, 0, 0, ReadOnlySpan<byte>.Empty), 0);
+                // Echo the client's send time and add ours: that is all a client needs for RTT and clock offset.
+                member.Enqueue(LoungeMux.Encode(LoungeMux.Heartbeat, a, LoungeMux.ClockNow(), ReadOnlySpan<byte>.Empty), 0);
                 break;
 
             case LoungeMux.Presence:
@@ -635,22 +636,23 @@ internal sealed class Room
 
             case LoungeMux.Media:
                 if (_streams.TryGetValue(a, out var stream2) && stream2.Owner == member.Id)
-                    RouteMedia(stream2, payload);
+                    RouteMedia(stream2, payload, b);
                 break;
 
             case LoungeMux.Subscribe:
                 if (_streams.TryGetValue(a, out var target) && target.Owner != member.Id)
                 {
                     member.Subscribe(target.Id, MaxPendingFramesPerSubscriber);
-                    target.Subscribers.TryAdd(member.Id, 0);
+                    if (target.Subscribers.TryAdd(member.Id, 0))
+                        NotifyViewer(target, member.Id, joined: true);
                     RequestKeyframe(target);
                 }
                 break;
 
             case LoungeMux.Unsubscribe:
                 member.Unsubscribe(a);
-                if (_streams.TryGetValue(a, out var left))
-                    left.Subscribers.TryRemove(member.Id, out _);
+                if (_streams.TryGetValue(a, out var left) && left.Subscribers.TryRemove(member.Id, out _))
+                    NotifyViewer(left, member.Id, joined: false);
                 break;
 
             case LoungeMux.KeyframeRequest:
@@ -827,19 +829,27 @@ internal sealed class Room
         }
     }
 
-    private void RouteMedia(RoomStream stream, byte[] framed)
+    /// <summary>Tells the publisher that someone started or stopped watching one of its streams.</summary>
+    private void NotifyViewer(RoomStream stream, uint viewerId, bool joined)
+    {
+        if (_members.TryGetValue(stream.Owner, out var owner))
+            owner.Enqueue(LoungeMux.Encode(joined ? LoungeMux.ViewerJoined : LoungeMux.ViewerLeft, stream.Id, viewerId, ReadOnlySpan<byte>.Empty), 0);
+    }
+
+    private void RouteMedia(RoomStream stream, byte[] framed, uint sendStamp)
     {
         Framing.TryPeek(framed, out var type, out var flags);
         var isVideo = type == MessageType.Video;
         var keyframe = (flags & MessageFlags.Keyframe) != 0;
         var needKeyframe = false;
-        var outbound = LoungeMux.Encode(LoungeMux.Media, stream.Id, 0, framed);
+        var outbound = LoungeMux.Encode(LoungeMux.Media, stream.Id, sendStamp, framed);
 
         foreach (var subscriberId in stream.Subscribers.Keys)
         {
             if (!_members.TryGetValue(subscriberId, out var subscriber))
             {
-                stream.Subscribers.TryRemove(subscriberId, out _);
+                if (stream.Subscribers.TryRemove(subscriberId, out _))
+                    NotifyViewer(stream, subscriberId, joined: false);
                 continue;
             }
             if (isVideo)
@@ -887,7 +897,10 @@ internal sealed class Room
         foreach (var stream in _streams.Values.Where(s => s.Owner == member.Id).ToList())
             EndStream(stream);
         foreach (var stream in _streams.Values)
-            stream.Subscribers.TryRemove(member.Id, out _);
+        {
+            if (stream.Subscribers.TryRemove(member.Id, out _))
+                NotifyViewer(stream, member.Id, joined: false);
+        }
         SendAll(LoungeMux.Encode(LoungeMux.MemberLeft, member.Id, 0, ReadOnlySpan<byte>.Empty), except: null);
         LastActiveAt = DateTimeOffset.UtcNow;
     }

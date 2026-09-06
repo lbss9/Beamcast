@@ -17,12 +17,11 @@ namespace Beamcast.Pages;
 public sealed partial class RoomPage : Page
 {
     // One video surface for the whole process, so fullscreen and page re-creation keep the picture.
-    private static GpuVideoView? _sharedVideo;
-    private static Grid? _overlay;
-    private static TextBlock? _overlayText;
-
-    private static GpuVideoView SharedVideo => _sharedVideo ??= CreateVideo();
-    private static Grid Overlay => _overlay ??= CreateOverlay();
+    /// <summary>
+    /// One tile per watched stream. Static so the SwapChainPanels survive navigating away from
+    /// the room page and back (the streams keep playing in the meantime).
+    /// </summary>
+    private static readonly Dictionary<uint, WatchTile> Tiles = new();
 
     private readonly LoungeService _lounge = LoungeService.Instance;
     private readonly BroadcastService _broadcast = BroadcastService.Instance;
@@ -41,28 +40,6 @@ public sealed partial class RoomPage : Page
         WindowsList.ItemsSource = _windows;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
-    }
-
-    private static GpuVideoView CreateVideo()
-    {
-        var view = new GpuVideoView();
-        view.DoubleTapped += (_, _) => App.Main?.DispatcherQueue.TryEnqueue(ToggleFullscreenStatic);
-        return view;
-    }
-
-    private static Grid CreateOverlay()
-    {
-        _overlayText = new TextBlock
-        {
-            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
-            Opacity = 0.8,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-        };
-        var overlay = new Grid { Visibility = Visibility.Collapsed };
-        overlay.Children.Add(_overlayText);
-        return overlay;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -97,6 +74,8 @@ public sealed partial class RoomPage : Page
 
         BitrateBox.Value = _broadcast.BitrateKbps;
         CursorSwitch.IsOn = _broadcast.ShowCursor;
+        AdaptiveSwitch.IsOn = _broadcast.AdaptiveQuality;
+        ViewerSoundsSwitch.IsOn = _broadcast.ViewerSounds;
         TitleBox.Text = settings.StreamTitle;
         VolumeSlider.Value = settings.Volume;
         _watch.Volume = settings.Volume / 100f;
@@ -118,6 +97,7 @@ public sealed partial class RoomPage : Page
         _watch.FirstFrame += OnFirstFrame;
         _watch.StatsChanged += OnWatchStats;
         _watch.Stopped += OnWatchStopped;
+        _broadcast.ViewerChanged += OnViewerChanged;
         if (App.Main is not null)
             App.Main.FullscreenExited += OnFullscreenExited;
 
@@ -125,15 +105,13 @@ public sealed partial class RoomPage : Page
         ApplyFavorite(LoungeService.IsFavorite(_lounge.ServerUrl, _lounge.Code));
         OnLoungeState(_lounge.State);
         Preview.Bind(_broadcast.Preview);
-        AttachVideo();
-        SharedVideo.Bind(_watch.Presenter);
+        SyncTiles();
 
         _loading = false;
         OnMembersChanged();
         OnStreamsChanged();
         ApplyBroadcastState(_broadcast.State);
         OnBroadcastStats(_broadcast.LastStats);
-        ApplyWatching(_watch.StreamId);
         UpdateAudioHint();
         Tabs.SelectedIndex = _watch.IsWatching || _broadcast.State != BroadcastState.Live ? 0 : 1;
     }
@@ -153,10 +131,11 @@ public sealed partial class RoomPage : Page
         _watch.FirstFrame -= OnFirstFrame;
         _watch.StatsChanged -= OnWatchStats;
         _watch.Stopped -= OnWatchStopped;
+        _broadcast.ViewerChanged -= OnViewerChanged;
         if (App.Main is not null)
             App.Main.FullscreenExited -= OnFullscreenExited;
         Preview.Unbind();
-        DetachVideo();
+        DetachTiles();
         PersistInputs();
     }
 
@@ -171,6 +150,8 @@ public sealed partial class RoomPage : Page
             s.Fps = _broadcast.Fps;
             s.BitrateKbps = _broadcast.BitrateKbps;
             s.ShowCursor = _broadcast.ShowCursor;
+            s.AdaptiveQuality = _broadcast.AdaptiveQuality;
+            s.ViewerSounds = _broadcast.ViewerSounds;
             s.Encoder = _broadcast.EncoderPreferenceValue;
             s.AudioMode = _broadcast.AudioModeValue;
             s.StreamTitle = TitleBox.Text.Trim();
@@ -355,7 +336,7 @@ public sealed partial class RoomPage : Page
         if (App.Main?.IsFullscreen == true)
             App.Main.ExitFullscreen();
         _broadcast.StopLive();
-        _watch.StopWatching("left");
+        _watch.StopAll("left");
         await _lounge.DeleteRoomAsync();
     }
 
@@ -366,13 +347,12 @@ public sealed partial class RoomPage : Page
         foreach (var stream in streams)
             StreamsList.Items.Add(BuildStreamCard(stream));
         StreamsEmptyText.Visibility = streams.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (_watch.IsWatching)
-            UpdateWatchTitle();
+        UpdateTileTitles();
     }
 
     private UIElement BuildStreamCard(LoungeStream stream)
     {
-        var watching = _watch.StreamId == stream.Id;
+        var watching = _watch.IsWatchingStream(stream.Id);
         var paused = stream.Meta.State == StreamStates.Paused;
         var grid = new Grid { ColumnSpacing = 8, Padding = new Thickness(0, 4, 0, 4) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -396,7 +376,8 @@ public sealed partial class RoomPage : Page
         else if (watching)
         {
             button = new Button { Content = Loc.Get("Room_StopWatching/Content") };
-            button.Click += (_, _) => _watch.StopWatching();
+            var stopId = stream.Id;
+            button.Click += (_, _) => _watch.StopWatching(stopId);
         }
         else
         {
@@ -434,7 +415,7 @@ public sealed partial class RoomPage : Page
         if (App.Main?.IsFullscreen == true)
             App.Main.ExitFullscreen();
         _broadcast.StopLive();
-        _watch.StopWatching("left");
+        _watch.StopAll("left");
         await _lounge.LeaveAsync();
     }
 
@@ -444,98 +425,163 @@ public sealed partial class RoomPage : Page
             return;
         // The SwapChainPanels live in different tabs; re-attach whichever became visible.
         if (Tabs.SelectedIndex == 0)
-            SharedVideo.Bind(_watch.Presenter);
+            BindTiles();
         else if (Tabs.SelectedIndex == 1)
             Preview.Bind(_broadcast.Preview);
     }
 
     // ----- watching -----
 
-    private void AttachVideo()
+    /// <summary>Creates tiles for new streams, drops tiles for stopped ones, lays them out and binds them.</summary>
+    private void SyncTiles()
     {
-        if (App.Main?.IsFullscreen == true)
-            return;
-        DetachVideoFromParent();
-        VideoHost.Children.Insert(0, SharedVideo);
-        VideoHost.Children.Add(Overlay);
+        var wanted = _watch.Watching;
+        foreach (var id in Tiles.Keys.Where(id => !wanted.Contains(id)).ToList())
+        {
+            var gone = Tiles[id];
+            Tiles.Remove(id);
+            RemoveFromParent(gone.Root);
+            gone.Video.Unbind();
+        }
+        foreach (var id in wanted)
+        {
+            if (!Tiles.ContainsKey(id))
+                Tiles[id] = CreateTile(id);
+        }
+        LayoutTiles();
+        BindTiles();
+        UpdateTileTitles();
+        var count = wanted.Count;
+        WatchHint.Visibility = count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        StopWatchButton.IsEnabled = count > 0;
+        WatchTitleText.Text = count == 0 ? string.Empty : Loc.Format("Room_WatchingCount", count);
+        UpdatePingText();
     }
 
-    private void DetachVideo()
+    /// <summary>Arranges the tiles in a grid: 1 → whole area, 2 → side by side, 3–4 → 2×2, more → 3 columns.</summary>
+    private void LayoutTiles()
     {
-        if (VideoHost.Children.Contains(SharedVideo))
-            VideoHost.Children.Remove(SharedVideo);
-        if (VideoHost.Children.Contains(Overlay))
-            VideoHost.Children.Remove(Overlay);
+        var fullscreenContent = App.Main?.IsFullscreen == true ? App.Main.FullscreenContent : null;
+        var tiles = _watch.Watching.Where(Tiles.ContainsKey).Select(id => Tiles[id]).Where(t => !ReferenceEquals(t.Root, fullscreenContent)).ToList();
+        VideoHost.RowDefinitions.Clear();
+        VideoHost.ColumnDefinitions.Clear();
+        var count = tiles.Count;
+        var columns = count <= 1 ? 1 : count <= 4 ? 2 : 3;
+        var rows = Math.Max(1, (count + columns - 1) / columns);
+        for (var i = 0; i < columns; i++)
+            VideoHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        for (var i = 0; i < rows; i++)
+            VideoHost.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumnSpan(WatchHint, columns);
+        Grid.SetRowSpan(WatchHint, rows);
+        for (var i = 0; i < count; i++)
+        {
+            var tile = tiles[i];
+            if (!ReferenceEquals(tile.Root.Parent, VideoHost))
+            {
+                RemoveFromParent(tile.Root);
+                VideoHost.Children.Add(tile.Root);
+            }
+            Grid.SetRow(tile.Root, i / columns);
+            Grid.SetColumn(tile.Root, i % columns);
+            tile.Root.Margin = count == 1 ? new Thickness(0) : new Thickness(3);
+        }
     }
 
-    private static void DetachVideoFromParent()
+    private void BindTiles()
     {
-        if (SharedVideo.Parent is Panel panel)
-            panel.Children.Remove(SharedVideo);
-        if (Overlay.Parent is Panel overlayPanel)
-            overlayPanel.Children.Remove(Overlay);
+        foreach (var (id, tile) in Tiles)
+        {
+            var presenter = _watch.PresenterFor(id);
+            if (presenter is not null)
+                tile.Video.Bind(presenter);
+        }
     }
 
-    private void OnWatchingChanged(uint streamId)
+    /// <summary>Leaves the tiles alive (static) but out of this page's tree.</summary>
+    private void DetachTiles()
     {
-        ApplyWatching(streamId);
+        foreach (var tile in Tiles.Values)
+        {
+            if (ReferenceEquals(tile.Root.Parent, VideoHost))
+                VideoHost.Children.Remove(tile.Root);
+        }
+    }
+
+    private static void RemoveFromParent(FrameworkElement element)
+    {
+        if (element.Parent is Panel panel)
+            panel.Children.Remove(element);
+    }
+
+    private WatchTile CreateTile(uint streamId)
+    {
+        var tile = new WatchTile(streamId);
+        tile.Video.DoubleTapped += (_, _) => App.Main?.DispatcherQueue.TryEnqueue(() => ToggleFullscreen(streamId));
+        tile.FullscreenButton.Click += (_, _) => ToggleFullscreen(streamId);
+        tile.StopButton.Click += (_, _) => _watch.StopWatching(streamId);
+        if (!_watch.HasFrame(streamId))
+            tile.ShowOverlay(Loc.Get("Watch_Waiting"));
+        return tile;
+    }
+
+    private void UpdateTileTitles()
+    {
+        foreach (var (id, tile) in Tiles)
+        {
+            var stream = _lounge.FindStream(id);
+            if (stream is null)
+                continue;
+            tile.TitleText.Text = Loc.Format("Room_WatchingTitle", stream.Meta.Title, stream.OwnerName);
+            if (stream.Meta.State == StreamStates.Paused)
+                tile.ShowOverlay(Loc.Get("Watch_PausedByHost"));
+            else if (_watch.HasFrame(id))
+                tile.HideOverlay();
+            else
+                tile.ShowOverlay(Loc.Get("Watch_Waiting"));
+        }
+    }
+
+    private void UpdatePingText()
+    {
+        var rtt = _lounge.RoundTripMs;
+        WatchStatsText.Text = _watch.IsWatching && rtt > 0 ? Loc.Format("Watch_Ping", rtt) : string.Empty;
+    }
+
+    private void OnWatchingChanged()
+    {
+        SyncTiles();
         OnStreamsChanged();
     }
 
-    private void ApplyWatching(uint streamId)
+    private void OnFirstFrame(uint streamId)
     {
-        var watching = streamId != 0;
-        WatchHint.Visibility = watching ? Visibility.Collapsed : Visibility.Visible;
-        StopWatchButton.IsEnabled = watching;
-        FullscreenButton.IsEnabled = watching;
-        if (!watching)
-        {
-            WatchTitleText.Text = string.Empty;
-            WatchStatsText.Text = string.Empty;
-            Overlay.Visibility = Visibility.Collapsed;
-            SharedVideo.Clear();
+        if (!Tiles.TryGetValue(streamId, out var tile))
             return;
-        }
-        UpdateWatchTitle();
-        if (!_watch.HasFrame)
-            ShowOverlay(Loc.Get("Watch_Waiting"));
-    }
-
-    private void UpdateWatchTitle()
-    {
-        var stream = _lounge.FindStream(_watch.StreamId);
-        if (stream is null)
-            return;
-        WatchTitleText.Text = Loc.Format("Room_WatchingTitle", stream.Meta.Title, stream.OwnerName);
-        if (stream.Meta.State == StreamStates.Paused)
-            ShowOverlay(Loc.Get("Watch_PausedByHost"));
-        else if (_watch.HasFrame)
-            Overlay.Visibility = Visibility.Collapsed;
-    }
-
-    private void OnFirstFrame()
-    {
-        SharedVideo.MarkFrame();
-        var stream = _lounge.FindStream(_watch.StreamId);
+        tile.Video.MarkFrame();
+        var stream = _lounge.FindStream(streamId);
         if (stream is null || stream.Meta.State != StreamStates.Paused)
-            Overlay.Visibility = Visibility.Collapsed;
+            tile.HideOverlay();
     }
 
-    private void OnWatchStats(ViewerStats stats)
+    private void OnWatchStats(uint streamId, ViewerStats stats)
     {
+        if (!Tiles.TryGetValue(streamId, out var tile))
+            return;
         var audio = stats.AudioKbps > 0 ? $"  ♪ {stats.AudioKbps:F0} kbps" : string.Empty;
-        WatchStatsText.Text = $"{stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  dec {stats.DecodeMs:F1} ms{audio}";
+        var latency = stats.LatencyMs >= 0 ? "  " + Loc.Format("Watch_Latency", stats.LatencyMs.ToString("F0")) : string.Empty;
+        tile.StatsText.Text = $"{stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  dec {stats.DecodeMs:F1} ms{audio}{latency}";
+        UpdatePingText();
     }
 
-    private void OnWatchStopped(string reason)
+    private void OnWatchStopped(uint streamId, string reason)
     {
-        if (App.Main?.IsFullscreen == true)
+        if (Tiles.TryGetValue(streamId, out var tile) && App.Main?.IsFullscreen == true && ReferenceEquals(App.Main.FullscreenContent, tile.Root))
             App.Main.ExitFullscreen();
-        if (reason == "ended")
-            ShowOverlay(Loc.Get("Watch_Ended"));
+        SyncTiles();
     }
 
-    private void OnStopWatching(object sender, RoutedEventArgs e) => _watch.StopWatching();
+    private void OnStopWatching(object sender, RoutedEventArgs e) => _watch.StopAll();
 
     private void OnMuteToggled(object sender, RoutedEventArgs e) => _watch.IsMuted = MuteButton.IsChecked == true;
 
@@ -546,38 +592,103 @@ public sealed partial class RoomPage : Page
         _watch.Volume = (float)(e.NewValue / 100.0);
     }
 
-    private void OnToggleFullscreen(object sender, RoutedEventArgs e) => ToggleFullscreenStatic();
-
-    private static void ToggleFullscreenStatic()
+    private static void ToggleFullscreen(uint streamId)
     {
         var main = App.Main;
-        if (main is null || !WatchService.Instance.IsWatching)
+        if (main is null || !Tiles.TryGetValue(streamId, out var tile))
             return;
         if (main.IsFullscreen)
         {
             main.ExitFullscreen();
             return;
         }
-        DetachVideoFromParent();
-        var host = new Grid();
-        host.Children.Add(SharedVideo);
-        host.Children.Add(Overlay);
-        main.EnterFullscreen(host);
+        RemoveFromParent(tile.Root);
+        tile.Root.Margin = new Thickness(0);
+        main.EnterFullscreen(tile.Root);
     }
 
-    private void OnFullscreenExited(UIElement content)
-    {
-        if (content is Panel panel)
-            panel.Children.Clear();
-        AttachVideo();
-    }
+    private void OnFullscreenExited(UIElement content) => SyncTiles();
 
-    private static void ShowOverlay(string text)
+    /// <summary>The visual for one watched stream: video, overlay text and a small header with title, stats and buttons.</summary>
+    private sealed class WatchTile
     {
-        var overlay = Overlay;
-        if (_overlayText is not null)
-            _overlayText.Text = text;
-        overlay.Visibility = Visibility.Visible;
+        public WatchTile(uint streamId)
+        {
+            StreamId = streamId;
+            Video = new GpuVideoView();
+            var white = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
+
+            OverlayText = new TextBlock
+            {
+                Foreground = white,
+                Opacity = 0.8,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+            };
+            Overlay = new Grid { Visibility = Visibility.Collapsed };
+            Overlay.Children.Add(OverlayText);
+
+            TitleText = new TextBlock { Foreground = white, TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] };
+            StatsText = new TextBlock { Foreground = white, Opacity = 0.8, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas, Courier New"), TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] };
+            var texts = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+            texts.Children.Add(TitleText);
+            texts.Children.Add(StatsText);
+
+            FullscreenButton = HeaderButton("\uE740", Loc.Get("Watch_TileFullscreen"), white);
+            StopButton = HeaderButton("\uE711", Loc.Get("Room_StopWatching/Content"), white);
+
+            var header = new Grid { ColumnSpacing = 4, Padding = new Thickness(10, 4, 6, 4), VerticalAlignment = VerticalAlignment.Top, Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0x99, 0, 0, 0)) };
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.Children.Add(texts);
+            Grid.SetColumn(FullscreenButton, 1);
+            header.Children.Add(FullscreenButton);
+            Grid.SetColumn(StopButton, 2);
+            header.Children.Add(StopButton);
+
+            var grid = new Grid();
+            grid.Children.Add(Video);
+            grid.Children.Add(Overlay);
+            grid.Children.Add(header);
+            Root = new Border
+            {
+                CornerRadius = new CornerRadius(10),
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x0A, 0x0D, 0x12)),
+                Child = grid,
+            };
+        }
+
+        public uint StreamId { get; }
+        public Border Root { get; }
+        public GpuVideoView Video { get; }
+        public Grid Overlay { get; }
+        public TextBlock OverlayText { get; }
+        public TextBlock TitleText { get; }
+        public TextBlock StatsText { get; }
+        public Button FullscreenButton { get; }
+        public Button StopButton { get; }
+
+        public void ShowOverlay(string text)
+        {
+            OverlayText.Text = text;
+            Overlay.Visibility = Visibility.Visible;
+        }
+
+        public void HideOverlay() => Overlay.Visibility = Visibility.Collapsed;
+
+        private static Button HeaderButton(string glyph, string tooltip, Microsoft.UI.Xaml.Media.Brush foreground)
+        {
+            var button = new Button
+            {
+                Content = new FontIcon { Glyph = glyph, FontSize = 13, Foreground = foreground },
+                Style = (Style)Application.Current.Resources["GhostButtonStyle"],
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            ToolTipService.SetToolTip(button, tooltip);
+            return button;
+        }
     }
 
     // ----- broadcasting -----
@@ -672,6 +783,26 @@ public sealed partial class RoomPage : Page
         if (_loading)
             return;
         _broadcast.ShowCursor = CursorSwitch.IsOn;
+    }
+
+    private void OnAdaptiveToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        _broadcast.AdaptiveQuality = AdaptiveSwitch.IsOn;
+    }
+
+    private void OnViewerSoundsToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        _broadcast.ViewerSounds = ViewerSoundsSwitch.IsOn;
+    }
+
+    private void OnViewerChanged(string name, bool joined)
+    {
+        ViewerNoteText.Text = Loc.Format(joined ? "Stream_ViewerJoined" : "Stream_ViewerLeft", name);
+        OnBroadcastStats(_broadcast.LastStats);
     }
 
     private void OnAudioChanged(object sender, SelectionChangedEventArgs e)
@@ -772,11 +903,16 @@ public sealed partial class RoomPage : Page
         if (_broadcast.State == BroadcastState.Live)
         {
             var audio = stats.AudioKbps > 0 ? $"  ♪ {stats.AudioKbps:F0} kbps" : string.Empty;
-            StatsText.Text = $"{stats.Codec}  {stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  {stats.EncodeMs:F1} ms{audio}";
+            var adapted = stats.Adapted ? "  " + Loc.Format("Stream_Adapted", stats.TargetKbps) : string.Empty;
+            StatsText.Text = $"{stats.Codec}  {stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  {stats.EncodeMs:F1} ms{audio}{adapted}";
+            ViewersText.Text = Loc.Format("Stream_Viewers", _broadcast.ViewerCount);
+            ViewersBadge.Visibility = Visibility.Visible;
         }
         else
         {
             StatsText.Text = _broadcast.Source?.SizeLabel ?? string.Empty;
+            ViewersBadge.Visibility = Visibility.Collapsed;
+            ViewerNoteText.Text = string.Empty;
         }
         StatsBadge.Visibility = StatsText.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
     }

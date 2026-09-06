@@ -20,9 +20,12 @@ public enum BroadcastState
     Live,
 }
 
-public sealed record HostStats(double Fps, double Kbps, double AudioKbps, double EncodeMs, int Width, int Height, string Codec)
+/// <param name="Viewers">People currently watching this stream (host 2.3.0+; 0 on older hosts).</param>
+/// <param name="TargetKbps">The bitrate the encoder runs at now: the chosen one, or lower while adapting.</param>
+/// <param name="Adapted">True while adaptive quality holds the bitrate below the chosen one.</param>
+public sealed record HostStats(double Fps, double Kbps, double AudioKbps, double EncodeMs, int Width, int Height, string Codec, int Viewers, int TargetKbps, bool Adapted)
 {
-    public static readonly HostStats Empty = new(0, 0, 0, 0, 0, 0, string.Empty);
+    public static readonly HostStats Empty = new(0, 0, 0, 0, 0, 0, string.Empty, 0, 0, false);
 }
 
 /// <summary>
@@ -83,9 +86,16 @@ public sealed class BroadcastService
     private string _encoderPreference = EncoderPreference.Auto;
     private string _audioMode = AudioMode.Auto;
 
+    private readonly AdaptiveBitrate _adaptive = new();
+    private volatile bool _adaptiveEnabled = true;
+    private volatile bool _viewerSounds = true;
+    private readonly HashSet<uint> _viewers = [];
+
     private BroadcastService()
     {
         _lounge.KeyframeRequested += OnKeyframeRequested;
+        _lounge.ViewerJoined += (streamId, viewerId, name) => OnViewer(streamId, viewerId, name, joined: true);
+        _lounge.ViewerLeft += (streamId, viewerId, name) => OnViewer(streamId, viewerId, name, joined: false);
         _lounge.StateChanged += state =>
         {
             if (state == LoungeState.Disconnected)
@@ -99,6 +109,8 @@ public sealed class BroadcastService
     public event Action<BroadcastState>? StateChanged;
     public event Action<HostStats>? StatsChanged;
     public event Action<string>? Error;
+    /// <summary>UI thread: someone started (true) or stopped (false) watching my stream, by name.</summary>
+    public event Action<string, bool>? ViewerChanged;
     /// <summary>Raised on the UI thread once the first frame of a new source hit the preview.</summary>
     public event Action? PreviewStarted;
 
@@ -180,8 +192,79 @@ public sealed class BroadcastService
         set
         {
             _bitrateKbps = QualityPreset.ClampBitrate(value);
-            _gpuEncoder?.SetBitrate(_bitrateKbps);
+            _gpuEncoder?.SetBitrate(EffectiveBitrateKbps);
         }
+    }
+
+    /// <summary>Lower the bitrate while the uplink drops frames, back up when it stops. The chosen bitrate is the ceiling.</summary>
+    public bool AdaptiveQuality
+    {
+        get => _adaptiveEnabled;
+        set
+        {
+            _adaptiveEnabled = value;
+            if (!value)
+                _adaptive.Reset(Environment.TickCount64);
+            _gpuEncoder?.SetBitrate(EffectiveBitrateKbps);
+        }
+    }
+
+    /// <summary>Play a sound when someone starts or stops watching.</summary>
+    public bool ViewerSounds
+    {
+        get => _viewerSounds;
+        set => _viewerSounds = value;
+    }
+
+    /// <summary>People watching my stream right now (needs host 2.3.0; 0 otherwise).</summary>
+    public int ViewerCount
+    {
+        get
+        {
+            lock (_viewers)
+                return _viewers.Count;
+        }
+    }
+
+    private int EffectiveBitrateKbps => _adaptiveEnabled ? _adaptive.Apply(_bitrateKbps) : _bitrateKbps;
+
+    private void OnViewer(uint streamId, uint viewerId, string name, bool joined)
+    {
+        if (streamId != _streamId || !_live)
+            return;
+        bool changed;
+        lock (_viewers)
+            changed = joined ? _viewers.Add(viewerId) : _viewers.Remove(viewerId);
+        if (!changed)
+            return;
+        Diag.Log($"broadcast: viewer {viewerId} ({name}) {(joined ? "joined" : "left")}; {ViewerCount} watching");
+        if (_viewerSounds)
+            SoundEffects.Play(joined ? SoundEffects.ViewerIn : SoundEffects.ViewerOut);
+        ViewerChanged?.Invoke(name, joined);
+    }
+
+    private void ClearViewers()
+    {
+        lock (_viewers)
+            _viewers.Clear();
+    }
+
+    /// <summary>Once per stats window: let the ladder climb back after a quiet spell.</summary>
+    private void AdaptTick()
+    {
+        if (!_adaptiveEnabled || !_adaptive.OnTick(Environment.TickCount64))
+            return;
+        Diag.Log($"broadcast: uplink quiet, bitrate back up to {EffectiveBitrateKbps} kbps (level {_adaptive.Level})");
+        _gpuEncoder?.SetBitrate(EffectiveBitrateKbps);
+    }
+
+    /// <summary>The uplink gate dropped a frame: step the ladder down, at most once per 1.5 s.</summary>
+    private void AdaptOnDrop()
+    {
+        if (!_adaptiveEnabled || !_adaptive.OnDrop(Environment.TickCount64))
+            return;
+        Diag.Log($"broadcast: uplink congested, bitrate down to {EffectiveBitrateKbps} kbps (level {_adaptive.Level})");
+        _gpuEncoder?.SetBitrate(EffectiveBitrateKbps);
     }
 
     public string EncoderPreferenceValue
@@ -219,6 +302,8 @@ public sealed class BroadcastService
         Preset = settings.QualityPreset;
         Fps = settings.Fps;
         BitrateKbps = settings.BitrateKbps;
+        AdaptiveQuality = settings.AdaptiveQuality;
+        ViewerSounds = settings.ViewerSounds;
         ShowCursor = settings.ShowCursor;
         EncoderPreferenceValue = settings.Encoder;
         _audioMode = AudioMode.Normalize(settings.AudioMode);
@@ -292,6 +377,8 @@ public sealed class BroadcastService
             lock (_upstreamGate)
                 _upstreamGate.RequestKeyframe();
             ResetStats();
+            _adaptive.Reset(Environment.TickCount64);
+            ClearViewers();
             _lounge.RegisterOwnStream(streamId, meta);
 
             if (ActiveCodec == VideoCodec.Vp8)
@@ -365,6 +452,7 @@ public sealed class BroadcastService
                 return;
             }
             _streamId = streamId;
+            ClearViewers();
             lock (_upstreamGate)
                 _upstreamGate.RequestKeyframe();
             _lounge.RegisterOwnStream(streamId, meta);
@@ -435,6 +523,7 @@ public sealed class BroadcastService
             _lounge.ForgetOwnStream(_streamId);
             _streamId = 0;
         }
+        ClearViewers();
         _paused = false;
 
         var stale = Interlocked.Exchange(ref _latest, null);
@@ -544,7 +633,7 @@ public sealed class BroadcastService
         if (encoder is null || encoder.Width != width || encoder.Height != height || encoder.Fps != _fps)
         {
             encoder?.Dispose();
-            encoder = new MfVideoEncoder(Gpu, ActiveCodec, width, height, _fps, _bitrateKbps);
+            encoder = new MfVideoEncoder(Gpu, ActiveCodec, width, height, _fps, EffectiveBitrateKbps);
             encoder.FrameEncoded += OnGpuFrameEncoded;
             encoder.Faulted += ex => Post(() =>
             {
@@ -613,15 +702,19 @@ public sealed class BroadcastService
         }
         if (decision == GateDecision.DropAndRequestKeyframe)
         {
+            AdaptOnDrop();
             Interlocked.Exchange(ref _keyframeRequested, 1);
             _gpuEncoder?.RequestKeyframe();
             return;
         }
         if (decision != GateDecision.Send)
+        {
+            AdaptOnDrop();
             return;
+        }
 
         var header = new VideoPacketHeader(frame.Sequence, frame.TimestampMs, frame.Width, frame.Height, frame.IsKeyframe);
-        _lounge.SendMedia(streamId, MessageType.Video, VideoPacket.Build(header, frame.Data), frame.IsKeyframe);
+        _lounge.SendMedia(streamId, MessageType.Video, VideoPacket.Build(header, frame.Data), frame.IsKeyframe, _lounge.ServerClockNow());
     }
 
     private void OnAudioPacket(byte[] packet)
@@ -647,7 +740,7 @@ public sealed class BroadcastService
 
     private void Vp8Loop(CancellationToken ct)
     {
-        using var encoder = new Vp8Encoder { BitrateKbps = _bitrateKbps };
+        using var encoder = new Vp8Encoder { BitrateKbps = EffectiveBitrateKbps };
         byte[]? encodeBuffer = null;
         var lastKeyframe = Stopwatch.GetTimestamp();
 
@@ -694,7 +787,7 @@ public sealed class BroadcastService
                     else
                         FrameScaler.Resize(raw.Pixels, raw.Width, raw.Height, encodeBuffer, width, height);
 
-                    encoder.BitrateKbps = _bitrateKbps;
+                    encoder.BitrateKbps = EffectiveBitrateKbps;
                     var wantKey = Interlocked.Exchange(ref _keyframeRequested, 0) == 1
                         || Stopwatch.GetElapsedTime(lastKeyframe) >= Vp8KeyframeInterval;
                     if (wantKey)
@@ -746,6 +839,7 @@ public sealed class BroadcastService
         if (elapsed.TotalMilliseconds < 1000)
             return;
 
+        AdaptTick();
         var seconds = elapsed.TotalSeconds;
         var audioBytes = Interlocked.Exchange(ref _statsAudioBytes, 0);
         var stats = new HostStats(
@@ -755,7 +849,10 @@ public sealed class BroadcastService
             _statsFrames > 0 ? _statsEncodeMs / _statsFrames : 0,
             frame.Width,
             frame.Height,
-            ActiveCodec.ToWireName().ToUpperInvariant()
+            ActiveCodec.ToWireName().ToUpperInvariant(),
+            ViewerCount,
+            EffectiveBitrateKbps,
+            _adaptiveEnabled && _adaptive.IsAdapted
         );
         LastStats = stats;
         _statsWindowStart = Stopwatch.GetTimestamp();

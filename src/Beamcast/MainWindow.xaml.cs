@@ -68,6 +68,9 @@ public sealed partial class MainWindow : Window
 
     public bool IsFullscreen => _fullscreenContent is not null;
 
+    /// <summary>The element currently shown in the full-window layer, or null.</summary>
+    public UIElement? FullscreenContent => _fullscreenContent;
+
     public ElementTheme RootTheme => RootGrid.ActualTheme;
 
     public void ApplyTheme(string theme)
