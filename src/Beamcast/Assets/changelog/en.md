@@ -1,3 +1,9 @@
+## 2.1.10
+
+### Fixes
+
+- In the update window, the download size text was cut off by the buttons. It now takes the whole line, with the buttons right below.
+
 ## 2.1.9
 
 ### New

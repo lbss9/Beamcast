@@ -2,6 +2,14 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.1.10
+
+- `UpdateWindow.xaml`: o `StatusText` ficava num `StackPanel` horizontal, que mede o filho com
+  largura infinita, então `TextWrapping` nunca quebrava e a coluna `*` cortava o texto ao lado
+  dos botões (janela de 520 px). Status agora fica num `Grid` próprio (spinner Auto + texto `*`)
+  com largura inteira; botões numa linha abaixo, alinhados à direita. O `ProgressRing` some
+  (`Visibility`) quando inativo, em vez de deixar um recuo vazio.
+
 ## 2.1.9
 
 - `Services/RoomManagement.cs`: sessão curta de dono para editar/apagar sem entrar na sala.

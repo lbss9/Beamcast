@@ -1,3 +1,9 @@
+## 2.1.10
+
+### Correções
+
+- Na janela de atualização, o texto com o tamanho do download era cortado pelos botões ("Download de 0,7 MB (só o que…"). Agora ele ocupa a linha inteira e os botões ficam logo abaixo.
+
 ## 2.1.9
 
 ### Novidades

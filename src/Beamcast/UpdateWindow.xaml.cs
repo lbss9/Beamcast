@@ -65,6 +65,7 @@ public sealed partial class UpdateWindow : Window
         InstallButton.IsEnabled = false;
         LaterButton.IsEnabled = false;
         Spinner.IsActive = true;
+        Spinner.Visibility = Visibility.Visible;
         Progress.Visibility = Visibility.Visible;
         Progress.IsIndeterminate = _offer.Downloaded;
         Progress.Value = 0;
@@ -83,6 +84,7 @@ public sealed partial class UpdateWindow : Window
         if (result == UpdateCheckKind.Failed)
         {
             Spinner.IsActive = false;
+            Spinner.Visibility = Visibility.Collapsed;
             Progress.Visibility = Visibility.Collapsed;
             InstallButton.IsEnabled = true;
             LaterButton.IsEnabled = true;
