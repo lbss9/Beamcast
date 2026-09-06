@@ -102,7 +102,7 @@ Variáveis opcionais num `.env` ao lado do `docker-compose.yml`:
 | --- | --- |
 | `BEAMCAST_PORT` | porta publicada no host (padrão `47710`) |
 | `BEAMCAST_HOST_NAME` | nome que o app mostra para este host (padrão: nome da máquina) |
-| `BEAMCAST_APP_KEY` | quando definida, o app precisa carregar a mesma chave (Configurações → Servidor) |
+| `BEAMCAST_APP_KEY` | quando definida, o app precisa carregar a mesma chave (tela Salas → menu do host → "Chave do app…") |
 | `BEAMCAST_LOUNGE_TTL_HOURS` | tempo padrão que uma sala **temporária** sobrevive vazia (padrão `24`) |
 
 As salas (código, nome, configurações, salt e verificador, hashes de convites e do dono; nunca

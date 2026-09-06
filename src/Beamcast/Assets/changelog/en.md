@@ -1,3 +1,19 @@
+## 2.1.7
+
+### New
+
+- The app key now belongs to each host. In the host's "⋯" menu (or right-clicking it), "App key…" lets you enter the key that server requires. A key icon shows next to the host when a key is saved.
+- When a host refuses the app for lack of a key, the Rooms screen shows an "Enter app key" button right under the notice. Adding a host that requires a key asks for it right away.
+- The "Server" section is gone from Settings: hosts and keys live only on the Rooms screen.
+
+### Fixes
+
+- A key typed in Settings was not used for a host already in the list, so the host kept refusing the app. Each host keeps its own key now.
+
+### Security
+
+- The app key is protected on disk for your Windows account (DPAPI), like remembered room passwords. Keys saved by earlier versions are converted on first launch.
+
 ## 2.1.6
 
 ### Improvements

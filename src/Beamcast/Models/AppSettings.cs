@@ -1,11 +1,23 @@
+using System.Text.Json.Serialization;
+
 namespace Beamcast;
 
-/// <summary>A host (server) the person uses; the app key is the one that host demands, if any.</summary>
+/// <summary>
+/// A host (server) the person uses. Each host has its own app key (BEAMCAST_APP_KEY on that
+/// server), kept DPAPI-protected for this Windows account like remembered room passwords.
+/// </summary>
 public sealed class SavedHost
 {
     public string Name { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
+
+    /// <summary>Legacy plain-text key from settings written before 2.1.7; migrated into <see cref="ProtectedAppKey"/> on load.</summary>
     public string AppKey { get; set; } = string.Empty;
+
+    public string ProtectedAppKey { get; set; } = string.Empty;
+
+    [JsonIgnore]
+    public bool HasAppKey => ProtectedAppKey.Length > 0;
     public bool Favorite { get; set; }
     public DateTimeOffset LastUsedAt { get; set; }
 }
@@ -50,10 +62,10 @@ public sealed class AppSettings
 
     public bool ShowCursor { get; set; } = true;
 
-    /// <summary>The host used last, e.g. ws://192.168.1.20:47710/ws.</summary>
+    /// <summary>The host used last, e.g. ws://192.168.1.20:47710/ws. Always one of <see cref="Hosts"/>.</summary>
     public string RelayUrl { get; set; } = string.Empty;
 
-    /// <summary>Optional key the last host may demand (BEAMCAST_APP_KEY on the server).</summary>
+    /// <summary>Legacy (before 2.1.7): the key of the last host. Moved to that host on load; each host keeps its own key now.</summary>
     public string RelayAppKey { get; set; } = string.Empty;
 
     public List<SavedHost> Hosts { get; set; } = [];

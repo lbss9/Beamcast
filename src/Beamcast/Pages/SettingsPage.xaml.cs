@@ -1,4 +1,3 @@
-using Beamcast.Net;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -35,26 +34,7 @@ public sealed partial class SettingsPage : Page
         ThemeBox.Items.Add(Loc.Get("Settings_ThemeDark"));
         ThemeBox.SelectedIndex = Math.Max(0, Array.IndexOf(Themes, settings.Theme));
         UpdatesSwitch.IsOn = settings.CheckUpdatesOnLaunch;
-        RelayUrlBox.Text = settings.RelayUrl;
-        RelayKeyBox.Password = settings.RelayAppKey;
         _loading = false;
-    }
-
-    private void OnRelayUrlChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_loading)
-            return;
-        if (!LoungeProtocol.TryNormalizeServer(RelayUrlBox.Text, out var url))
-            return;
-        SettingsStore.Update(s => s.RelayUrl = url);
-    }
-
-    private void OnRelayKeyChanged(object sender, RoutedEventArgs e)
-    {
-        if (_loading)
-            return;
-        var key = RelayKeyBox.Password.Trim();
-        SettingsStore.Update(s => s.RelayAppKey = key);
     }
 
     private void OnUpdatesToggled(object sender, RoutedEventArgs e)

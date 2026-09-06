@@ -17,6 +17,7 @@ public sealed partial class LoungePage : Page
     private string _server = string.Empty;
     private HostInfo? _hostInfo;
     private bool _busy;
+    private bool _askKeyForNewHost;
     private CancellationTokenSource? _listCts;
 
     public LoungePage()
@@ -44,7 +45,7 @@ public sealed partial class LoungePage : Page
 
     private void OnClosed(string reason)
     {
-        ErrorText.Text = DescribeReason(reason);
+        ShowError(reason);
         if (reason is LoungeProtocol.ReasonRoomDeleted or LoungeProtocol.ReasonKicked)
             RefreshRooms();
     }
@@ -97,7 +98,15 @@ public sealed partial class LoungePage : Page
 
         var text = new StackPanel { Spacing = 0, VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(new TextBlock { Text = host.Name, TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
-        text.Children.Add(new TextBlock { Text = LoungeProtocol.DisplayHost(host.Url), Opacity = 0.65, TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
+        var caption = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
+        caption.Children.Add(new TextBlock { Text = LoungeProtocol.DisplayHost(host.Url), Opacity = 0.65, TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
+        if (host.HasAppKey)
+        {
+            var keyIcon = new FontIcon { Glyph = "", FontSize = 10, Opacity = 0.65, VerticalAlignment = VerticalAlignment.Center };
+            ToolTipService.SetToolTip(keyIcon, Loc.Get("Lounge_HostHasKey"));
+            caption.Children.Add(keyIcon);
+        }
+        text.Children.Add(caption);
         grid.Children.Add(text);
 
         var star = new ToggleButton
@@ -115,9 +124,10 @@ public sealed partial class LoungePage : Page
         Grid.SetColumn(star, 1);
         grid.Children.Add(star);
 
-        var remove = new Button { Content = new FontIcon { Glyph = "", FontSize = 12 }, Style = (Style)Application.Current.Resources["GhostButtonStyle"] };
-        ToolTipService.SetToolTip(remove, Loc.Get("Lounge_HostRemove"));
-        remove.Click += (_, _) =>
+        var keyItem = new MenuFlyoutItem { Text = Loc.Get("Lounge_HostKeyMenu"), Icon = new FontIcon { Glyph = "\uE192" } };
+        keyItem.Click += async (_, _) => await EditHostKeyAsync(host.Url);
+        var removeItem = new MenuFlyoutItem { Text = Loc.Get("Lounge_HostRemove"), Icon = new FontIcon { Glyph = "\uE74D" } };
+        removeItem.Click += (_, _) =>
         {
             LoungeService.ForgetHost(host.Url);
             if (selected)
@@ -128,11 +138,71 @@ public sealed partial class LoungePage : Page
             }
             RefreshHosts();
         };
-        Grid.SetColumn(remove, 2);
-        grid.Children.Add(remove);
+        var menu = new MenuFlyout();
+        menu.Items.Add(keyItem);
+        menu.Items.Add(new MenuFlyoutSeparator());
+        menu.Items.Add(removeItem);
 
+        var more = new Button { Content = new FontIcon { Glyph = "\uE712", FontSize = 12 }, Style = (Style)Application.Current.Resources["GhostButtonStyle"], Flyout = menu };
+        ToolTipService.SetToolTip(more, Loc.Get("Lounge_HostMore"));
+        Grid.SetColumn(more, 2);
+        grid.Children.Add(more);
+
+        grid.ContextFlyout = menu;
         grid.Tapped += (_, _) => SelectHost(host.Url);
         return grid;
+    }
+
+    /// <summary>Lets the person type the key this host demands (BEAMCAST_APP_KEY on that server).</summary>
+    private async Task EditHostKeyAsync(string url)
+    {
+        var host = SettingsStore.Load().Hosts.FirstOrDefault(h => string.Equals(h.Url, url, StringComparison.OrdinalIgnoreCase));
+        var box = new PasswordBox
+        {
+            PasswordRevealMode = PasswordRevealMode.Peek,
+            MaxLength = 256,
+            Header = Loc.Get("Lounge_HostKeyField"),
+            Password = LoungeService.AppKeyFor(url),
+        };
+        var panel = new StackPanel { Spacing = 10 };
+        panel.Children.Add(new TextBlock { Text = LoungeProtocol.DisplayHost(url), Opacity = 0.65, TextTrimming = TextTrimming.CharacterEllipsis });
+        panel.Children.Add(new TextBlock { Text = Loc.Get("Lounge_HostKeyHint"), TextWrapping = TextWrapping.Wrap, Style = (Style)Application.Current.Resources["HintTextStyle"] });
+        panel.Children.Add(box);
+        var dialog = new ContentDialog
+        {
+            Title = host?.Name is { Length: > 0 } name ? name : LoungeProtocol.DisplayHost(url),
+            Content = panel,
+            PrimaryButtonText = Loc.Get("Edit_Save"),
+            CloseButtonText = Loc.Get("Dialog_Cancel"),
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+        box.Loaded += (_, _) => box.Focus(FocusState.Programmatic);
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+        LoungeService.RememberHost(url, appKey: box.Password);
+        RefreshHosts();
+        if (string.Equals(url, _server, StringComparison.OrdinalIgnoreCase))
+            RefreshRooms();
+    }
+
+    private async void OnHostKey(object sender, RoutedEventArgs e)
+    {
+        if (_server.Length > 0)
+            await EditHostKeyAsync(_server);
+    }
+
+    /// <summary>Shows the failure text; when the host wants an app key, offers the shortcut to type it.</summary>
+    private void ShowError(string? reason)
+    {
+        var needsKey = reason == LoungeProtocol.ReasonBadKey;
+        ShowErrorText(reason is null ? string.Empty : needsKey ? Loc.Get("Lounge_HostNeedsKey") : DescribeReason(reason), needsKey);
+    }
+
+    private void ShowErrorText(string text, bool needsKey = false)
+    {
+        ErrorText.Text = text;
+        HostKeyButton.Visibility = needsKey && _server.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnAddHostChanged(object sender, TextChangedEventArgs e) =>
@@ -150,6 +220,7 @@ public sealed partial class LoungePage : Page
             return;
         LoungeService.RememberHost(url);
         AddHostBox.Text = string.Empty;
+        _askKeyForNewHost = true;
         SelectHost(url);
     }
 
@@ -160,7 +231,7 @@ public sealed partial class LoungePage : Page
         HostPanel.Visibility = Visibility.Visible;
         HostTitleText.Text = SettingsStore.Load().Hosts.FirstOrDefault(h => string.Equals(h.Url, url, StringComparison.OrdinalIgnoreCase))?.Name ?? LoungeProtocol.DisplayHost(url);
         HostStatusText.Text = LoungeProtocol.DisplayHost(url);
-        ErrorText.Text = string.Empty;
+        ShowError(null);
         CodeBox.Text = string.Empty;
         RefreshHosts();
         RefreshRooms();
@@ -184,15 +255,20 @@ public sealed partial class LoungePage : Page
             HostStatusText.Text = Loc.Format("Lounge_HostStatus", LoungeProtocol.DisplayHost(_server), _hostInfo.Version, _hostInfo.MembersOnline);
             LoungeService.RememberHost(_server, name: _hostInfo.Name);
             RefreshHosts();
-            ErrorText.Text = string.Empty;
+            ShowError(null);
             FillPublicRooms(_hostInfo.Rooms);
         }
         catch (LoungeException ex) when (!cts.IsCancellationRequested)
         {
             _hostInfo = null;
             HostStatusText.Text = LoungeProtocol.DisplayHost(_server);
-            ErrorText.Text = ex.Reason == LoungeProtocol.ReasonBadKey ? Loc.Get("Lounge_HostNeedsKey") : DescribeReason(ex.Reason);
+            ShowError(ex.Reason);
             FillPublicRooms([]);
+            if (ex.Reason == LoungeProtocol.ReasonBadKey && _askKeyForNewHost)
+            {
+                _askKeyForNewHost = false;
+                await EditHostKeyAsync(_server);
+            }
         }
         catch (OperationCanceledException) { }
         finally
@@ -278,7 +354,7 @@ public sealed partial class LoungePage : Page
     {
         if (!LoungeInvite.TryDecode(CodeBox.Text, _server, out var target))
         {
-            ErrorText.Text = Loc.Get("Lounge_BadCode");
+            ShowErrorText(Loc.Get("Lounge_BadCode"));
             return;
         }
         await JoinRoomAsync(target, hasPassword: null, roomName: string.Empty, JoinPasswordBox.Password);
@@ -363,7 +439,7 @@ public sealed partial class LoungePage : Page
     /// <summary>Runs a connect attempt; returns null on success or the failure reason.</summary>
     private async Task<string?> RunAsync(Func<CancellationToken, Task> action)
     {
-        ErrorText.Text = string.Empty;
+        ShowError(null);
         var name = NameBox.Text.Trim();
         if (name.Length > 0)
             SettingsStore.Update(s => s.DisplayName = name);
@@ -380,12 +456,12 @@ public sealed partial class LoungePage : Page
         }
         catch (LoungeException ex)
         {
-            ErrorText.Text = DescribeReason(ex.Reason);
+            ShowError(ex.Reason);
             return ex.Reason;
         }
         catch (Exception ex)
         {
-            ErrorText.Text = Loc.Format("Error_Generic", ex.Message);
+            ShowErrorText(Loc.Format("Error_Generic", ex.Message));
             return "error";
         }
         finally

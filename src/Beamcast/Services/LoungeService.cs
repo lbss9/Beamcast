@@ -103,11 +103,11 @@ public sealed class LoungeService
 
     // ----- hosts -----
 
+    /// <summary>The app key saved for this host (BEAMCAST_APP_KEY on that server), or empty.</summary>
     public static string AppKeyFor(string serverUrl)
     {
-        var settings = SettingsStore.Load();
-        var host = settings.Hosts.FirstOrDefault(h => string.Equals(h.Url, serverUrl, StringComparison.OrdinalIgnoreCase));
-        return host?.AppKey ?? (string.Equals(settings.RelayUrl, serverUrl, StringComparison.OrdinalIgnoreCase) ? settings.RelayAppKey : string.Empty);
+        var host = SettingsStore.Load().Hosts.FirstOrDefault(h => string.Equals(h.Url, serverUrl, StringComparison.OrdinalIgnoreCase));
+        return host is null ? string.Empty : SecretStore.Unprotect(host.ProtectedAppKey);
     }
 
     public Task<HostInfo> ListRoomsAsync(string serverUrl, CancellationToken ct)
@@ -132,12 +132,11 @@ public sealed class LoungeService
             if (!string.IsNullOrWhiteSpace(name))
                 host.Name = name.Trim();
             if (appKey is not null)
-                host.AppKey = appKey.Trim();
+                host.ProtectedAppKey = SecretStore.Protect(appKey.Trim());
             if (favorite is { } fav)
                 host.Favorite = fav;
             host.LastUsedAt = DateTimeOffset.UtcNow;
             s.RelayUrl = url;
-            s.RelayAppKey = host.AppKey;
         });
     }
 

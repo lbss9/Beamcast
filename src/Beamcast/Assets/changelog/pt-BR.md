@@ -1,3 +1,19 @@
+## 2.1.7
+
+### Novidades
+
+- A chave do app agora é de cada host. No menu "⋯" do host (ou clicando com o botão direito nele), em "Chave do app…", você informa a chave que aquele servidor exige. Um ícone de chave aparece ao lado do host quando há chave salva.
+- Quando um host recusa o app por falta de chave, a tela Salas mostra o botão "Informar chave do app" logo abaixo do aviso. Ao adicionar um host que exige chave, o app já pergunta a chave na hora.
+- A seção "Servidor" saiu de Configurações: os hosts e as chaves ficam só na tela Salas.
+
+### Correções
+
+- A chave digitada em Configurações não era usada em um host que já estava na lista, então o host continuava recusando o app. Cada host guarda a própria chave agora.
+
+### Segurança
+
+- A chave do app fica protegida no disco para a sua conta do Windows (DPAPI), como as senhas de sala lembradas. Chaves salvas por versões anteriores são convertidas na primeira abertura.
+
 ## 2.1.6
 
 ### Melhorias

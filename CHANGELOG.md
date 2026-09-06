@@ -2,6 +2,22 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.1.7
+
+- Chave do app por host: `SavedHost.ProtectedAppKey` (DPAPI via `SecretStore`) substitui o campo
+  em texto puro `SavedHost.AppKey` e o global `AppSettings.RelayAppKey`; `SettingsStore.Sanitize`
+  migra os dois na carga (chave legada em texto → protegida; `RelayAppKey` → host de `RelayUrl`
+  quando este não tem chave) e zera os campos antigos. `LoungeService.AppKeyFor` lê só do host.
+- Causa do bug: `AppKeyFor` fazia `host?.AppKey ?? RelayAppKey`, e como o host usado por último
+  está sempre na lista, a chave editada em Configurações nunca era consultada; `RememberHost`
+  ainda sobrescrevia `RelayAppKey` com a chave (vazia) do host a cada uso.
+- Tela Salas: menu "⋯" por host (`MenuFlyout`, também no clique direito) com "Chave do app…" e
+  "Remover host"; ícone de chave na legenda do host; `ShowError` centraliza o texto de erro e
+  exibe o botão "Informar chave do app" em `bad_key`; ao adicionar host que responde `bad_key`
+  o diálogo abre sozinho. Diálogo `EditHostKeyAsync` com `PasswordBox` (Peek).
+- Configurações: seção "Servidor" removida (URL e chave), junto com as strings `Settings_Relay*`.
+- Harness `settingscheck` (vault) valida a migração e o arquivo real sem abrir a UI.
+
 ## 2.1.6
 
 - Janela de atualização redesenhada: versão atual e nova, categorias (Correções, Novidades,

@@ -80,7 +80,12 @@ public static class SettingsStore
                 h.Name = Trim(h.Name, 40);
                 if (h.Name.Length == 0)
                     h.Name = LoungeProtocol.DisplayHost(url);
-                h.AppKey = (h.AppKey ?? string.Empty).Trim();
+                h.ProtectedAppKey ??= string.Empty;
+                // Settings written before 2.1.7 kept the key in plain text.
+                var legacyKey = (h.AppKey ?? string.Empty).Trim();
+                if (legacyKey.Length > 0 && h.ProtectedAppKey.Length == 0)
+                    h.ProtectedAppKey = SecretStore.Protect(legacyKey);
+                h.AppKey = string.Empty;
                 return h;
             })
             .GroupBy(h => h.Url, StringComparer.OrdinalIgnoreCase)
@@ -89,17 +94,25 @@ public static class SettingsStore
             .Take(MaxHosts)
             .ToList();
 
-        // The last-used host is always in the book, so old settings files carry over.
-        if (settings.RelayUrl.Length > 0 && !settings.Hosts.Any(h => string.Equals(h.Url, settings.RelayUrl, StringComparison.OrdinalIgnoreCase)))
+        // The last-used host is always in the book, so old settings files carry over. Before 2.1.7
+        // the Settings screen edited a single key for that host; it now belongs to the host itself.
+        if (settings.RelayUrl.Length > 0)
         {
-            settings.Hosts.Insert(0, new SavedHost
+            var last = settings.Hosts.FirstOrDefault(h => string.Equals(h.Url, settings.RelayUrl, StringComparison.OrdinalIgnoreCase));
+            if (last is null)
             {
-                Url = settings.RelayUrl,
-                Name = LoungeProtocol.DisplayHost(settings.RelayUrl),
-                AppKey = settings.RelayAppKey,
-                LastUsedAt = DateTimeOffset.UtcNow,
-            });
+                last = new SavedHost
+                {
+                    Url = settings.RelayUrl,
+                    Name = LoungeProtocol.DisplayHost(settings.RelayUrl),
+                    LastUsedAt = DateTimeOffset.UtcNow,
+                };
+                settings.Hosts.Insert(0, last);
+            }
+            if (settings.RelayAppKey.Length > 0 && !last.HasAppKey)
+                last.ProtectedAppKey = SecretStore.Protect(settings.RelayAppKey);
         }
+        settings.RelayAppKey = string.Empty;
 
         settings.FavoriteRooms = (settings.FavoriteRooms ?? [])
             .Where(r => LoungeProtocol.TryNormalizeServer(r.ServerUrl, out _) && LoungeProtocol.IsValidCode(LoungeProtocol.NormalizeCode(r.Code)))

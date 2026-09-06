@@ -157,10 +157,9 @@
   <data name="Error_RelayLost" xml:space="preserve"><value>Lost the connection to the server. The stream has ended.</value></data>
   <data name="Error_RelayUnreachable" xml:space="preserve"><value>Could not reach the Beamcast server. Check the address in Settings.</value></data>
   <data name="Error_NoRoom" xml:space="preserve"><value>That room no longer exists. Ask the broadcaster for a new code.</value></data>
-  <data name="Error_AppKey" xml:space="preserve"><value>The server refused this app (different key). Check the key in Settings.</value></data>
+  <data name="Error_AppKey" xml:space="preserve"><value>The host refused this app (different key). Check this host's app key in its menu on the Rooms screen.</value></data>
   <data name="Error_Secret" xml:space="preserve"><value>Paste the full invite code; a typed address is not enough for this stream.</value></data>
   <data name="Error_GoLiveRelay" xml:space="preserve"><value>Could not open the room on the server: {0}</value></data>
-  <data name="Settings_RelayHeader.Text" xml:space="preserve"><value>Server</value></data>
 
   <data name="Nav_Lounge.Content" xml:space="preserve"><value>Rooms</value></data>
   <data name="Lounge_Heading.Text" xml:space="preserve"><value>Rooms</value></data>
@@ -218,9 +217,6 @@
   <data name="Audio_DescSystemExcept" xml:space="preserve"><value>Capturing system sound, except: {0}.</value></data>
   <data name="Audio_DescApp" xml:space="preserve"><value>Capturing the sound of {0}.</value></data>
   <data name="Audio_DescAppGone" xml:space="preserve"><value>The shared app closed; no sound.</value></data>
-  <data name="Settings_RelayDesc.Text" xml:space="preserve"><value>App key demanded by the host used last (BEAMCAST_APP_KEY on the server). Hosts themselves live on the Rooms screen.</value></data>
-  <data name="Settings_RelayUrl.Header" xml:space="preserve"><value>Server (host, IP or wss://…)</value></data>
-  <data name="Settings_RelayKey.Header" xml:space="preserve"><value>App key (optional)</value></data>
   <data name="Lounge_HostsHeading.Text" xml:space="preserve"><value>Hosts</value></data>
   <data name="Lounge_HostsEmpty.Text" xml:space="preserve"><value>No hosts yet. Add the address of the server that hosts your rooms.</value></data>
   <data name="Lounge_AddHost.Header" xml:space="preserve"><value>Add host</value></data>
@@ -228,10 +224,16 @@
   <data name="Lounge_AddHostButton.Content" xml:space="preserve"><value>Add</value></data>
   <data name="Lounge_HostFavorite" xml:space="preserve"><value>Favorite host</value></data>
   <data name="Lounge_HostRemove" xml:space="preserve"><value>Remove host</value></data>
+  <data name="Lounge_HostMore" xml:space="preserve"><value>More options</value></data>
+  <data name="Lounge_HostKeyMenu" xml:space="preserve"><value>App key…</value></data>
+  <data name="Lounge_HostHasKey" xml:space="preserve"><value>This host has an app key saved.</value></data>
+  <data name="Lounge_HostKeyField" xml:space="preserve"><value>App key</value></data>
+  <data name="Lounge_HostKeyHint" xml:space="preserve"><value>Each host may require its own key (BEAMCAST_APP_KEY on the server). It is saved only on this PC, protected for your Windows account. Leave it empty if the host does not require a key.</value></data>
+  <data name="Lounge_HostKeyButtonText.Text" xml:space="preserve"><value>Enter app key</value></data>
   <data name="Lounge_SelectHost.Text" xml:space="preserve"><value>Pick a host on the left to see its rooms.</value></data>
   <data name="Lounge_Refresh.ToolTipService.ToolTip" xml:space="preserve"><value>Refresh</value></data>
   <data name="Lounge_HostStatus" xml:space="preserve"><value>{0} · v{1} · {2} online</value></data>
-  <data name="Lounge_HostNeedsKey" xml:space="preserve"><value>This host requires the app key. Enter it under Settings → Server.</value></data>
+  <data name="Lounge_HostNeedsKey" xml:space="preserve"><value>This host requires the app key (BEAMCAST_APP_KEY on the server). Enter the key to see its rooms.</value></data>
   <data name="Lounge_PublicRooms.Text" xml:space="preserve"><value>Public rooms</value></data>
   <data name="Lounge_PublicRoomsEmpty.Text" xml:space="preserve"><value>No public rooms on this host.</value></data>
   <data name="Lounge_FavoriteRooms.Text" xml:space="preserve"><value>Favorite rooms</value></data>
