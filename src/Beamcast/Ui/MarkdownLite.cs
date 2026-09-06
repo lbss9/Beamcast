@@ -19,7 +19,7 @@ internal static partial class MarkdownLite
             if (line.Length == 0)
                 target.Blocks.Add(new Paragraph { FontSize = 6 });
             else if (line.StartsWith("### "))
-                target.Blocks.Add(Heading(line[4..], 15, 10));
+                target.Blocks.Add(Label(line[4..]));
             else if (line.StartsWith("## "))
                 target.Blocks.Add(Heading(line[3..], 20, 14));
             else if (line.StartsWith("# "))
@@ -40,6 +40,23 @@ internal static partial class MarkdownLite
                 Text = StripMarks(text),
                 FontSize = size,
                 FontWeight = FontWeights.SemiBold,
+            }
+        );
+        return paragraph;
+    }
+
+    /// <summary>A small accent-coloured category label ("Correções", "Novidades").</summary>
+    private static Paragraph Label(string text)
+    {
+        var paragraph = new Paragraph { Margin = new Thickness(0, 10, 0, 2) };
+        paragraph.Inlines.Add(
+            new Run
+            {
+                Text = StripMarks(text).ToUpperInvariant(),
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                CharacterSpacing = 60,
+                Foreground = Application.Current.Resources["BeamAccentBrush"] as Brush,
             }
         );
         return paragraph;

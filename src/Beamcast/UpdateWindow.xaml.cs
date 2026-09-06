@@ -6,13 +6,21 @@ using Windows.Graphics;
 
 namespace Beamcast;
 
+/// <summary>
+/// Offers a newer build: what it fixes and adds, how big the download is, and one button that
+/// downloads, installs and restarts. Everything the person owns (rooms, favorites, settings) lives
+/// outside the app folder and survives the update.
+/// </summary>
 public sealed partial class UpdateWindow : Window
 {
-    private const int Width = 460;
-    private const int Height = 620;
+    private const int Width = 520;
+    private const int Height = 680;
+
+    private readonly UpdateOffer _offer;
 
     public UpdateWindow(UpdateOffer offer)
     {
+        _offer = offer;
         InitializeComponent();
         SystemBackdrop = new DesktopAcrylicBackdrop();
         ExtendsContentIntoTitleBar = true;
@@ -25,13 +33,31 @@ public sealed partial class UpdateWindow : Window
             presenter.IsMaximizable = false;
 
         VersionText.Text = Loc.Format("Update_VersionLine", offer.Version);
+        CurrentText.Text = string.IsNullOrEmpty(offer.CurrentVersion)
+            ? string.Empty
+            : Loc.Format("Update_Current", offer.CurrentVersion);
         MarkdownLite.Render(ChangelogView, offer.Notes);
         RootGrid.RequestedTheme = App.Main?.RootTheme ?? ElementTheme.Default;
+
         if (offer.Downloaded)
         {
             InstallButton.Content = Loc.Get("Update_Restart");
             StatusText.Text = Loc.Get("Update_Ready");
         }
+        else
+        {
+            StatusText.Text = DescribeSize(offer);
+        }
+    }
+
+    private static string DescribeSize(UpdateOffer offer)
+    {
+        if (offer.SizeBytes <= 0)
+            return string.Empty;
+        var size = offer.SizeBytes >= 10 * 1024 * 1024
+            ? $"{offer.SizeBytes / 1024.0 / 1024.0:F0} MB"
+            : $"{offer.SizeBytes / 1024.0 / 1024.0:F1} MB";
+        return Loc.Format(offer.IsDelta ? "Update_SizeDelta" : "Update_SizeFull", size);
     }
 
     private async void OnInstall(object sender, RoutedEventArgs e)
@@ -39,12 +65,25 @@ public sealed partial class UpdateWindow : Window
         InstallButton.IsEnabled = false;
         LaterButton.IsEnabled = false;
         Spinner.IsActive = true;
-        StatusText.Text = Loc.Get("Update_Downloading");
+        Progress.Visibility = Visibility.Visible;
+        Progress.IsIndeterminate = _offer.Downloaded;
+        Progress.Value = 0;
+        StatusText.Text = _offer.Downloaded ? Loc.Get("Update_Applying") : Loc.Get("Update_Downloading");
+
         var result = await UpdateService.DownloadAndApplyAsync(percent =>
-            DispatcherQueue.TryEnqueue(() => StatusText.Text = Loc.Format("Update_DownloadingPercent", percent)));
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                Progress.IsIndeterminate = false;
+                Progress.Value = percent;
+                StatusText.Text = percent >= 100 ? Loc.Get("Update_Applying") : Loc.Format("Update_DownloadingPercent", percent);
+                if (percent >= 100)
+                    Progress.IsIndeterminate = true;
+            }));
+
         if (result == UpdateCheckKind.Failed)
         {
             Spinner.IsActive = false;
+            Progress.Visibility = Visibility.Collapsed;
             InstallButton.IsEnabled = true;
             LaterButton.IsEnabled = true;
             StatusText.Text = Loc.Get("Update_Failed");

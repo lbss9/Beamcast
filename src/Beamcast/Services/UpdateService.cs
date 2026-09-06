@@ -17,7 +17,14 @@ public enum UpdateCheckKind
 public sealed record UpdateCheck(UpdateCheckKind Kind, UpdateOffer? Offer = null, string? Error = null);
 
 /// <summary>A newer build the user can choose to install.</summary>
-public sealed record UpdateOffer(string Version, string Notes, bool Downloaded = false);
+public sealed record UpdateOffer(
+    string Version,
+    string Notes,
+    bool Downloaded = false,
+    string CurrentVersion = "",
+    long SizeBytes = 0,
+    bool IsDelta = false
+);
 
 /// <summary>
 /// Checks GitHub Releases and applies updates through Velopack.
@@ -79,7 +86,7 @@ public static class UpdateService
             if (manager.UpdatePendingRestart is { } staged)
             {
                 Diag.Log($"update: {staged.Version} already downloaded, waiting for a restart");
-                return new UpdateCheck(UpdateCheckKind.ReadyToRestart, new UpdateOffer(staged.Version.ToString(), NotesFor(staged.NotesMarkdown), Downloaded: true));
+                return new UpdateCheck(UpdateCheckKind.ReadyToRestart, new UpdateOffer(staged.Version.ToString(), NotesFor(staged.NotesMarkdown), Downloaded: true, CurrentVersion: manager.CurrentVersion?.ToString() ?? string.Empty));
             }
 
             var update = await manager.CheckForUpdatesAsync().ConfigureAwait(false);
@@ -93,7 +100,14 @@ public static class UpdateService
             _pending = update;
             var target = update.TargetFullRelease;
             Diag.Log($"update: {manager.CurrentVersion} -> {target.Version} ({target.FileName}, {target.Size / 1024 / 1024} MB, {update.DeltasToTarget.Length} delta(s))");
-            return new UpdateCheck(UpdateCheckKind.Available, new UpdateOffer(target.Version.ToString(), NotesFor(target.NotesMarkdown)));
+            var deltaBytes = update.DeltasToTarget.Sum(d => d.Size);
+            var isDelta = update.DeltasToTarget.Length > 0 && deltaBytes > 0 && deltaBytes < target.Size;
+            return new UpdateCheck(UpdateCheckKind.Available, new UpdateOffer(
+                target.Version.ToString(),
+                NotesFor(target.NotesMarkdown),
+                CurrentVersion: manager.CurrentVersion?.ToString() ?? string.Empty,
+                SizeBytes: isDelta ? deltaBytes : target.Size,
+                IsDelta: isDelta));
         }
         catch (Exception ex)
         {
@@ -137,8 +151,32 @@ public static class UpdateService
         }
     }
 
-    private static string NotesFor(string? markdown) =>
-        string.IsNullOrWhiteSpace(markdown) ? ChangelogStore.Read() : markdown;
+    /// <summary>
+    /// Release notes are published in both languages, separated by <c>&lt;!-- lang:xx --&gt;</c>
+    /// markers (see scripts/pack.ps1). Picks the block for the app language, falling back to the
+    /// whole text, and to the bundled changelog when the release carries no notes.
+    /// </summary>
+    private static string NotesFor(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return ChangelogStore.Read();
+        var language = AppLanguage.Resolve(SettingsStore.Load().Language);
+        var blocks = System.Text.RegularExpressions.Regex.Split(markdown, @"<!--\s*lang:([A-Za-z-]+)\s*-->");
+        if (blocks.Length < 3)
+            return markdown.Trim();
+        // Regex.Split yields: [before, lang1, text1, lang2, text2, ...]
+        string? chosen = null;
+        string? first = null;
+        for (var i = 1; i + 1 < blocks.Length; i += 2)
+        {
+            var text = blocks[i + 1].Trim().Trim('-').Trim();
+            first ??= text;
+            if (string.Equals(blocks[i], language, StringComparison.OrdinalIgnoreCase))
+                chosen = text;
+        }
+        var result = chosen ?? first ?? markdown;
+        return result.Trim().Length == 0 ? ChangelogStore.Read() : result;
+    }
 
     private static UpdateManager Manager
     {

@@ -2,6 +2,17 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.1.6
+
+- Janela de atualização redesenhada: versão atual e nova, categorias (Correções, Novidades,
+  Melhorias), tamanho do download (incremental ou completo), barra de progresso e um botão
+  "Instalar e reiniciar". Textos revistos para deixar claro o que muda e que salas, favoritos e
+  configurações são mantidos.
+- Notas de versão do release passam a vir do changelog voltado ao usuário, em pt-BR e inglês
+  (marcadores `<!-- lang:xx -->`); o app mostra o idioma configurado. O `CHANGELOG.md` técnico
+  continua no repositório.
+- Changelog do app reorganizado por categoria em todas as versões.
+
 ## 2.1.5
 
 - Captura de janela: os objetos da Windows.Graphics.Capture passam a ser criados num thread MTA

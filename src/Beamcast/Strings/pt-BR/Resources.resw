@@ -126,18 +126,18 @@
   <data name="Settings_UpdatesLabel.Text" xml:space="preserve"><value>Verificar ao abrir</value></data>
   <data name="Settings_UpdatesDesc.Text" xml:space="preserve"><value>Consulta o GitHub Releases ao iniciar e a cada 6 horas. Nada é instalado sem você confirmar.</value></data>
 
-  <data name="Update_WindowTitle.Text" xml:space="preserve"><value>Atualização</value></data>
-  <data name="Update_Badge.Text" xml:space="preserve"><value>NOVA VERSÃO</value></data>
+  <data name="Update_WindowTitle.Text" xml:space="preserve"><value>Atualização do Beamcast</value></data>
+  <data name="Update_Badge.Text" xml:space="preserve"><value>ATUALIZAÇÃO DISPONÍVEL</value></data>
   <data name="Update_VersionLine" xml:space="preserve"><value>Beamcast {0}</value></data>
-  <data name="Update_Lead.Text" xml:space="preserve"><value>Quer instalar agora? O app baixa a versão e reinicia sozinho.</value></data>
-  <data name="Update_ChangelogHeading.Text" xml:space="preserve"><value>O que mudou</value></data>
+  <data name="Update_Lead.Text" xml:space="preserve"><value>Esta versão traz as correções e melhorias listadas abaixo. Recomendamos instalar agora.</value></data>
+  <data name="Update_ChangelogHeading.Text" xml:space="preserve"><value>O que muda nesta versão</value></data>
   <data name="Update_Later.Content" xml:space="preserve"><value>Agora não</value></data>
-  <data name="Update_Install.Content" xml:space="preserve"><value>Instalar</value></data>
-  <data name="Update_Downloading" xml:space="preserve"><value>Baixando a atualização…</value></data>
-  <data name="Update_Failed" xml:space="preserve"><value>Não foi possível baixar. Tente de novo em instantes.</value></data>
+  <data name="Update_Install.Content" xml:space="preserve"><value>Instalar e reiniciar</value></data>
+  <data name="Update_Downloading" xml:space="preserve"><value>Preparando o download…</value></data>
+  <data name="Update_Failed" xml:space="preserve"><value>Não foi possível baixar a atualização. Verifique a conexão e tente de novo; se persistir, a versão nova também está na página Sobre.</value></data>
   <data name="Update_BarTitle" xml:space="preserve"><value>Atualização disponível</value></data>
-  <data name="Update_BarBody" xml:space="preserve"><value>Beamcast {0} está pronta para instalar.</value></data>
-  <data name="Update_BarAction.Content" xml:space="preserve"><value>Ver</value></data>
+  <data name="Update_BarBody" xml:space="preserve"><value>Beamcast {0} está pronta para instalar. Veja o que muda.</value></data>
+  <data name="Update_BarAction.Content" xml:space="preserve"><value>Ver detalhes</value></data>
 
   <data name="Quality_Encoder.Header" xml:space="preserve"><value>Codec</value></data>
   <data name="Encoder_Auto" xml:space="preserve"><value>Automático (GPU se houver)</value></data>
@@ -308,7 +308,12 @@
   <data name="Room_TemporaryBadge" xml:space="preserve"><value>temporária</value></data>
   <data name="Room_OnlyOwnerBroadcasts.Text" xml:space="preserve"><value>Nesta sala só o dono transmite.</value></data>
   <data name="Update_Restart" xml:space="preserve"><value>Reiniciar e concluir</value></data>
-  <data name="Update_Ready" xml:space="preserve"><value>A atualização já foi baixada. Reinicie para concluir.</value></data>
+  <data name="Update_Ready" xml:space="preserve"><value>Esta versão já foi baixada. Reinicie para concluir a instalação.</value></data>
   <data name="Update_DownloadingPercent" xml:space="preserve"><value>Baixando… {0}%</value></data>
   <data name="About_UpdateReady" xml:space="preserve"><value>Versão {0} baixada. Reinicie o app para concluir.</value></data>
+  <data name="Update_Current" xml:space="preserve"><value>Você está usando a versão {0}.</value></data>
+  <data name="Update_Assurance.Text" xml:space="preserve"><value>O download acontece em segundo plano e o app reinicia sozinho ao final. Suas salas, favoritos e configurações são mantidos.</value></data>
+  <data name="Update_SizeDelta" xml:space="preserve"><value>Download de {0} (só o que mudou).</value></data>
+  <data name="Update_SizeFull" xml:space="preserve"><value>Download de {0}.</value></data>
+  <data name="Update_Applying" xml:space="preserve"><value>Instalando e reiniciando…</value></data>
 </root>

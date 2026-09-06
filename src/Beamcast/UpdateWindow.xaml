@@ -8,6 +8,7 @@
     <Grid x:Name="RootGrid" Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -42,63 +43,105 @@
             />
         </Grid>
 
-        <ScrollViewer
+        <!-- Hero: what is on offer -->
+        <Border
             Grid.Row="1"
-            Padding="20,4,24,8"
+            Margin="20,4,20,0"
+            CornerRadius="14"
+            Padding="18,16"
+            Background="{StaticResource BeamAccentSoftBrush}"
+        >
+            <Grid ColumnSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    Width="44"
+                    Height="44"
+                    CornerRadius="12"
+                    Background="{StaticResource BeamAccentBrush}"
+                    VerticalAlignment="Top"
+                >
+                    <FontIcon Glyph="&#xE896;" FontSize="20" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="4">
+                    <TextBlock
+                        x:Uid="Update_Badge"
+                        FontSize="11"
+                        FontWeight="SemiBold"
+                        CharacterSpacing="60"
+                        Foreground="{StaticResource BeamAccentBrush}"
+                    />
+                    <TextBlock x:Name="VersionText" Style="{ThemeResource TitleTextBlockStyle}" />
+                    <TextBlock x:Name="CurrentText" Opacity="0.7" Style="{ThemeResource CaptionTextBlockStyle}" />
+                    <TextBlock
+                        x:Uid="Update_Lead"
+                        Margin="0,6,0,0"
+                        TextWrapping="Wrap"
+                        Opacity="0.85"
+                        Style="{ThemeResource BodyTextBlockStyle}"
+                    />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- What changes -->
+        <ScrollViewer
+            Grid.Row="2"
+            Margin="20,12,20,0"
             VerticalScrollBarVisibility="Auto"
             HorizontalScrollBarVisibility="Disabled"
         >
-            <StackPanel Spacing="14">
-                <Border
-                    CornerRadius="14"
-                    Padding="16,14"
-                    Background="{StaticResource BeamAccentSoftBrush}"
-                >
-                    <StackPanel Spacing="6">
-                        <TextBlock
-                            x:Uid="Update_Badge"
-                            FontSize="11"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource BeamAccentBrush}"
-                        />
-                        <TextBlock x:Name="VersionText" Style="{ThemeResource TitleTextBlockStyle}" />
-                        <TextBlock
-                            x:Uid="Update_Lead"
-                            TextWrapping="Wrap"
-                            Opacity="0.8"
-                            Style="{ThemeResource CaptionTextBlockStyle}"
-                        />
-                    </StackPanel>
-                </Border>
-
-                <TextBlock x:Uid="Update_ChangelogHeading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                <RichTextBlock x:Name="ChangelogView" IsTextSelectionEnabled="True" />
-            </StackPanel>
+            <Border
+                CornerRadius="12"
+                Padding="16,12,16,14"
+                BorderThickness="1"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            >
+                <StackPanel Spacing="6">
+                    <TextBlock x:Uid="Update_ChangelogHeading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                    <RichTextBlock x:Name="ChangelogView" IsTextSelectionEnabled="True" />
+                </StackPanel>
+            </Border>
         </ScrollViewer>
 
-        <Grid Grid.Row="2" Padding="20,8,20,16" ColumnSpacing="8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <ProgressRing x:Name="Spinner" Width="18" Height="18" IsActive="False" />
-                <TextBlock
-                    x:Name="StatusText"
-                    Opacity="0.75"
-                    VerticalAlignment="Center"
-                    Style="{ThemeResource CaptionTextBlockStyle}"
-                />
-            </StackPanel>
-            <Button x:Name="LaterButton" Grid.Column="1" x:Uid="Update_Later" Click="OnLater" />
-            <Button
-                x:Name="InstallButton"
-                Grid.Column="2"
-                x:Uid="Update_Install"
-                Click="OnInstall"
-                Style="{ThemeResource AccentButtonStyle}"
+        <!-- Footer: reassurance, progress, actions -->
+        <StackPanel Grid.Row="3" Padding="20,10,20,16" Spacing="10">
+            <TextBlock
+                x:Uid="Update_Assurance"
+                TextWrapping="Wrap"
+                Opacity="0.7"
+                Style="{ThemeResource CaptionTextBlockStyle}"
             />
-        </Grid>
+            <ProgressBar x:Name="Progress" Minimum="0" Maximum="100" Value="0" Visibility="Collapsed" />
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ProgressRing x:Name="Spinner" Width="16" Height="16" IsActive="False" />
+                    <TextBlock
+                        x:Name="StatusText"
+                        Opacity="0.8"
+                        VerticalAlignment="Center"
+                        TextWrapping="Wrap"
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                    />
+                </StackPanel>
+                <Button x:Name="LaterButton" Grid.Column="1" x:Uid="Update_Later" MinWidth="100" Click="OnLater" />
+                <Button
+                    x:Name="InstallButton"
+                    Grid.Column="2"
+                    x:Uid="Update_Install"
+                    MinWidth="160"
+                    Click="OnInstall"
+                    Style="{ThemeResource AccentButtonStyle}"
+                />
+            </Grid>
+        </StackPanel>
     </Grid>
 </Window>

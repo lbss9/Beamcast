@@ -42,11 +42,12 @@ if (-not $vpk) {
     throw "Install the Velopack CLI: dotnet tool install -g vpk --version 1.2.0"
 }
 
-# Release notes: only this version's section of the changelog, so the in-app update window and the
-# GitHub release show what changed now, not the whole history.
-function Write-ReleaseNotes {
-    if (-not (Test-Path $changelog)) { return $false }
-    $lines = Get-Content $changelog
+# Release notes: the user-facing changelog section of this version, in both languages, with
+# markers the app uses to show the right one in the update window. The technical CHANGELOG.md
+# stays in the repository for developers.
+function Get-ChangelogSection([string]$path) {
+    if (-not (Test-Path $path)) { return "" }
+    $lines = Get-Content $path -Encoding UTF8
     $section = New-Object System.Collections.Generic.List[string]
     $inside = $false
     foreach ($line in $lines) {
@@ -57,9 +58,17 @@ function Write-ReleaseNotes {
         }
         if ($inside) { $section.Add($line) }
     }
-    $text = ($section -join "`n").Trim()
-    if (-not $text) { return $false }
-    Set-Content -Path $notes -Value $text -Encoding UTF8
+    return ($section -join "`n").Trim()
+}
+function Write-ReleaseNotes {
+    $pt = Get-ChangelogSection (Join-Path $root "src\Beamcast\Assets\changelog\pt-BR.md")
+    $en = Get-ChangelogSection (Join-Path $root "src\Beamcast\Assets\changelog\en.md")
+    if (-not $pt -and -not $en) { return $false }
+    $parts = New-Object System.Collections.Generic.List[string]
+    if ($pt) { $parts.Add("<!-- lang:pt-BR -->`n$pt") }
+    if ($en) { $parts.Add("<!-- lang:en -->`n$en") }
+    $text = ($parts -join "`n`n---`n`n")
+    [System.IO.File]::WriteAllText($notes, $text + "`n", (New-Object System.Text.UTF8Encoding($false)))
     return $true
 }
 $hasNotes = Write-ReleaseNotes
