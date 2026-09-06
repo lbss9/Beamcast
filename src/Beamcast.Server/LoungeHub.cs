@@ -290,7 +290,20 @@ public sealed class LoungeHub
             }
         }
         _perAddress.Clear(remote);
-        return new Admission(room, isOwner, needsKey, joinKey, OwnerToken: null);
+
+        // Rooms migrated from 2.0 have no owner, so nobody could ever edit or delete them. The
+        // first person to get in (past the password, when there is one) becomes the owner and
+        // receives the token, exactly as if they had just created the room.
+        string? claimedToken = null;
+        if (room.OwnerTokenHash.Length == 0)
+        {
+            claimedToken = LoungeCrypto.NewToken();
+            room.OwnerTokenHash = LoungeCrypto.TokenHash(claimedToken);
+            isOwner = true;
+            Persist();
+            _log.LogInformation("Room {Code} had no owner; claimed by {Remote}.", room.Code, remote);
+        }
+        return new Admission(room, isOwner, needsKey, joinKey, OwnerToken: claimedToken);
     }
 
     private static bool TryReadPassword(string? saltText, string? verifierText, out byte[] salt, out byte[] verifier)

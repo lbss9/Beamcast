@@ -232,13 +232,23 @@ public sealed class LoungeService
         options.OwnerToken ??= OwnerTokenFor(url, options.Code);
         var client = await ConnectAsync(() => LoungeClient.JoinAsync(url, options, appKey, ct), displayName);
 
+        // A room without an owner (migrated from 2.0) is handed to the first person in: the host
+        // sends a fresh owner token in the welcome, which we keep like one from "create".
+        if (client.IsOwner && client.OwnerToken is { Length: > 0 } claimed)
+        {
+            SettingsStore.Update(s =>
+            {
+                s.OwnedRooms.RemoveAll(r => Same(r.ServerUrl, r.Code, url, client.Code));
+                s.OwnedRooms.Add(new OwnedRoom { ServerUrl = url, Code = client.Code, Name = client.Name, ProtectedToken = SecretStore.Protect(claimed) });
+            });
+        }
         _session = new Session(url, appKey, new RoomJoinOptions
         {
             Code = client.Code,
             PasswordKey = client.PasswordKey,
             InviteToken = options.InviteToken,
             InviteKey = options.InviteKey,
-            OwnerToken = options.OwnerToken,
+            OwnerToken = client.OwnerToken ?? options.OwnerToken,
         })
         { LastRoom = client.Room, IsOwner = client.IsOwner };
         RememberHost(url);

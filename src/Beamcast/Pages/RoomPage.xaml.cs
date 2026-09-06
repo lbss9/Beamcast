@@ -31,6 +31,7 @@ public sealed partial class RoomPage : Page
     private readonly ObservableCollection<CaptureSource> _windows = [];
     private bool _loading = true;
     private bool _syncingSelection;
+    private RoomDialogs.RoomForm? _settingsForm;
 
     public RoomPage()
     {
@@ -120,10 +121,6 @@ public sealed partial class RoomPage : Page
         if (App.Main is not null)
             App.Main.FullscreenExited += OnFullscreenExited;
 
-        MenuInvite.Text = Loc.Get("Room_MenuInvite");
-        MenuEdit.Text = Loc.Get("Room_MenuEdit");
-        MenuRevoke.Text = Loc.Get("Room_MenuRevoke");
-        MenuDelete.Text = Loc.Get("Room_MenuDelete");
         ApplyRoomInfo(_lounge.Room);
         ApplyFavorite(LoungeService.IsFavorite(_lounge.ServerUrl, _lounge.Code));
         OnLoungeState(_lounge.State);
@@ -229,7 +226,7 @@ public sealed partial class RoomPage : Page
         if (room.Broadcast == BroadcastPolicy.Owner)
             badges.Add(Loc.Get("Broadcast_Owner"));
         LoungeInfoText.Text = string.Join(" · ", badges);
-        OwnerMenu.Visibility = _lounge.IsOwner ? Visibility.Visible : Visibility.Collapsed;
+        RebuildSettingsTab(room);
         var canBroadcast = _lounge.CanBroadcast;
         BroadcastBlockedText.Visibility = canBroadcast ? Visibility.Collapsed : Visibility.Visible;
         GoLiveButton.IsEnabled = canBroadcast && _broadcast.State == BroadcastState.Preview;
@@ -258,7 +255,74 @@ public sealed partial class RoomPage : Page
 
     private void OnNotice(string reason) => ErrorText.Text = LoungePage.DescribeReason(reason);
 
-    private async void OnMenuInvite(object sender, RoutedEventArgs e)
+    // ----- settings tab -----
+
+    /// <summary>
+    /// The owner gets the editable room form plus invites and the danger zone; everyone else sees
+    /// a read-only summary. Rebuilt whenever the host sends a new RoomInfo.
+    /// </summary>
+    private void RebuildSettingsTab(RoomInfo room)
+    {
+        var owner = _lounge.IsOwner;
+        SettingsOwnerOnlyText.Visibility = owner ? Visibility.Collapsed : Visibility.Visible;
+        SettingsSummary.Visibility = owner ? Visibility.Collapsed : Visibility.Visible;
+        SettingsFormHost.Visibility = owner ? Visibility.Visible : Visibility.Collapsed;
+        SettingsActions.Visibility = owner ? Visibility.Visible : Visibility.Collapsed;
+        InvitesCard.Visibility = owner ? Visibility.Visible : Visibility.Collapsed;
+        DangerCard.Visibility = owner ? Visibility.Visible : Visibility.Collapsed;
+
+        if (owner)
+        {
+            _settingsForm = new RoomDialogs.RoomForm(room);
+            _settingsForm.Panel.MinWidth = 0;
+            SettingsFormHost.Content = _settingsForm.Panel;
+            SettingsStatusText.Text = string.Empty;
+            return;
+        }
+
+        _settingsForm = null;
+        SettingsFormHost.Content = null;
+        SettingsSummary.Children.Clear();
+        string[] lines =
+        [
+            room.IsPublic ? Loc.Get("Visibility_Public") : Loc.Get("Visibility_Private"),
+            room.IsTemporary ? Loc.Get("Kind_Temporary") : Loc.Get("Kind_Permanent"),
+            room.HasPassword ? Loc.Get("Room_SummaryPassword") : Loc.Get("Room_SummaryNoPassword"),
+            Loc.Format("Room_SummaryBroadcast", room.Broadcast == BroadcastPolicy.Owner ? Loc.Get("Broadcast_Owner") : Loc.Get("Broadcast_Everyone")),
+            room.MaxMembers > 0 ? Loc.Format("Room_SummaryMaxMembers", room.MaxMembers) : Loc.Get("Room_SummaryNoLimit"),
+        ];
+        foreach (var line in lines)
+            SettingsSummary.Children.Add(new TextBlock { Text = "\u2022  " + line, TextWrapping = TextWrapping.Wrap });
+    }
+
+    private async void OnSaveRoom(object sender, RoutedEventArgs e)
+    {
+        if (_settingsForm is null)
+            return;
+        var (update, newPassword) = _settingsForm.Read();
+        SaveRoomButton.IsEnabled = false;
+        SettingsStatusText.Text = Loc.Get("Room_SettingsSaving");
+        try
+        {
+            _lounge.UpdateRoom(update);
+            if (newPassword is { } password)
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await _lounge.ChangePasswordAsync(password, cts.Token);
+            }
+            SettingsStatusText.Text = Loc.Get("Room_SettingsSaved");
+        }
+        catch (Exception ex)
+        {
+            SettingsStatusText.Text = Loc.Format("Error_Generic", ex.Message);
+        }
+        finally
+        {
+            SaveRoomButton.IsEnabled = true;
+        }
+    }
+
+    private async void OnCreateInvite(object sender, RoutedEventArgs e)
     {
         var choice = await RoomDialogs.InviteAsync(XamlRoot);
         if (choice is null)
@@ -270,38 +334,21 @@ public sealed partial class RoomPage : Page
             var package = new DataPackage();
             package.SetText(invite);
             Clipboard.SetContent(package);
-            CopyInviteButton.Content = Loc.Get("Invite_Copied");
-            _ = ResetCopyLabelAsync();
+            InviteStatusText.Text = Loc.Get("Room_SettingsInviteCopied");
         }
         catch (Exception)
         {
-            ErrorText.Text = Loc.Get("Invite_Failed");
+            InviteStatusText.Text = Loc.Get("Invite_Failed");
         }
     }
 
-    private async void OnMenuEdit(object sender, RoutedEventArgs e)
+    private void OnRevokeInvites(object sender, RoutedEventArgs e)
     {
-        var result = await RoomDialogs.EditAsync(XamlRoot, _lounge.Room);
-        if (result is null)
-            return;
-        _lounge.UpdateRoom(result.Value.Update);
-        if (result.Value.NewPassword is { } password)
-        {
-            try
-            {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                await _lounge.ChangePasswordAsync(password, cts.Token);
-            }
-            catch (Exception ex)
-            {
-                ErrorText.Text = Loc.Format("Error_Generic", ex.Message);
-            }
-        }
+        _lounge.RevokeInvites();
+        InviteStatusText.Text = Loc.Get("Room_SettingsRevoked");
     }
 
-    private void OnMenuRevoke(object sender, RoutedEventArgs e) => _lounge.RevokeInvites();
-
-    private async void OnMenuDelete(object sender, RoutedEventArgs e)
+    private async void OnDeleteRoom(object sender, RoutedEventArgs e)
     {
         if (!await RoomDialogs.ConfirmDeleteAsync(XamlRoot, _lounge.Name))
             return;
@@ -398,7 +445,7 @@ public sealed partial class RoomPage : Page
         // The SwapChainPanels live in different tabs; re-attach whichever became visible.
         if (Tabs.SelectedIndex == 0)
             SharedVideo.Bind(_watch.Presenter);
-        else
+        else if (Tabs.SelectedIndex == 1)
             Preview.Bind(_broadcast.Preview);
     }
 

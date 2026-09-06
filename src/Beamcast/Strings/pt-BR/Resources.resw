@@ -239,10 +239,32 @@
   <data name="Lounge_FavoriteRooms.Text" xml:space="preserve"><value>Salas favoritas</value></data>
   <data name="Lounge_FavoriteRoomsEmpty.Text" xml:space="preserve"><value>Marque uma sala com a estrela para ela aparecer aqui.</value></data>
   <data name="Lounge_OwnedRooms.Text" xml:space="preserve"><value>Suas salas</value></data>
-  <data name="Lounge_OwnedRoomsEmpty.Text" xml:space="preserve"><value>Salas que você criou neste host aparecem aqui, inclusive as privadas. Use o menu ⋯ para editar ou apagar sem entrar.</value></data>
+  <data name="Lounge_OwnedRoomsEmpty.Text" xml:space="preserve"><value>Salas que você criou neste host aparecem aqui, inclusive as privadas. Salas antigas sem dono passam a ser suas na primeira vez que você entrar.</value></data>
   <data name="Lounge_RoomOwned" xml:space="preserve"><value>Você é o dono desta sala.</value></data>
-  <data name="Lounge_RoomMore" xml:space="preserve"><value>Editar ou apagar a sala</value></data>
+  <data name="Lounge_RoomMore" xml:space="preserve"><value>Mais opções</value></data>
   <data name="Lounge_NotOwner" xml:space="preserve"><value>O host não reconhece mais você como dono desta sala. Ela foi tirada de Suas salas.</value></data>
+  <data name="Lounge_RoomCopyInvite" xml:space="preserve"><value>Copiar convite</value></data>
+  <data name="Lounge_InviteCopied" xml:space="preserve"><value>Convite copiado.</value></data>
+  <data name="Room_SettingsTab.Header" xml:space="preserve"><value>Configurações</value></data>
+  <data name="Room_SettingsRoomCard.Text" xml:space="preserve"><value>Sala</value></data>
+  <data name="Room_SettingsOwnerOnly.Text" xml:space="preserve"><value>Só o dono altera as configurações desta sala. O que vale hoje:</value></data>
+  <data name="Room_SettingsSave.Content" xml:space="preserve"><value>Salvar alterações</value></data>
+  <data name="Room_SettingsSaving" xml:space="preserve"><value>Salvando…</value></data>
+  <data name="Room_SettingsSaved" xml:space="preserve"><value>Alterações salvas.</value></data>
+  <data name="Room_SettingsInvitesCard.Text" xml:space="preserve"><value>Convites</value></data>
+  <data name="Room_SettingsInvitesHint.Text" xml:space="preserve"><value>O convite leva o endereço, o código e, se a sala tiver senha, a chave; quem recebe entra sem digitar nada. Dá para limitar validade e usos. Revogar cancela todos os convites já criados (o código da sala continua valendo).</value></data>
+  <data name="Room_SettingsInviteButtonText.Text" xml:space="preserve"><value>Criar convite…</value></data>
+  <data name="Room_SettingsRevokeButtonText.Text" xml:space="preserve"><value>Revogar todos os convites</value></data>
+  <data name="Room_SettingsInviteCopied" xml:space="preserve"><value>Convite copiado para a área de transferência.</value></data>
+  <data name="Room_SettingsRevoked" xml:space="preserve"><value>Convites revogados.</value></data>
+  <data name="Room_SettingsDangerCard.Text" xml:space="preserve"><value>Zona de perigo</value></data>
+  <data name="Room_SettingsDangerHint.Text" xml:space="preserve"><value>Apagar a sala tira todo mundo e não dá para desfazer.</value></data>
+  <data name="Room_SettingsDeleteButtonText.Text" xml:space="preserve"><value>Apagar sala</value></data>
+  <data name="Room_SummaryPassword" xml:space="preserve"><value>Com senha</value></data>
+  <data name="Room_SummaryNoPassword" xml:space="preserve"><value>Sem senha</value></data>
+  <data name="Room_SummaryBroadcast" xml:space="preserve"><value>Quem transmite: {0}</value></data>
+  <data name="Room_SummaryMaxMembers" xml:space="preserve"><value>Máximo de {0} pessoas</value></data>
+  <data name="Room_SummaryNoLimit" xml:space="preserve"><value>Sem limite de pessoas</value></data>
   <data name="Lounge_RoomMeta" xml:space="preserve"><value>{0} online · {1} transmitindo</value></data>
   <data name="Lounge_Enter" xml:space="preserve"><value>Entrar</value></data>
   <data name="Lounge_Temporary" xml:space="preserve"><value>temporária</value></data>

@@ -52,9 +52,12 @@ O mesmo aviso aparece dentro do app no primeiro uso e na página Sobre.
 4. Dentro da sala todo mundo vê quem está online e quais transmissões existem. Qualquer membro
    transmite (várias ao mesmo tempo, salvo se o dono restringir), cada um escolhe o que assistir
    e pode parar sem sair.
-5. O **dono** (quem criou) gera **convites com validade** (1 h, 24 h, 7 dias ou sem prazo) e
-   número de usos, edita a sala, troca ou remove a senha, expulsa gente e apaga a sala. O token
-   de dono fica só no PC de quem criou, protegido pelo Windows (DPAPI).
+5. O **dono** (quem criou) tem a aba **Configurações** dentro da sala: gera **convites com
+   validade** (1 h, 24 h, 7 dias ou sem prazo) e número de usos, edita a sala, troca ou remove a
+   senha, revoga convites e apaga a sala; expulsa gente pela lista de quem está online. Na tela
+   Salas, o menu "⋯" de cada sala copia o convite, favorita e, nas suas, edita ou apaga sem
+   entrar. O token de dono fica só no PC de quem criou, protegido pelo Windows (DPAPI). Salas
+   antigas sem dono passam a ser da primeira pessoa que entrar.
 6. Se a internet cair, do seu lado ou do host, o app **reconecta sozinho** por até 5 minutos,
    republica a sua transmissão e volta a assistir o que você assistia. A sala continua existindo
    no host; ninguém precisa reenviar convite.

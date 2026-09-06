@@ -1,3 +1,11 @@
+## 2.2.0
+
+### New
+
+- **Settings** tab inside the room. The owner adjusts name, visibility, lifetime, password, who broadcasts and member limit there, creates invites with an expiry, revokes invites and deletes the room. Everyone else sees a summary of the current values. The "Manage" menu in the header is gone: everything lives in the tab.
+- Every room in the list has the "⋯" menu (right-click works too): copy invite and favorite on any room; edit and delete on yours.
+- Old rooms without an owner (created before 2.1) get one: the first person to enter keeps the room and can edit or delete it. Requires the host on version 2.2.0.
+
 ## 2.1.10
 
 ### Fixes

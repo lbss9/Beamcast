@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace Beamcast.Pages;
 
@@ -362,6 +363,7 @@ public sealed partial class LoungePage : Page
         {
             LoungeService.SetFavorite(_server, code, name, hasPassword, star.IsChecked == true);
             FillPublicRooms(_hostInfo?.Rooms ?? []);
+            FillOwned();
             FillFavorites();
         };
         Grid.SetColumn(star, 1);
@@ -372,23 +374,41 @@ public sealed partial class LoungePage : Page
         Grid.SetColumn(enter, 2);
         grid.Children.Add(enter);
 
+        var menu = new MenuFlyout();
+        var copyItem = new MenuFlyoutItem { Text = Loc.Get("Lounge_RoomCopyInvite"), Icon = new FontIcon { Glyph = "\uE8C8" } };
+        copyItem.Click += (_, _) =>
+        {
+            var package = new DataPackage();
+            package.SetText(LoungeInvite.Encode(new LoungeTarget(_server, code)));
+            Clipboard.SetContent(package);
+            ShowErrorText(Loc.Get("Lounge_InviteCopied"));
+        };
+        menu.Items.Add(copyItem);
+        var favoriteItem = new MenuFlyoutItem { Text = Loc.Get(favorite ? "Lounge_Unfavorite" : "Lounge_Favorite"), Icon = new FontIcon { Glyph = favorite ? "\uE8D9" : "\uE734" } };
+        favoriteItem.Click += (_, _) =>
+        {
+            LoungeService.SetFavorite(_server, code, name, hasPassword, !favorite);
+            FillPublicRooms(_hostInfo?.Rooms ?? []);
+            FillOwned();
+            FillFavorites();
+        };
+        menu.Items.Add(favoriteItem);
         if (owned)
         {
             var editItem = new MenuFlyoutItem { Text = Loc.Get("Room_MenuEdit"), Icon = new FontIcon { Glyph = "\uE70F" } };
             editItem.Click += async (_, _) => await EditRoomAsync(code, name, hasPassword);
             var deleteItem = new MenuFlyoutItem { Text = Loc.Get("Room_MenuDelete"), Icon = new FontIcon { Glyph = "\uE74D" } };
             deleteItem.Click += async (_, _) => await DeleteRoomAsync(code, name, hasPassword);
-            var menu = new MenuFlyout();
-            menu.Items.Add(editItem);
             menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(editItem);
             menu.Items.Add(deleteItem);
-            var more = new Button { Content = new FontIcon { Glyph = "\uE712", FontSize = 12 }, Style = (Style)Application.Current.Resources["GhostButtonStyle"], VerticalAlignment = VerticalAlignment.Center, IsEnabled = !_busy };
-            ToolTipService.SetToolTip(more, Loc.Get("Lounge_RoomMore"));
-            more.Click += (_, _) => menu.ShowAt(more);
-            Grid.SetColumn(more, 3);
-            grid.Children.Add(more);
-            grid.ContextFlyout = menu;
         }
+        var more = new Button { Content = new FontIcon { Glyph = "\uE712", FontSize = 12 }, Style = (Style)Application.Current.Resources["GhostButtonStyle"], VerticalAlignment = VerticalAlignment.Center, IsEnabled = !_busy };
+        ToolTipService.SetToolTip(more, Loc.Get("Lounge_RoomMore"));
+        more.Click += (_, _) => menu.ShowAt(more);
+        Grid.SetColumn(more, 3);
+        grid.Children.Add(more);
+        grid.ContextFlyout = menu;
         return grid;
     }
 

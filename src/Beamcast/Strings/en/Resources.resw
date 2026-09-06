@@ -239,10 +239,32 @@
   <data name="Lounge_FavoriteRooms.Text" xml:space="preserve"><value>Favorite rooms</value></data>
   <data name="Lounge_FavoriteRoomsEmpty.Text" xml:space="preserve"><value>Star a room and it shows up here.</value></data>
   <data name="Lounge_OwnedRooms.Text" xml:space="preserve"><value>Your rooms</value></data>
-  <data name="Lounge_OwnedRoomsEmpty.Text" xml:space="preserve"><value>Rooms you created on this host show up here, private ones included. Use the ⋯ menu to edit or delete without entering.</value></data>
+  <data name="Lounge_OwnedRoomsEmpty.Text" xml:space="preserve"><value>Rooms you created on this host show up here, private ones included. Old rooms without an owner become yours the first time you enter.</value></data>
   <data name="Lounge_RoomOwned" xml:space="preserve"><value>You own this room.</value></data>
-  <data name="Lounge_RoomMore" xml:space="preserve"><value>Edit or delete the room</value></data>
+  <data name="Lounge_RoomMore" xml:space="preserve"><value>More options</value></data>
   <data name="Lounge_NotOwner" xml:space="preserve"><value>The host no longer recognises you as this room's owner. It was removed from Your rooms.</value></data>
+  <data name="Lounge_RoomCopyInvite" xml:space="preserve"><value>Copy invite</value></data>
+  <data name="Lounge_InviteCopied" xml:space="preserve"><value>Invite copied.</value></data>
+  <data name="Room_SettingsTab.Header" xml:space="preserve"><value>Settings</value></data>
+  <data name="Room_SettingsRoomCard.Text" xml:space="preserve"><value>Room</value></data>
+  <data name="Room_SettingsOwnerOnly.Text" xml:space="preserve"><value>Only the owner can change this room's settings. Current values:</value></data>
+  <data name="Room_SettingsSave.Content" xml:space="preserve"><value>Save changes</value></data>
+  <data name="Room_SettingsSaving" xml:space="preserve"><value>Saving…</value></data>
+  <data name="Room_SettingsSaved" xml:space="preserve"><value>Changes saved.</value></data>
+  <data name="Room_SettingsInvitesCard.Text" xml:space="preserve"><value>Invites</value></data>
+  <data name="Room_SettingsInvitesHint.Text" xml:space="preserve"><value>An invite carries the address, the code and, for password rooms, the key; whoever gets it enters without typing anything. Expiry and uses can be limited. Revoking cancels every invite created so far (the room code keeps working).</value></data>
+  <data name="Room_SettingsInviteButtonText.Text" xml:space="preserve"><value>Create invite…</value></data>
+  <data name="Room_SettingsRevokeButtonText.Text" xml:space="preserve"><value>Revoke all invites</value></data>
+  <data name="Room_SettingsInviteCopied" xml:space="preserve"><value>Invite copied to the clipboard.</value></data>
+  <data name="Room_SettingsRevoked" xml:space="preserve"><value>Invites revoked.</value></data>
+  <data name="Room_SettingsDangerCard.Text" xml:space="preserve"><value>Danger zone</value></data>
+  <data name="Room_SettingsDangerHint.Text" xml:space="preserve"><value>Deleting the room removes everyone and cannot be undone.</value></data>
+  <data name="Room_SettingsDeleteButtonText.Text" xml:space="preserve"><value>Delete room</value></data>
+  <data name="Room_SummaryPassword" xml:space="preserve"><value>Password protected</value></data>
+  <data name="Room_SummaryNoPassword" xml:space="preserve"><value>No password</value></data>
+  <data name="Room_SummaryBroadcast" xml:space="preserve"><value>Who broadcasts: {0}</value></data>
+  <data name="Room_SummaryMaxMembers" xml:space="preserve"><value>Up to {0} people</value></data>
+  <data name="Room_SummaryNoLimit" xml:space="preserve"><value>No member limit</value></data>
   <data name="Lounge_RoomMeta" xml:space="preserve"><value>{0} online · {1} streaming</value></data>
   <data name="Lounge_Enter" xml:space="preserve"><value>Join</value></data>
   <data name="Lounge_Temporary" xml:space="preserve"><value>temporary</value></data>

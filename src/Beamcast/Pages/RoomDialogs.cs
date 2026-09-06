@@ -52,21 +52,7 @@ internal static class RoomDialogs
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return null;
-        var update = new RoomUpdateMessage
-        {
-            Name = form.NameBox.Text.Trim().Length > 0 ? form.NameBox.Text.Trim() : null,
-            Visibility = form.SelectedVisibility,
-            Kind = form.SelectedKind,
-            TtlHours = form.TtlHours,
-            Broadcast = form.SelectedBroadcast,
-            MaxMembers = form.MaxMembers,
-        };
-        string? newPassword = null;
-        if (form.ClearPasswordBox.IsChecked == true)
-            newPassword = string.Empty;
-        else if (form.PasswordBox.Password.Length > 0)
-            newPassword = form.PasswordBox.Password;
-        return (update, newPassword);
+        return form.Read();
     }
 
     public static async Task<(TimeSpan? ExpiresIn, int MaxUses)?> InviteAsync(XamlRoot root)
@@ -122,7 +108,8 @@ internal static class RoomDialogs
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
-    private sealed class RoomForm
+    /// <summary>The room fields, shared by the create/edit dialogs and the room's Settings tab.</summary>
+    internal sealed class RoomForm
     {
         public RoomForm(RoomInfo? existing)
         {
@@ -197,5 +184,25 @@ internal static class RoomDialogs
         public double TtlHours => TtlChoices[Math.Clamp(TtlBox.SelectedIndex, 0, TtlChoices.Length - 1)];
         public string SelectedBroadcast => BroadcastBox.SelectedIndex == 1 ? BroadcastPolicy.Owner : BroadcastPolicy.Everyone;
         public int MaxMembers => double.IsNaN(MaxMembersBox.Value) ? 0 : (int)MaxMembersBox.Value;
+
+        /// <summary>The update to send plus the new password (null = keep, "" = clear).</summary>
+        public (RoomUpdateMessage Update, string? NewPassword) Read()
+        {
+            var update = new RoomUpdateMessage
+            {
+                Name = NameBox.Text.Trim().Length > 0 ? NameBox.Text.Trim() : null,
+                Visibility = SelectedVisibility,
+                Kind = SelectedKind,
+                TtlHours = TtlHours,
+                Broadcast = SelectedBroadcast,
+                MaxMembers = MaxMembers,
+            };
+            string? newPassword = null;
+            if (ClearPasswordBox.IsChecked == true)
+                newPassword = string.Empty;
+            else if (PasswordBox.Password.Length > 0)
+                newPassword = PasswordBox.Password;
+            return (update, newPassword);
+        }
     }
 }

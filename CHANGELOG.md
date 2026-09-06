@@ -2,6 +2,24 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.2.0
+
+- **Servidor 2.2.0**: em `JoinAsync`, sala com `OwnerTokenHash` vazio (migrada da 2.0) é
+  reclamada por quem entra: token novo, hash persistido, `Admission.OwnerToken` no welcome e
+  `IsOwner = true`. A decisão acontece depois do desafio de senha, para uma senha errada não
+  deixar a sala com um hash que ninguém tem. Protocolo continua 3.
+- App: `LoungeService.JoinAsync` guarda em `OwnedRooms` o token que vier no welcome (DPAPI) e o
+  usa na reconexão.
+- `RoomPage`: terceira `PivotItem` "Configurações" com `RoomDialogs.RoomForm` (agora `internal`,
+  com `Read()` compartilhado com o diálogo de editar), status de salvamento, card de convites
+  (criar com validade/usos → área de transferência; revogar) e zona de perigo (apagar).
+  Não-dono vê resumo (visibilidade, tipo, senha, quem transmite, limite). `DropDownButton`
+  "Gerenciar" removido do cabeçalho; `OnTabChanged` só religa a prévia na aba Transmitir.
+- `LoungePage`: menu "⋯" em toda linha de sala (Copiar convite = `LoungeInvite.Encode` só com
+  host+código; Favoritar/Remover dos favoritos; Editar/Apagar quando é dono).
+- Harness `managecheck` ganha o cenário 4 (sala sem dono semeada em `rooms.json`: primeiro a
+  entrar vira dono, segundo não, token reclamado edita e apaga) — 24 checks.
+
 ## 2.1.10
 
 - `UpdateWindow.xaml`: o `StatusText` ficava num `StackPanel` horizontal, que mede o filho com

@@ -1,3 +1,11 @@
+## 2.2.0
+
+### Novidades
+
+- Aba **Configurações** dentro da sala. O dono ajusta ali nome, visibilidade, duração, senha, quem transmite e limite de pessoas, cria convites com validade, revoga convites e apaga a sala. Quem não é dono vê um resumo do que vale. O menu "Gerenciar" do cabeçalho deixou de existir: tudo está na aba.
+- Toda sala da lista tem o menu "⋯" (também no clique direito): copiar convite e favoritar em qualquer sala; editar e apagar nas suas.
+- Salas antigas sem dono (criadas antes da 2.1) passam a ter dono: a primeira pessoa a entrar fica com a sala e pode editá-la ou apagá-la. Exige o host na versão 2.2.0.
+
 ## 2.1.10
 
 ### Correções
