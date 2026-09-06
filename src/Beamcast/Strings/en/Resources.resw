@@ -238,6 +238,11 @@
   <data name="Lounge_PublicRoomsEmpty.Text" xml:space="preserve"><value>No public rooms on this host.</value></data>
   <data name="Lounge_FavoriteRooms.Text" xml:space="preserve"><value>Favorite rooms</value></data>
   <data name="Lounge_FavoriteRoomsEmpty.Text" xml:space="preserve"><value>Star a room and it shows up here.</value></data>
+  <data name="Lounge_OwnedRooms.Text" xml:space="preserve"><value>Your rooms</value></data>
+  <data name="Lounge_OwnedRoomsEmpty.Text" xml:space="preserve"><value>Rooms you created on this host show up here, private ones included. Use the ⋯ menu to edit or delete without entering.</value></data>
+  <data name="Lounge_RoomOwned" xml:space="preserve"><value>You own this room.</value></data>
+  <data name="Lounge_RoomMore" xml:space="preserve"><value>Edit or delete the room</value></data>
+  <data name="Lounge_NotOwner" xml:space="preserve"><value>The host no longer recognises you as this room's owner. It was removed from Your rooms.</value></data>
   <data name="Lounge_RoomMeta" xml:space="preserve"><value>{0} online · {1} streaming</value></data>
   <data name="Lounge_Enter" xml:space="preserve"><value>Join</value></data>
   <data name="Lounge_Temporary" xml:space="preserve"><value>temporary</value></data>

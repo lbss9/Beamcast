@@ -43,6 +43,12 @@ public sealed class RoomJoinOptions
     public string? InviteToken { get; set; }
     public byte[]? InviteKey { get; set; }
     public string? OwnerToken { get; set; }
+
+    /// <summary>
+    /// The session only manages the room (edit/delete from the Rooms screen) and never reads media,
+    /// so it does not wait for the content-key handoff in rooms without a password.
+    /// </summary>
+    public bool ManageOnly { get; set; }
 }
 
 /// <summary>
@@ -287,7 +293,7 @@ public sealed class LoungeClient : IDisposable
             }
 
             client.Start();
-            if (reply.NeedsKey)
+            if (reply.NeedsKey && !options.ManageOnly)
             {
                 using var handoff = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 handoff.CancelAfter(LoungeProtocol.KeyHandoffTimeout);

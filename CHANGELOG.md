@@ -2,6 +2,25 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.1.9
+
+- `Services/RoomManagement.cs`: sessão curta de dono para editar/apagar sem entrar na sala.
+  `OpenAsync` faz `LoungeClient.JoinAsync` com `OwnerToken` e `ManageOnly = true` (salas com
+  senha continuam exigindo a senha: a chave nasce dela); `UpdateAsync` manda `RoomUpdate` (+
+  `ChangePasswordAsync`) e espera um `RoomInfo` por mensagem (timeout 8 s); `DeleteAsync` manda
+  `RoomDelete` e espera o `Closed` com `room_deleted`. Token não reconhecido → sala sai de
+  `OwnedRooms` e a UI mostra `Lounge_NotOwner`.
+- `RoomJoinOptions.ManageOnly`: pula a espera do handoff de chave (ECDH) em salas sem senha,
+  já que a sessão não lê mídia.
+- `LoungePage`: card "Suas salas" (`OwnedRooms` do host, inclui privadas), menu "⋯" nas linhas
+  de sala que o usuário é dono (Editar/Apagar, também `ContextFlyout`), estrela de dono no
+  título, `ManageAsync` com anel de progresso e refresh das listas; senha pedida no mesmo
+  diálogo do Entrar. `LoungeService.ForgetOwnedRoom`.
+- Harness `managecheck` (vault): 17 checks contra servidor local (senha errada/ausente com
+  token de dono, renomear + privar, troca de senha derruba os outros e mantém a sessão de dono,
+  apagar fecha com `room_deleted`, `ManageOnly` entra em 3 ms com alguém dentro, token errado
+  não é dono).
+
 ## 2.1.8
 
 - `LoungePage.BuildHostRow`: o `Tapped` da linha do host disparava também no clique dos botões

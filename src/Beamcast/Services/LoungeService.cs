@@ -180,6 +180,14 @@ public sealed class LoungeService
         return token.Length == 0 ? null : token;
     }
 
+    /// <summary>Drops a room we no longer own (deleted, or the host stopped recognising our token).</summary>
+    public static void ForgetOwnedRoom(string serverUrl, string code) =>
+        SettingsStore.Update(s =>
+        {
+            s.OwnedRooms.RemoveAll(r => Same(r.ServerUrl, r.Code, serverUrl, code));
+            s.FavoriteRooms.RemoveAll(r => Same(r.ServerUrl, r.Code, serverUrl, code));
+        });
+
     private static bool Same(string url1, string code1, string url2, string code2) =>
         string.Equals(url1, url2, StringComparison.OrdinalIgnoreCase) && string.Equals(code1, code2, StringComparison.Ordinal);
 

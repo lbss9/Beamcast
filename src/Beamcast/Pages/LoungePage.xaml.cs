@@ -66,6 +66,7 @@ public sealed partial class LoungePage : Page
         LoungeProtocol.ReasonPasswordChanged => Loc.Get("Lounge_PasswordChanged"),
         LoungeProtocol.ReasonNoKey => Loc.Get("Lounge_NoKey"),
         LoungeProtocol.ReasonNotAllowed => Loc.Get("Lounge_NotAllowed"),
+        "not_owner" => Loc.Get("Lounge_NotOwner"),
         "unreachable" => Loc.Get("Lounge_Unreachable"),
         "left" or "disposed" or "" => string.Empty,
         _ => Loc.Format("Error_Generic", reason),
@@ -281,6 +282,7 @@ public sealed partial class LoungePage : Page
             if (ReferenceEquals(_listCts, cts))
                 HostProgress.IsActive = false;
         }
+        FillOwned();
         FillFavorites();
     }
 
@@ -290,6 +292,20 @@ public sealed partial class LoungePage : Page
         foreach (var room in rooms)
             PublicRoomsList.Items.Add(BuildRoomRow(room.Name, room.Code, room.HasPassword, room.IsTemporary, room.Members, room.Streams));
         PublicEmptyText.Visibility = rooms.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Rooms this person created on the host: the only place private ones show up.</summary>
+    private void FillOwned()
+    {
+        var owned = SettingsStore.Load().OwnedRooms.Where(r => string.Equals(r.ServerUrl, _server, StringComparison.OrdinalIgnoreCase)).ToList();
+        OwnedRoomsList.Items.Clear();
+        foreach (var room in owned)
+        {
+            var live = _hostInfo?.Rooms.FirstOrDefault(r => r.Code == room.Code);
+            var saved = SettingsStore.Load().FavoriteRooms.FirstOrDefault(r => r.Code == room.Code && string.Equals(r.ServerUrl, _server, StringComparison.OrdinalIgnoreCase));
+            OwnedRoomsList.Items.Add(BuildRoomRow(room.Name, room.Code, live?.HasPassword ?? saved?.HasPassword ?? false, live?.IsTemporary ?? false, live?.Members, live?.Streams));
+        }
+        OwnedEmptyText.Visibility = owned.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void FillFavorites()
@@ -310,10 +326,18 @@ public sealed partial class LoungePage : Page
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+        var owned = LoungeService.OwnerTokenFor(_server, code) is not null;
         var text = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
         var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         title.Children.Add(new TextBlock { Text = name.Length == 0 ? code : name, TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
+        if (owned)
+        {
+            var crown = new FontIcon { Glyph = "\uE735", FontSize = 11, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
+            ToolTipService.SetToolTip(crown, Loc.Get("Lounge_RoomOwned"));
+            title.Children.Add(crown);
+        }
         if (hasPassword)
             title.Children.Add(new FontIcon { Glyph = "", FontSize = 12, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center });
         if (temporary)
@@ -347,7 +371,129 @@ public sealed partial class LoungePage : Page
         enter.Click += async (_, _) => await JoinRoomAsync(new LoungeTarget(_server, code), hasPassword, name);
         Grid.SetColumn(enter, 2);
         grid.Children.Add(enter);
+
+        if (owned)
+        {
+            var editItem = new MenuFlyoutItem { Text = Loc.Get("Room_MenuEdit"), Icon = new FontIcon { Glyph = "\uE70F" } };
+            editItem.Click += async (_, _) => await EditRoomAsync(code, name, hasPassword);
+            var deleteItem = new MenuFlyoutItem { Text = Loc.Get("Room_MenuDelete"), Icon = new FontIcon { Glyph = "\uE74D" } };
+            deleteItem.Click += async (_, _) => await DeleteRoomAsync(code, name, hasPassword);
+            var menu = new MenuFlyout();
+            menu.Items.Add(editItem);
+            menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(deleteItem);
+            var more = new Button { Content = new FontIcon { Glyph = "\uE712", FontSize = 12 }, Style = (Style)Application.Current.Resources["GhostButtonStyle"], VerticalAlignment = VerticalAlignment.Center, IsEnabled = !_busy };
+            ToolTipService.SetToolTip(more, Loc.Get("Lounge_RoomMore"));
+            more.Click += (_, _) => menu.ShowAt(more);
+            Grid.SetColumn(more, 3);
+            grid.Children.Add(more);
+            grid.ContextFlyout = menu;
+        }
         return grid;
+    }
+
+    // ----- managing rooms we own, without entering them -----
+
+    /// <summary>
+    /// Opens a short owner session for the room, asking for the password when the host demands one
+    /// (owners of password rooms still prove the password: the key comes from it). Null = cancelled.
+    /// </summary>
+    private async Task<LoungeClient?> OpenOwnerSessionAsync(string code, string roomName, bool hasPassword, CancellationToken ct)
+    {
+        var password = LoungeService.RememberedPassword(_server, code);
+        if (password.Length == 0 && hasPassword)
+        {
+            var asked = await AskPasswordAsync(roomName);
+            if (asked is null)
+                return null;
+            password = asked.Value.Password;
+        }
+        while (true)
+        {
+            try
+            {
+                return await RoomManagement.OpenAsync(_server, code, password, ct);
+            }
+            catch (LoungeException ex) when (ex.Reason is LoungeException.PasswordRequired or LoungeProtocol.ReasonBadPassword)
+            {
+                var asked = await AskPasswordAsync(roomName, wrong: ex.Reason == LoungeProtocol.ReasonBadPassword);
+                if (asked is null)
+                    return null;
+                password = asked.Value.Password;
+            }
+        }
+    }
+
+    private async Task EditRoomAsync(string code, string roomName, bool hasPassword)
+    {
+        if (_busy)
+            return;
+        await ManageAsync(async ct =>
+        {
+            var client = await OpenOwnerSessionAsync(code, roomName, hasPassword, ct);
+            if (client is null)
+                return;
+            try
+            {
+                var result = await RoomDialogs.EditAsync(XamlRoot, client.Room);
+                if (result is null)
+                    return;
+                await RoomManagement.UpdateAsync(client, result.Value.Update, result.Value.NewPassword, ct);
+            }
+            finally
+            {
+                await RoomManagement.CloseAsync(client);
+            }
+        });
+    }
+
+    private async Task DeleteRoomAsync(string code, string roomName, bool hasPassword)
+    {
+        if (_busy)
+            return;
+        if (!await RoomDialogs.ConfirmDeleteAsync(XamlRoot, roomName.Length > 0 ? roomName : code))
+            return;
+        await ManageAsync(async ct =>
+        {
+            var client = await OpenOwnerSessionAsync(code, roomName, hasPassword, ct);
+            if (client is null)
+                return;
+            try
+            {
+                await RoomManagement.DeleteAsync(client, ct);
+            }
+            finally
+            {
+                await RoomManagement.CloseAsync(client);
+            }
+        });
+    }
+
+    /// <summary>Runs an owner action with the busy ring, shows the failure reason and refreshes the lists.</summary>
+    private async Task ManageAsync(Func<CancellationToken, Task> action)
+    {
+        ShowError(null);
+        _busy = true;
+        HostProgress.IsActive = true;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            await action(cts.Token);
+        }
+        catch (LoungeException ex)
+        {
+            ShowError(ex.Reason == LoungeProtocol.ReasonNotAllowed ? "not_owner" : ex.Reason);
+        }
+        catch (Exception ex)
+        {
+            ShowErrorText(Loc.Format("Error_Generic", ex.Message));
+        }
+        finally
+        {
+            HostProgress.IsActive = false;
+            _busy = false;
+        }
+        RefreshRooms();
     }
 
     // ----- joining -----

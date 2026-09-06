@@ -104,6 +104,14 @@
 
                         <Border Style="{StaticResource CardStyle}" Padding="12,10">
                             <StackPanel Spacing="6">
+                                <TextBlock x:Uid="Lounge_OwnedRooms" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                                <TextBlock x:Name="OwnedEmptyText" x:Uid="Lounge_OwnedRoomsEmpty" Style="{StaticResource HintTextStyle}" />
+                                <ItemsControl x:Name="OwnedRoomsList" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardStyle}" Padding="12,10">
+                            <StackPanel Spacing="6">
                                 <TextBlock x:Uid="Lounge_FavoriteRooms" Style="{ThemeResource BodyStrongTextBlockStyle}" />
                                 <TextBlock x:Name="FavoritesEmptyText" x:Uid="Lounge_FavoriteRoomsEmpty" Style="{StaticResource HintTextStyle}" />
                                 <ItemsControl x:Name="FavoriteRoomsList" />

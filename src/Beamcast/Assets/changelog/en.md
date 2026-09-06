@@ -1,3 +1,11 @@
+## 2.1.9
+
+### New
+
+- Edit and delete rooms right from the Rooms screen, without entering them. Rooms you created get a "⋯" menu (right-click works too) with "Edit room…" and "Delete room"; the app joins as the owner for a moment, applies the change and leaves.
+- New "Your rooms" card on the host, listing every room you created there, private ones included, which used to be reachable only from inside the room.
+- A star next to the name marks the rooms you own.
+
 ## 2.1.8
 
 ### Fixes

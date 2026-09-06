@@ -238,6 +238,11 @@
   <data name="Lounge_PublicRoomsEmpty.Text" xml:space="preserve"><value>Nenhuma sala pública neste host.</value></data>
   <data name="Lounge_FavoriteRooms.Text" xml:space="preserve"><value>Salas favoritas</value></data>
   <data name="Lounge_FavoriteRoomsEmpty.Text" xml:space="preserve"><value>Marque uma sala com a estrela para ela aparecer aqui.</value></data>
+  <data name="Lounge_OwnedRooms.Text" xml:space="preserve"><value>Suas salas</value></data>
+  <data name="Lounge_OwnedRoomsEmpty.Text" xml:space="preserve"><value>Salas que você criou neste host aparecem aqui, inclusive as privadas. Use o menu ⋯ para editar ou apagar sem entrar.</value></data>
+  <data name="Lounge_RoomOwned" xml:space="preserve"><value>Você é o dono desta sala.</value></data>
+  <data name="Lounge_RoomMore" xml:space="preserve"><value>Editar ou apagar a sala</value></data>
+  <data name="Lounge_NotOwner" xml:space="preserve"><value>O host não reconhece mais você como dono desta sala. Ela foi tirada de Suas salas.</value></data>
   <data name="Lounge_RoomMeta" xml:space="preserve"><value>{0} online · {1} transmitindo</value></data>
   <data name="Lounge_Enter" xml:space="preserve"><value>Entrar</value></data>
   <data name="Lounge_Temporary" xml:space="preserve"><value>temporária</value></data>

@@ -1,3 +1,11 @@
+## 2.1.9
+
+### Novidades
+
+- Editar e apagar salas direto da tela Salas, sem precisar entrar. As salas que você criou ganharam um menu "⋯" (também no clique direito) com "Editar sala…" e "Apagar sala"; o app entra por um instante como dono, aplica a mudança e sai.
+- Novo card "Suas salas" no host, com todas as salas que você criou ali, inclusive as privadas, que antes não apareciam em lugar nenhum fora da própria sala.
+- Uma estrela ao lado do nome marca as salas de que você é dono.
+
 ## 2.1.8
 
 ### Correções
