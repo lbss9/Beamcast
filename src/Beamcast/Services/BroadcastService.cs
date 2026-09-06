@@ -466,6 +466,7 @@ public sealed class BroadcastService
 
     private void OnCaptureFaulted(Exception ex)
     {
+        Diag.Log("broadcast: capture faulted: " + ex);
         Post(() =>
         {
             Error?.Invoke(ex.Message);

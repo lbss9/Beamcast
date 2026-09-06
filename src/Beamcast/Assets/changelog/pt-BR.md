@@ -1,3 +1,7 @@
+## 2.1.5
+
+- Corrigida a seleção de janela no Windows 10, que falhava com "interface marshalled para um thread diferente".
+
 ## 2.1.4
 
 - Escolher uma janela ou redimensioná-la durante a transmissão não encerra mais a transmissão: o vídeo mantém a resolução inicial e entra com barras pretas quando o formato muda.

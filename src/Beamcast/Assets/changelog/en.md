@@ -1,3 +1,7 @@
+## 2.1.5
+
+- Fixed window selection on Windows 10 failing with "interface marshalled for a different thread".
+
 ## 2.1.4
 
 - Picking a window or resizing it while live no longer ends the broadcast: the stream keeps its initial resolution and letterboxes frames of another shape.

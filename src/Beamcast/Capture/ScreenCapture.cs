@@ -96,9 +96,41 @@ public sealed class ScreenCapture : IDisposable
                 return;
             }
 
-            StartGraphicsCapture(source);
+            RunOnMtaThread(() => StartGraphicsCapture(source));
             Method = "wgc";
         }
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> on a multi-threaded-apartment thread and rethrows its error.
+    /// The UI thread is a single-threaded apartment; capture items created there can be bound to
+    /// it on Windows 10, after which the capture pool's own thread cannot touch them.
+    /// </summary>
+    private static void RunOnMtaThread(Action action)
+    {
+        if (Thread.CurrentThread.GetApartmentState() == ApartmentState.MTA)
+        {
+            action();
+            return;
+        }
+        Exception? failure = null;
+        var worker = new Thread(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+        })
+        { Name = "Beamcast capture setup", IsBackground = true };
+        worker.SetApartmentState(ApartmentState.MTA);
+        worker.Start();
+        worker.Join();
+        if (failure is not null)
+            throw failure;
     }
 
     // ----- Desktop Duplication -----
@@ -336,31 +368,50 @@ public sealed class ScreenCapture : IDisposable
         // this process; the request starts at launch, so this normally returns at once.
         CaptureAccess.EnsureBorderless();
 
-        _item = CaptureInterop.CreateItem(source);
-        _poolSize = _item.Size;
-        _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
-            _gpu.WinRtDevice,
-            DirectXPixelFormat.B8G8R8A8UIntNormalized,
-            2,
-            _poolSize
-        );
-        _pool.FrameArrived += OnFrameArrived;
-        _session = _pool.CreateCaptureSession(_item);
-        _item.Closed += OnItemClosed;
+        var step = "create item";
+        try
+        {
+            _item = CaptureInterop.CreateItem(source);
+            step = "read item size";
+            _poolSize = _item.Size;
+            step = "create frame pool";
+            _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
+                _gpu.WinRtDevice,
+                DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                2,
+                _poolSize
+            );
+            _pool.FrameArrived += OnFrameArrived;
+            step = "create session";
+            _session = _pool.CreateCaptureSession(_item);
+            step = "subscribe closed";
+            _item.Closed += OnItemClosed;
+            step = "configure session";
+            ConfigureGraphicsSession(source);
+            step = "start capture";
+            _session.StartCapture();
+        }
+        catch (Exception ex)
+        {
+            Diag.Log($"capture: Windows.Graphics.Capture failed at '{step}' for {source.Kind} {source.Handle} (apartment {Thread.CurrentThread.GetApartmentState()}): {ex}");
+            throw new InvalidOperationException($"{ex.Message} [{step}]", ex);
+        }
+    }
+
+    private void ConfigureGraphicsSession(CaptureSource source)
+    {
 
         if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName!, nameof(GraphicsCaptureSession.IsCursorCaptureEnabled)))
-            SafeTry.Run(() => _session.IsCursorCaptureEnabled = ShowCursor);
+            SafeTry.Run(() => _session!.IsCursorCaptureEnabled = ShowCursor);
         if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName!, nameof(GraphicsCaptureSession.IsBorderRequired)))
         {
-            SafeTry.Run(() => _session.IsBorderRequired = false);
+            SafeTry.Run(() => _session!.IsBorderRequired = false);
             Diag.Log($"capture: {source.Kind} via Windows.Graphics.Capture, border {(CaptureAccess.BorderlessGranted ? "hidden" : "kept by Windows (no borderless access)")}");
         }
         // Newer Windows 11 builds throttle capture to ~60 Hz unless told otherwise, which on a
         // 75/120/144 Hz display means every other frame. 4 ms lets the display rate through.
         if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName!, "MinUpdateInterval"))
-            SafeTry.Run(() => _session.MinUpdateInterval = TimeSpan.FromMilliseconds(4));
-
-        _session.StartCapture();
+            SafeTry.Run(() => _session!.MinUpdateInterval = TimeSpan.FromMilliseconds(4));
     }
 
     public void Stop()
@@ -385,10 +436,12 @@ public sealed class ScreenCapture : IDisposable
         SafeTry.Run(() => _output?.Dispose());
         _output = null;
 
-        if (_item is not null)
-            _item.Closed -= OnItemClosed;
-        if (_pool is not null)
-            _pool.FrameArrived -= OnFrameArrived;
+        var item = _item;
+        var pool = _pool;
+        if (item is not null)
+            SafeTry.Run(() => item.Closed -= OnItemClosed);
+        if (pool is not null)
+            SafeTry.Run(() => pool.FrameArrived -= OnFrameArrived);
         SafeTry.Run(() => _session?.Dispose());
         SafeTry.Run(() => _pool?.Dispose());
         _session = null;
@@ -435,6 +488,7 @@ public sealed class ScreenCapture : IDisposable
         }
         catch (Exception ex)
         {
+            Diag.Log($"capture: frame handling failed (apartment {Thread.CurrentThread.GetApartmentState()}): {ex}");
             Faulted?.Invoke(ex);
         }
         finally

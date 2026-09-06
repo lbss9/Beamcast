@@ -584,6 +584,7 @@ public sealed partial class RoomPage : Page
         }
         catch (Exception ex)
         {
+            Diag.Log("room: selecting source failed: " + ex);
             ErrorText.Text = Loc.Format("Error_Capture", ex.Message);
             _syncingSelection = true;
             list.SelectedItem = null;

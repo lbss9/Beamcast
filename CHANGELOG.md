@@ -2,6 +2,15 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.1.5
+
+- Captura de janela: os objetos da Windows.Graphics.Capture passam a ser criados num thread MTA
+  dedicado (como o OBS faz). No Windows 10, criá-los no thread da interface deixava o item de
+  captura preso a esse thread e a seleção de uma janela falhava com "interface marshalled para um
+  thread diferente" (RPC_E_WRONG_THREAD), derrubando a prévia e a transmissão.
+- Falhas de captura registram a etapa e a exceção completa no `diag.log`, e a mensagem na tela
+  indica a etapa.
+
 ## 2.1.4
 
 - A transmissão mantém uma única resolução do início ao fim: a anunciada ao iniciar (ou a do
