@@ -270,7 +270,6 @@
                                             <ComboBox x:Name="AudioBox" x:Uid="Audio_Mode" HorizontalAlignment="Stretch" SelectionChanged="OnAudioChanged" />
                                             <TextBlock x:Name="AudioHintText" Style="{StaticResource HintTextStyle}" />
                                             <ToggleSwitch x:Name="ViewerSoundsSwitch" x:Uid="Stream_ViewerSounds" Toggled="OnViewerSoundsToggled" />
-                                            <TextBlock x:Uid="Invite_StudyNote" Style="{StaticResource HintTextStyle}" Foreground="{StaticResource BeamAccentBrush}" Opacity="0.9" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>

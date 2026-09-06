@@ -94,7 +94,7 @@
   <data name="About_CardNetTitle.Text" xml:space="preserve"><value>Network</value></data>
   <data name="About_CardNetBody.Text" xml:space="preserve"><value>Works out of the box on the same network. Over the internet, the broadcaster needs to forward the port on the router.</value></data>
 
-  <data name="Title_StudyBadge.Text" xml:space="preserve"><value>STUDY PROJECT</value></data>
+  <data name="Title_StudyBadge.Text" xml:space="preserve"><value>BETA</value></data>
 
   <data name="Disclaimer_Title" xml:space="preserve"><value>Before you use it: this is a study project</value></data>
   <data name="Disclaimer_Heading.Text" xml:space="preserve"><value>Study project. Read before use.</value></data>
@@ -110,7 +110,6 @@
   <data name="Disclaimer_Quit" xml:space="preserve"><value>Close the app</value></data>
   <data name="Disclaimer_Close" xml:space="preserve"><value>Close</value></data>
   <data name="Disclaimer_ReadAgain.Content" xml:space="preserve"><value>Read the full notice</value></data>
-  <data name="Invite_StudyNote.Text" xml:space="preserve"><value>Study project: use at your own risk.</value></data>
 
   <data name="About_UpdatesTitle.Text" xml:space="preserve"><value>Updates</value></data>
   <data name="About_CheckUpdates.Content" xml:space="preserve"><value>Check now</value></data>

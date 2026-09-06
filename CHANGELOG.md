@@ -2,6 +2,12 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.3.1
+
+- `Title_StudyBadge` → "BETA" (pt-BR e en); `Invite_StudyNote` removido do XAML da aba
+  Transmitir e dos dois resw. Diálogo de primeiro uso, página Sobre e README mantêm o
+  posicionamento de projeto de estudo.
+
 ## 2.3.0
 
 - **Protocolo (mesma versão 3, compatível)**: `Heartbeat` leva `a` = relógio do cliente (unix ms

@@ -1,3 +1,9 @@
+## 2.3.1
+
+### Improvements
+
+- The badge next to the app name now reads "BETA" instead of "STUDY PROJECT", and the red "use at your own risk" note left the Broadcast tab. The first-run notice and the About page are unchanged.
+
 ## 2.3.0
 
 ### New

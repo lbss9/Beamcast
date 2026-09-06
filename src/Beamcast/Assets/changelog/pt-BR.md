@@ -1,3 +1,9 @@
+## 2.3.1
+
+### Melhorias
+
+- O selo ao lado do nome do app agora diz "BETA" em vez de "PROJETO DE ESTUDO", e o aviso vermelho "uso por sua conta e risco" saiu da aba Transmitir. O aviso de primeiro uso e a página Sobre continuam iguais.
+
 ## 2.3.0
 
 ### Novidades
