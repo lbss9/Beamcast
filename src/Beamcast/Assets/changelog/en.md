@@ -1,3 +1,9 @@
+## 2.2.2
+
+### Fixes
+
+- Maximizing or resizing the window with no stream on screen left the video area stuck at its old size in a corner. It now follows the window right away.
+
 ## 2.2.1
 
 ### Fixes

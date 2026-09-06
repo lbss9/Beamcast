@@ -27,7 +27,11 @@ public sealed class SwapChainPresenter : IDisposable
     private int _pendingHeight;
     private float _scaleX = 1;
     private float _scaleY = 1;
+    private long _lastPresentTicks;
     private bool _disposed;
+
+    /// <summary>With no frame this recently, a resize repaints black right away instead of waiting for the next frame.</summary>
+    private const int IdleAfterMs = 300;
 
     public SwapChainPresenter(GpuDevice gpu)
     {
@@ -79,6 +83,7 @@ public sealed class SwapChainPresenter : IDisposable
     {
         Interlocked.Exchange(ref _pendingWidth, Math.Max(8, (int)Math.Round(e.NewSize.Width * _scaleX)));
         Interlocked.Exchange(ref _pendingHeight, Math.Max(8, (int)Math.Round(e.NewSize.Height * _scaleY)));
+        RepaintIfIdle();
     }
 
     private void OnScaleChanged(SwapChainPanel sender, object args)
@@ -88,6 +93,18 @@ public sealed class SwapChainPresenter : IDisposable
         ApplyScaleTransform();
         Interlocked.Exchange(ref _pendingWidth, Math.Max(8, (int)Math.Round(sender.ActualWidth * _scaleX)));
         Interlocked.Exchange(ref _pendingHeight, Math.Max(8, (int)Math.Round(sender.ActualHeight * _scaleY)));
+        RepaintIfIdle();
+    }
+
+    /// <summary>
+    /// The swap chain only takes a new size on the next Present, so with nothing playing (or a
+    /// paused stream) a resized panel kept showing the old surface at its old size in the corner.
+    /// A live stream repaints itself within a frame; otherwise paint black at the new size now.
+    /// </summary>
+    private void RepaintIfIdle()
+    {
+        if (Environment.TickCount64 - Volatile.Read(ref _lastPresentTicks) > IdleAfterMs)
+            Clear();
     }
 
     private void ApplyScaleTransform()
@@ -157,6 +174,7 @@ public sealed class SwapChainPresenter : IDisposable
                 _converter.Convert(texture, subresource, width, height, isYuv, backBuffer, _width, _height, false, target);
                 _converter.Forget(backBuffer);
                 _swapChain.Present(0, PresentFlags.None);
+                Volatile.Write(ref _lastPresentTicks, Environment.TickCount64);
             }
         }
     }

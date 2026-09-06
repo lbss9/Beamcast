@@ -2,6 +2,14 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.2.2
+
+- `SwapChainPresenter`: `ResizeBuffers` só acontecia dentro de `Present`/`Clear`, então sem
+  quadros (ninguém transmitindo, ou stream pausada) o `SizeChanged` do painel só anotava o
+  tamanho pendente e a superfície antiga ficava no canto. Agora `SizeChanged`/`ScaleChanged`
+  chamam `RepaintIfIdle`: se o último `Present` foi há mais de 300 ms, `Clear()` redimensiona e
+  pinta preto na hora; com stream ao vivo o próximo quadro já resolve.
+
 ## 2.2.1
 
 - `LoungePage`: o `StackPanel` de erro (`ErrorText` + botão da chave) fica `Collapsed` quando

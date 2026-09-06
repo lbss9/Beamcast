@@ -1,3 +1,9 @@
+## 2.2.2
+
+### Correções
+
+- Ao maximizar ou redimensionar a janela sem nenhuma transmissão na tela, a área de vídeo ficava presa no tamanho antigo, num canto. Agora ela acompanha a janela na hora.
+
 ## 2.2.1
 
 ### Correções
