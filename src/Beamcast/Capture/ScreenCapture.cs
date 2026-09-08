@@ -192,6 +192,7 @@ public sealed class ScreenCapture : IDisposable
 
     private void DuplicationLoop(CancellationToken ct)
     {
+        var invalidCalls = 0;
         try
         {
             while (!ct.IsCancellationRequested)
@@ -216,10 +217,28 @@ public sealed class ScreenCapture : IDisposable
                     {
                         Diag.Log("capture: duplication access lost, recreating");
                         DisposeDuplication();
+                        invalidCalls = 0;
+                        continue;
+                    }
+                    if (result.Code == Vortice.DXGI.ResultCode.InvalidCall.Code)
+                    {
+                        // Seen on AMD after minutes of a static desktop (2.3.1 field report): the driver
+                        // thinks a frame is still held. Release whatever it believes we hold and try
+                        // once more; if that does not clear it, rebuild the duplication like access lost.
+                        invalidCalls++;
+                        Diag.Log($"capture: AcquireNextFrame invalid call #{invalidCalls}, {(invalidCalls == 1 ? "releasing and retrying" : "recreating duplication")}");
+                        if (invalidCalls == 1)
+                        {
+                            SafeTry.Run(() => duplication.ReleaseFrame());
+                            continue;
+                        }
+                        DisposeDuplication();
+                        invalidCalls = 0;
                         continue;
                     }
                     result.CheckError();
                 }
+                invalidCalls = 0;
 
                 try
                 {

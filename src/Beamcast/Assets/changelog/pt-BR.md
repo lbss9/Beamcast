@@ -1,3 +1,10 @@
+## 2.3.2
+
+### Correções
+
+- Transmitindo um monitor, depois de alguns minutos com a tela parada a captura podia falhar com "DXGI_ERROR_INVALID_CALL" e encerrar a transmissão (visto em GPU AMD). Agora o app solta o quadro preso e tenta de novo; se insistir, recria a captura sem derrubar a transmissão.
+- Uma falha na prévia de quem transmite não encerra mais a captura nem a transmissão.
+
 ## 2.3.1
 
 ### Melhorias

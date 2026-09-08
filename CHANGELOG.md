@@ -2,6 +2,15 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.3.2
+
+- `ScreenCapture.DuplicationLoop`: `AcquireNextFrame` → `DXGI_ERROR_INVALID_CALL` deixa de ser
+  fatal. 1ª ocorrência: `ReleaseFrame` defensivo + nova tentativa; 2ª seguida: `DisposeDuplication`
+  e recriação (mesmo caminho do access lost). Caso real (diag do amigo, AMD, 2.3.1): 140 s de
+  tela parada (quadros repetidos de 33 339 B), um quadro novo e, 1 s depois, INVALID_CALL.
+- `BroadcastService.MaybePreview`: `Present` da prévia em try/catch com log; a prévia é
+  cosmética e não pode derrubar a captura.
+
 ## 2.3.1
 
 - `Title_StudyBadge` → "BETA" (pt-BR e en); `Invite_StudyNote` removido do XAML da aba

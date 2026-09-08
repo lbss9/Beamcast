@@ -1,3 +1,10 @@
+## 2.3.2
+
+### Fixes
+
+- While broadcasting a monitor, a few minutes of a static screen could make the capture fail with "DXGI_ERROR_INVALID_CALL" and end the broadcast (seen on AMD GPUs). The app now releases the stuck frame and retries; if it persists, the capture is rebuilt without ending the broadcast.
+- A failure in the broadcaster's preview no longer ends the capture or the broadcast.
+
 ## 2.3.1
 
 ### Improvements

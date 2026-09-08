@@ -610,7 +610,17 @@ public sealed class BroadcastService
             return;
         var first = _lastPreviewTicks == 0;
         _lastPreviewTicks = now;
-        presenter.Present(frame.Texture, 0, frame.Width, frame.Height, false);
+        try
+        {
+            presenter.Present(frame.Texture, 0, frame.Width, frame.Height, false);
+        }
+        catch (Exception ex)
+        {
+            // The preview is only for the person broadcasting; a hiccup there must never end the
+            // capture and the stream with it. The next frame tries again.
+            Diag.Log("broadcast: preview present failed: " + ex.Message);
+            return;
+        }
         if (first)
             Post(() => PreviewStarted?.Invoke());
     }
