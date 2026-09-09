@@ -101,20 +101,8 @@ public sealed partial class SettingsPage : Page
         }
     }
 
-    private async void OnReleaseNotes(object sender, RoutedEventArgs e)
-    {
-        var view = new RichTextBlock { IsTextSelectionEnabled = true };
-        MarkdownLite.Render(view, ChangelogStore.Read());
-        var dialog = new ContentDialog
-        {
-            Title = Loc.Get("Settings_ReleaseNotesTitle"),
-            Content = new ScrollViewer { Content = view, MaxHeight = 480, MinWidth = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
-            CloseButtonText = Loc.Get("Dialog_Close"),
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-        };
-        await dialog.ShowAsync();
-    }
+    /// <summary>The notes have their own page now ("What's new"); this just goes there.</summary>
+    private void OnReleaseNotes(object sender, RoutedEventArgs e) => App.Main?.NavigateTo("about");
 
     private void OnUpdatesToggled(object sender, RoutedEventArgs e)
     {

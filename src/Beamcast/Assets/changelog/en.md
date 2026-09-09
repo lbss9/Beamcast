@@ -1,3 +1,9 @@
+## 2.6.1
+
+### Improvements
+
+- The "About" screen became "What's new": it shows what changed in each version, and nothing else. Checking for updates now lives in Settings only; the "See what's new" link on the version card goes to the new screen. The study project notice stays reachable through a link at the end.
+
 ## 2.6.0
 
 ### New

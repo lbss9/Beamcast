@@ -110,7 +110,7 @@
             <NavigationView.FooterMenuItems>
                 <NavigationViewItem x:Name="AboutNav" x:Uid="Nav_About" Tag="about">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE946;" />
+                        <FontIcon Glyph="&#xE789;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>

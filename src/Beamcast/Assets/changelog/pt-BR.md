@@ -1,3 +1,9 @@
+## 2.6.1
+
+### Melhorias
+
+- A tela "Sobre" virou "Novidades": mostra o que mudou em cada versão, e só isso. Verificar atualizações agora é só em Configurações; o link "Ver novidades" no card de versão leva para a nova tela. O aviso do projeto de estudo continua acessível por um link no fim das novidades.
+
 ## 2.6.0
 
 ### Novidades

@@ -2,6 +2,14 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.6.1
+
+- `AboutPage` reduzida a "Novidades": título + versão + `MarkdownLite` do changelog inteiro +
+  link para o aviso de estudo. Seção de atualizações, cards descritivos e strings `About_*`
+  removidos (as `About_Update*` de status continuam em uso no Settings). Nav "Sobre" →
+  "Novidades" (ícone E789). `SettingsPage.OnReleaseNotes` navega para a página em vez de abrir
+  diálogo (`Settings_ReleaseNotesTitle`/`Dialog_Close` removidos).
+
 ## 2.6.0
 
 - `Controls/SettingsRow` (UserControl: glifo, título, descrição, `ActionContent` à direita;

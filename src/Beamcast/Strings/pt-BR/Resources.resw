@@ -7,7 +7,9 @@
 
   <data name="Nav_Broadcast.Content" xml:space="preserve"><value>Transmitir</value></data>
   <data name="Nav_Watch.Content" xml:space="preserve"><value>Assistir</value></data>
-  <data name="Nav_About.Content" xml:space="preserve"><value>Sobre</value></data>
+  <data name="Nav_About.Content" xml:space="preserve"><value>Novidades</value></data>
+  <data name="News_Title.Text" xml:space="preserve"><value>Novidades</value></data>
+  <data name="News_Subtitle" xml:space="preserve"><value>Você está na versão {0}. Abaixo, o que mudou em cada versão.</value></data>
 
   <data name="Sources_Heading.Text" xml:space="preserve"><value>O que compartilhar</value></data>
   <data name="Sources_Refresh.ToolTipService.ToolTip" xml:space="preserve"><value>Atualizar lista</value></data>
@@ -81,8 +83,7 @@
   <data name="Settings_LinkRepo.Content" xml:space="preserve"><value>Repositório no GitHub</value></data>
   <data name="Settings_LinkIssue.Content" xml:space="preserve"><value>Relatar um bug</value></data>
   <data name="Settings_VersionHeader.Text" xml:space="preserve"><value>Versão e atualizações</value></data>
-  <data name="Settings_ReleaseNotes.Content" xml:space="preserve"><value>Notas da versão</value></data>
-  <data name="Settings_ReleaseNotesTitle" xml:space="preserve"><value>Notas da versão</value></data>
+  <data name="Settings_ReleaseNotes.Content" xml:space="preserve"><value>Ver novidades</value></data>
   <data name="Settings_CheckUpdates.Content" xml:space="preserve"><value>Verificar se há atualizações</value></data>
   <data name="Settings_NeverChecked" xml:space="preserve"><value>Ainda não verificou nesta sessão</value></data>
   <data name="Settings_LastChecked" xml:space="preserve"><value>Última verificação: {0}</value></data>
@@ -106,21 +107,11 @@
   <data name="Settings_BugReport.Content" xml:space="preserve"><value>Gerar pacote</value></data>
   <data name="Settings_BugReportBuilding" xml:space="preserve"><value>Gerando…</value></data>
   <data name="Settings_BugReportDone" xml:space="preserve"><value>{0} salvo na área de trabalho.</value></data>
-  <data name="Dialog_Close" xml:space="preserve"><value>Fechar</value></data>
   <data name="Settings_LanguageSystem" xml:space="preserve"><value>Seguir o sistema</value></data>
   <data name="Settings_ThemeSystem" xml:space="preserve"><value>Seguir o sistema</value></data>
   <data name="Settings_ThemeLight" xml:space="preserve"><value>Claro</value></data>
   <data name="Settings_ThemeDark" xml:space="preserve"><value>Escuro</value></data>
 
-  <data name="About_Tagline.Text" xml:space="preserve"><value>Um projeto de estudo sobre compartilhamento de tela.</value></data>
-  <data name="About_Description.Text" xml:space="preserve"><value>O Beamcast é um laboratório: captura uma tela ou janela do Windows direto na GPU, comprime em H.264 ou HEVC pelo encoder de hardware (ou VP8 na CPU, como reserva) e transmite por TCP para quem tiver o código de convite. Serve para estudar codecs, captura e transmissão em tempo real, e como caso de estudo para um aplicativo empresarial separado.</value></data>
-  <data name="About_Version" xml:space="preserve"><value>Versão {0}</value></data>
-  <data name="About_CardShareTitle.Text" xml:space="preserve"><value>Transmitir</value></data>
-  <data name="About_CardShareBody.Text" xml:space="preserve"><value>Escolha uma tela ou janela, ajuste a qualidade e inicie. A captura fica na GPU e o vídeo é comprimido pelo encoder de hardware (H.264/HEVC) antes de ir por TCP.</value></data>
-  <data name="About_CardJoinTitle.Text" xml:space="preserve"><value>Assistir</value></data>
-  <data name="About_CardJoinBody.Text" xml:space="preserve"><value>Cole o código, entre e assista. Duplo clique deixa em tela cheia.</value></data>
-  <data name="About_CardNetTitle.Text" xml:space="preserve"><value>Rede</value></data>
-  <data name="About_CardNetBody.Text" xml:space="preserve"><value>Funciona de cara na mesma rede. Pela internet, quem transmite precisa liberar a porta no roteador.</value></data>
 
   <data name="Title_StudyBadge.Text" xml:space="preserve"><value>BETA</value></data>
 
@@ -137,16 +128,13 @@
   <data name="Disclaimer_Accept" xml:space="preserve"><value>Entendi e assumo o risco</value></data>
   <data name="Disclaimer_Quit" xml:space="preserve"><value>Fechar o app</value></data>
   <data name="Disclaimer_Close" xml:space="preserve"><value>Fechar</value></data>
-  <data name="Disclaimer_ReadAgain.Content" xml:space="preserve"><value>Ler o aviso completo</value></data>
+  <data name="Disclaimer_ReadAgain.Content" xml:space="preserve"><value>Ler o aviso do projeto de estudo</value></data>
 
-  <data name="About_UpdatesTitle.Text" xml:space="preserve"><value>Atualizações</value></data>
-  <data name="About_CheckUpdates.Content" xml:space="preserve"><value>Verificar agora</value></data>
   <data name="About_UpdateChecking" xml:space="preserve"><value>Verificando…</value></data>
   <data name="About_UpdateAvailable" xml:space="preserve"><value>Versão {0} disponível.</value></data>
   <data name="About_UpdateUpToDate" xml:space="preserve"><value>Você já está na versão mais recente.</value></data>
   <data name="About_UpdateNotInstalled" xml:space="preserve"><value>Atualização automática só funciona na versão instalada (MSI).</value></data>
   <data name="About_UpdateFailed" xml:space="preserve"><value>Não foi possível verificar agora.</value></data>
-  <data name="About_ChangelogHeading.Text" xml:space="preserve"><value>Novidades desta versão</value></data>
   <data name="Changelog_Missing" xml:space="preserve"><value>Sem notas para esta versão.</value></data>
 
 
