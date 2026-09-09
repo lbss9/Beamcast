@@ -235,6 +235,7 @@ public sealed partial class LoungePage : Page
 
     private void SelectHost(string url)
     {
+        Diag.Log($"ui: host {LoungeProtocol.DisplayHost(url)} selected");
         _server = url;
         NoHostPanel.Visibility = Visibility.Collapsed;
         HostPanel.Visibility = Visibility.Visible;
@@ -535,6 +536,7 @@ public sealed partial class LoungePage : Page
 
     private async Task JoinRoomAsync(LoungeTarget target, bool? hasPassword, string roomName, string typedPassword = "")
     {
+        Diag.Log($"ui: join {target.Code} at {LoungeProtocol.DisplayHost(target.ServerUrl)} (invite {(target.InviteToken is null ? "no" : "yes")})");
         var password = typedPassword;
         var remember = false;
         if (password.Length == 0 && target.InviteKey() is null)
@@ -603,6 +605,7 @@ public sealed partial class LoungePage : Page
 
     private async void OnCreate(object sender, RoutedEventArgs e)
     {
+        Diag.Log("ui: create room clicked");
         var options = await RoomDialogs.CreateAsync(XamlRoot);
         if (options is null)
             return;

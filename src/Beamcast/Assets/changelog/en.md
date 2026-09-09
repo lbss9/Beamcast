@@ -1,3 +1,9 @@
+## 2.9.1
+
+### Improvements
+
+- **Complete diagnostic log.** With the log on (Settings → Diagnostics), `diag.log` now records everything the app does: every action of yours (entering and leaving a room, going live, pausing, stopping, watching and stopping watching, fullscreen, tabs, navigation, theme, language, window hidden), every state change of the lounge, the broadcast and the viewers, every reconnect with attempt and outcome, every member and stream that comes or goes, every subscription and keyframe request, the socket closing with the reason the host sent, the network pulse (round trip and clock offset) and a summary of the broadcast and per-viewer stats every 5 s. It is the groundwork for the open bugs "the stream closes only for me" and "the broadcaster shows up twice". Nothing changes with the log off.
+
 ## 2.9.0
 
 ### New

@@ -213,6 +213,7 @@ public sealed class LoungeService
 
     public async Task CreateAsync(string serverUrl, RoomCreateOptions options, string displayName, CancellationToken ct)
     {
+        Diag.Log($"lounge: creating room '{options.Name}' at {LoungeProtocol.DisplayHost(serverUrl)} ({options.Visibility}, {options.Kind}, password {(options.Password.Length > 0 ? "yes" : "no")})");
         if (!LoungeProtocol.TryNormalizeServer(serverUrl, out var url))
             throw new LoungeException(LoungeProtocol.ReasonBadRequest);
         var appKey = AppKeyFor(url);
@@ -248,6 +249,7 @@ public sealed class LoungeService
         var appKey = AppKeyFor(url);
         options.Code = LoungeProtocol.NormalizeCode(options.Code);
         options.OwnerToken ??= OwnerTokenFor(url, options.Code);
+        Diag.Log($"lounge: joining {options.Code} at {LoungeProtocol.DisplayHost(url)} (password {(options.Password.Length > 0 ? "yes" : "no")}, invite {(options.InviteToken is null ? "no" : "yes")}, owner token {(options.OwnerToken is null ? "no" : "yes")})");
         var client = await ConnectAsync(() => LoungeClient.JoinAsync(url, options, appKey, ct), displayName);
 
         // A room without an owner (migrated from 2.0) is handed to the first person in: the host
@@ -332,6 +334,10 @@ public sealed class LoungeService
             }
         }
 
+        lock (_sync)
+        {
+            Diag.Log($"lounge: attached as member {client.MemberId} to {client.Code}: {_members.Count} member(s), {_streams.Count} stream(s) [{string.Join(", ", _streams.Values.Select(s => $"#{s.Id} by {s.OwnerId}{(s.IsMine ? " (mine)" : "")} '{s.Meta.Title}'"))}]");
+        }
         client.MemberJoined += OnMemberJoined;
         client.MemberLeft += OnMemberLeft;
         client.PresenceReceived += OnPresence;
@@ -344,7 +350,7 @@ public sealed class LoungeService
                 _session.LastRoom = info;
             Post(() => RoomChanged?.Invoke(info));
         };
-        client.Notice += reason => Post(() => Notice?.Invoke(reason));
+        client.Notice += reason => { Diag.Log($"lounge: notice {reason}"); Post(() => Notice?.Invoke(reason)); };
         client.MediaReceived += (id, type, key, body, stamp) => MediaReceived?.Invoke(id, type, key, body, stamp);
         client.KeyframeRequested += id => KeyframeRequested?.Invoke(id);
         client.ViewerJoined += (streamId, viewerId) => Post(() => ViewerJoined?.Invoke(streamId, viewerId, NameOf(viewerId)));
@@ -358,6 +364,7 @@ public sealed class LoungeService
 
     public async Task LeaveAsync()
     {
+        Diag.Log($"lounge: leaving {Code} (state {State})");
         _session = null;
         var reconnect = _reconnectCts;
         if (reconnect is not null)
@@ -381,6 +388,7 @@ public sealed class LoungeService
         client.Dispose();
 
         var session = _session;
+        Diag.Log($"lounge: connection closed ({reason}); member {client.MemberId}, {(session is not null && reason is "lost" or "timeout" or "closed" ? "will reconnect" : "leaving")}");
         if (session is not null && reason is "lost" or "timeout" or "closed")
         {
             lock (_sync)
@@ -399,6 +407,7 @@ public sealed class LoungeService
 
     private void Finish(string reason)
     {
+        Diag.Log($"lounge: session over ({reason})");
         _session = null;
         lock (_sync)
         {
@@ -435,10 +444,12 @@ public sealed class LoungeService
                 }
                 catch (LoungeException ex) when (ex.Reason is "unreachable" or "timeout" or LoungeProtocol.ReasonRateLimited or LoungeProtocol.ReasonNoKey)
                 {
+                    Diag.Log($"lounge: reconnect attempt {attempt} after {delay} s failed ({ex.Reason}), retrying");
                     continue;
                 }
                 catch (LoungeException ex)
                 {
+                    Diag.Log($"lounge: reconnect attempt {attempt} refused ({ex.Reason}), giving up");
                     reason = ex.Reason;
                     break;
                 }
@@ -456,6 +467,7 @@ public sealed class LoungeService
                 session.LastRoom = client.Room;
                 session.IsOwner = client.IsOwner;
                 session.Join.PasswordKey = client.PasswordKey;
+                Diag.Log($"lounge: reconnected on attempt {attempt} as member {client.MemberId} (owner {client.IsOwner})");
                 Attach(client);
                 _reconnectCts?.Dispose();
                 _reconnectCts = null;
@@ -496,6 +508,7 @@ public sealed class LoungeService
 
     private void OnMemberJoined(uint id, bool isOwner)
     {
+        Diag.Log($"lounge: member {id} joined{(isOwner ? " (owner)" : "")}");
         lock (_sync)
         {
             if (!_members.ContainsKey(id))
@@ -509,6 +522,8 @@ public sealed class LoungeService
     private void OnMemberLeft(uint id)
     {
         lock (_sync)
+            Diag.Log($"lounge: member {id} ({NameOf(id)}) left; their streams still listed: {_streams.Values.Count(s => s.OwnerId == id)}");
+        lock (_sync)
         {
             _members.Remove(id);
         }
@@ -517,6 +532,7 @@ public sealed class LoungeService
 
     private void OnPresence(uint id, PresenceMessage presence)
     {
+        Diag.Log($"lounge: member {id} is '{presence.Name}' (app {presence.AppVersion})");
         var name = presence.Name.Trim();
         if (name.Length == 0)
             name = Placeholder(id);
@@ -543,6 +559,7 @@ public sealed class LoungeService
         lock (_sync)
         {
             _streams[streamId] = new LoungeStream { Id = streamId, OwnerId = owner, OwnerName = NameOf(owner), Meta = meta, IsMine = owner == MemberId };
+            Diag.Log($"lounge: stream #{streamId} started by member {owner} ({NameOf(owner)}) '{meta.Title}' {meta.Width}x{meta.Height}@{meta.Fps} {meta.Codec}; now {_streams.Count} stream(s), same owner has {_streams.Values.Count(s => s.OwnerId == owner)}");
         }
         Post(() => StreamsChanged?.Invoke());
     }
@@ -551,7 +568,9 @@ public sealed class LoungeService
     {
         lock (_sync)
         {
+            _streams.TryGetValue(streamId, out var ended);
             _streams.Remove(streamId);
+            Diag.Log($"lounge: stream #{streamId} ended{(ended is null ? " (unknown)" : $" (by member {ended.OwnerId} '{ended.Meta.Title}')")}; {_streams.Count} left");
         }
         Post(() =>
         {
@@ -573,6 +592,7 @@ public sealed class LoungeService
     /// <summary>Registers the caller's own stream locally so the list shows it right away.</summary>
     public void RegisterOwnStream(uint streamId, StreamMetaMessage meta)
     {
+        Diag.Log($"lounge: my stream #{streamId} registered '{meta.Title}'");
         lock (_sync)
         {
             _streams[streamId] = new LoungeStream { Id = streamId, OwnerId = MemberId, OwnerName = _displayName, Meta = meta, IsMine = true };
@@ -582,6 +602,7 @@ public sealed class LoungeService
 
     public void ForgetOwnStream(uint streamId)
     {
+        Diag.Log($"lounge: my stream #{streamId} forgotten");
         lock (_sync)
         {
             _streams.Remove(streamId);
@@ -639,6 +660,7 @@ public sealed class LoungeService
 
     public void UpdateStreamMeta(uint streamId, StreamMetaMessage meta)
     {
+        Diag.Log($"lounge: my stream #{streamId} meta -> {meta.State} {meta.Width}x{meta.Height}@{meta.Fps} '{meta.Title}'");
         lock (_sync)
         {
             if (_streams.TryGetValue(streamId, out var stream))
@@ -653,11 +675,23 @@ public sealed class LoungeService
 
     public int PendingVideo(uint streamId) => _client?.PendingVideo(streamId) ?? 0;
 
-    public void Subscribe(uint streamId) => _client?.Subscribe(streamId);
+    public void Subscribe(uint streamId)
+    {
+        Diag.Log($"lounge: subscribe #{streamId}");
+        _client?.Subscribe(streamId);
+    }
 
-    public void Unsubscribe(uint streamId) => _client?.Unsubscribe(streamId);
+    public void Unsubscribe(uint streamId)
+    {
+        Diag.Log($"lounge: unsubscribe #{streamId}");
+        _client?.Unsubscribe(streamId);
+    }
 
-    public void RequestKeyframe(uint streamId) => _client?.RequestKeyframe(streamId);
+    public void RequestKeyframe(uint streamId)
+    {
+        Diag.Log($"lounge: keyframe request for #{streamId}");
+        _client?.RequestKeyframe(streamId);
+    }
 
     public LoungeStream? FindStream(uint streamId)
     {
@@ -679,6 +713,7 @@ public sealed class LoungeService
     {
         if (State == state)
             return;
+        Diag.Log($"lounge: state {State} -> {state}");
         State = state;
         Post(() => StateChanged?.Invoke(state));
     }

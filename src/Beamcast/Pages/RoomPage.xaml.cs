@@ -294,6 +294,7 @@ public sealed partial class RoomPage : Page
 
     private async void OnSaveRoom(object sender, RoutedEventArgs e)
     {
+        Diag.Log("ui: save room settings clicked");
         if (_settingsForm is null)
             return;
         var (update, newPassword) = _settingsForm.Read();
@@ -347,6 +348,7 @@ public sealed partial class RoomPage : Page
 
     private async void OnDeleteRoom(object sender, RoutedEventArgs e)
     {
+        Diag.Log("ui: delete room clicked");
         if (!await RoomDialogs.ConfirmDeleteAsync(XamlRoot, _lounge.Name))
             return;
         if (App.Main?.IsFullscreen == true)
@@ -393,7 +395,7 @@ public sealed partial class RoomPage : Page
         {
             button = new Button { Content = Loc.Get("Room_StopWatching/Content") };
             var stopId = stream.Id;
-            button.Click += (_, _) => _watch.StopWatching(stopId);
+            button.Click += (_, _) => { Diag.Log($"ui: stop watching #{stopId} clicked"); _watch.StopWatching(stopId); };
         }
         else
         {
@@ -401,6 +403,7 @@ public sealed partial class RoomPage : Page
             var id = stream.Id;
             button.Click += (_, _) =>
             {
+                Diag.Log($"ui: watch #{id} clicked");
                 _watch.Watch(id);
                 Tabs.SelectedIndex = 0;
             };
@@ -428,6 +431,7 @@ public sealed partial class RoomPage : Page
 
     private async void OnLeave(object sender, RoutedEventArgs e)
     {
+        Diag.Log("ui: leave room clicked");
         if (App.Main?.IsFullscreen == true)
             App.Main.ExitFullscreen();
         _broadcast.StopLive();
@@ -439,6 +443,7 @@ public sealed partial class RoomPage : Page
     {
         if (_loading)
             return;
+        Diag.Log($"ui: room tab {Tabs.SelectedIndex}");
         // The SwapChainPanels live in different tabs; re-attach whichever became visible.
         if (Tabs.SelectedIndex == 0)
             BindTiles();
@@ -597,7 +602,11 @@ public sealed partial class RoomPage : Page
         SyncTiles();
     }
 
-    private void OnStopWatching(object sender, RoutedEventArgs e) => _watch.StopAll();
+    private void OnStopWatching(object sender, RoutedEventArgs e)
+    {
+        Diag.Log("ui: stop all watching clicked");
+        _watch.StopAll();
+    }
 
     private void OnMuteToggled(object sender, RoutedEventArgs e) => _watch.IsMuted = MuteButton.IsChecked == true;
 
@@ -610,6 +619,7 @@ public sealed partial class RoomPage : Page
 
     private static void ToggleFullscreen(uint streamId)
     {
+        Diag.Log($"ui: fullscreen toggle for #{streamId}");
         var main = App.Main;
         if (main is null || !Tiles.TryGetValue(streamId, out var tile))
             return;
@@ -990,6 +1000,7 @@ public sealed partial class RoomPage : Page
 
     private async void OnGoLive(object sender, RoutedEventArgs e)
     {
+        Diag.Log("ui: go live clicked");
         ErrorText.Text = string.Empty;
         if (_broadcast.Source is null)
         {
@@ -1015,9 +1026,17 @@ public sealed partial class RoomPage : Page
         }
     }
 
-    private void OnPause(object sender, RoutedEventArgs e) => _broadcast.SetPaused(!_broadcast.IsPaused);
+    private void OnPause(object sender, RoutedEventArgs e)
+    {
+        Diag.Log("ui: pause/resume clicked");
+        _broadcast.SetPaused(!_broadcast.IsPaused);
+    }
 
-    private void OnStop(object sender, RoutedEventArgs e) => _broadcast.StopLive();
+    private void OnStop(object sender, RoutedEventArgs e)
+    {
+        Diag.Log("ui: stop broadcast clicked");
+        _broadcast.StopLive();
+    }
 
     private void OnBroadcastState(BroadcastState state) => ApplyBroadcastState(state);
 

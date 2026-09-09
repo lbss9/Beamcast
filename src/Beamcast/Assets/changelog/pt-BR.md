@@ -1,3 +1,9 @@
+## 2.9.1
+
+### Melhorias
+
+- **Registro de diagnóstico completo.** Com o registro ligado (Configurações → Diagnóstico), o `diag.log` passa a anotar tudo o que o app faz: cada ação sua (entrar e sair da sala, transmitir, pausar, parar, assistir e parar de assistir, tela cheia, abas, navegação, tema, idioma, janela escondida), cada mudança de estado do salão, da transmissão e de quem assiste, cada reconexão com tentativa e resultado, cada membro e transmissão que entra ou sai, cada inscrição e pedido de quadro completo, o fechamento do socket com o motivo que o host mandou, o pulso de rede (ida e volta e desvio de relógio) e um resumo das estatísticas da transmissão e de cada espectador a cada 5 s. É a base para investigar os bugs "a transmissão fecha só para mim" e "o transmissor aparece duplicado", ainda em aberto. Nada muda com o registro desligado.
+
 ## 2.9.0
 
 ### Novidades

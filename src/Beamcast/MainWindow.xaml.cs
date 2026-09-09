@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window
         // WinUI shows an automatic "Esc" tooltip for accelerators on hover; not wanted for the whole window.
         RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
 
+        VisibilityChanged += (_, e) => Diag.Log($"ui: window {(e.Visible ? "visible" : "hidden/minimized")}");
         AppWindow.Closing += OnClosing;
         NavView.Loaded += (_, _) =>
         {
@@ -75,6 +76,7 @@ public sealed partial class MainWindow : Window
 
     public void ApplyTheme(string theme)
     {
+        Diag.Log($"ui: theme {theme}");
         RootGrid.RequestedTheme = theme switch
         {
             "Light" => ElementTheme.Light,
@@ -85,6 +87,7 @@ public sealed partial class MainWindow : Window
 
     public void ReloadForLanguage(string language)
     {
+        Diag.Log($"ui: language {language}");
         App.ApplyCulture(language);
         Loc.Reset();
         LoungeNav.Content = Loc.Get("Nav_Lounge/Content");
@@ -246,6 +249,7 @@ public sealed partial class MainWindow : Window
 
     private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
+        Diag.Log($"ui: nav -> {(args.IsSettingsSelected ? "settings" : (args.SelectedItem as NavigationViewItem)?.Tag?.ToString() ?? "?")}");
         Type page = LoungePageType;
         if (args.IsSettingsSelected)
             page = typeof(SettingsPage);

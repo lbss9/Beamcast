@@ -76,6 +76,7 @@ public sealed class BroadcastService
     private StreamMetaMessage _meta = new();
 
     private long _statsWindowStart;
+    private long _lastStatsLogTicks;
     private int _statsFrames;
     private long _statsBytes;
     private long _statsAudioBytes;
@@ -387,6 +388,7 @@ public sealed class BroadcastService
     /// <summary>Starts (or switches) capture. Works both before and during a live session.</summary>
     public void SelectSource(CaptureSource source)
     {
+        Diag.Log($"broadcast: source {source.Kind} '{source.Title}' {source.Width}x{source.Height}");
         lock (_sync)
         {
             _capture ??= CreateCapture();
@@ -417,6 +419,7 @@ public sealed class BroadcastService
     /// <summary>Publishes the current source as a stream in the lounge.</summary>
     public async Task GoLiveAsync(string title, CancellationToken ct)
     {
+        Diag.Log($"broadcast: go live '{title}' from {Source?.Kind} '{Source?.Title}' {Source?.Width}x{Source?.Height}, preset {_preset}, {_fps} fps, {_bitrateKbps} kbps, encoder pref {_encoderPreference}, audio {_audioMode}, cursor {_showCursor}, adaptive {_adaptiveEnabled}, standby {_standbyEnabled}");
         if (State != BroadcastState.Preview || Source is null)
             throw new InvalidOperationException("Pick something to share first.");
         if (!_lounge.IsConnected)
@@ -481,6 +484,7 @@ public sealed class BroadcastService
 
     public void StopLive()
     {
+        Diag.Log($"broadcast: stop live (state {State}, stream #{_streamId}, viewers {ViewerCount})");
         lock (_sync)
         {
             if (State != BroadcastState.Live)
@@ -542,6 +546,7 @@ public sealed class BroadcastService
     {
         if (State != BroadcastState.Live || _paused == paused)
             return;
+        Diag.Log($"broadcast: {(paused ? "paused" : "resumed")}");
         _paused = paused;
         _meta = new StreamMetaMessage
         {
@@ -1111,6 +1116,11 @@ public sealed class BroadcastService
         _statsFrames = 0;
         _statsBytes = 0;
         _statsEncodeMs = 0;
+        if (Environment.TickCount64 - _lastStatsLogTicks >= 5000)
+        {
+            _lastStatsLogTicks = Environment.TickCount64;
+            Diag.Log($"broadcast: stats {stats.Codec} {stats.Width}x{stats.Height} {stats.Fps:F1} fps {stats.Kbps:F0} kbps enc {stats.EncodeMs:F1} ms audio {stats.AudioKbps:F0} kbps viewers {stats.Viewers} target {stats.TargetKbps} adapted {stats.Adapted} worst viewer {stats.WorstViewerDelayMs} ms pending {_lounge.PendingVideo(_streamId)}");
+        }
         Post(() => StatsChanged?.Invoke(stats));
     }
 
@@ -1130,6 +1140,7 @@ public sealed class BroadcastService
     {
         if (State == state)
             return;
+        Diag.Log($"broadcast: state {State} -> {state}");
         State = state;
         if (state == BroadcastState.Idle)
             _lastPreviewTicks = 0;

@@ -678,10 +678,12 @@ public sealed class LoungeClient : IDisposable
         Volatile.Write(ref _roundTripMs, rtt);
         Volatile.Write(ref _clockOffsetMs, LoungeMux.ClockDelta(serverNow, midpoint));
         Volatile.Write(ref _clockKnown, 1);
+        Diag.Log($"net: heartbeat rtt {rtt} ms, clock offset {LoungeMux.ClockDelta(serverNow, midpoint)} ms, pending video {_pendingVideo.Values.Sum()}");
     }
 
     private void OnKeyGrant(byte[] payload)
     {
+        Diag.Log($"net: key grant ({payload.Length} B){(_channel is not null ? ", already keyed" : "")}");
         if (_channel is not null)
             return;
         if (payload.Length == 0)
@@ -700,6 +702,7 @@ public sealed class LoungeClient : IDisposable
 
     private void OnKeyRequest(uint newcomerId, byte[] newcomerPublicKey)
     {
+        Diag.Log($"net: key request for newcomer {newcomerId} ({newcomerPublicKey.Length} B)");
         byte[]? key;
         lock (_keySync)
             key = _contentKey is null ? null : (byte[])_contentKey.Clone();
@@ -840,6 +843,7 @@ public sealed class LoungeClient : IDisposable
     {
         if (Interlocked.Exchange(ref _closed, 1) != 0)
             return;
+        Diag.Log($"net: socket closed ({reason}); state {_socket.State}, close status {_socket.CloseStatus?.ToString() ?? "-"} '{_socket.CloseStatusDescription}', pending video {_pendingVideo.Values.Sum()}");
         _outbox.Writer.TryComplete();
         foreach (var waiter in _publishWaiters.Values)
             waiter.TrySetCanceled();

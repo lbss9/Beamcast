@@ -102,6 +102,7 @@ public sealed class WatchService
             viewer.Dispose();
             return;
         }
+        Diag.Log($"watch: watching #{streamId} by {stream.OwnerName} '{stream.Meta.Title}' ({stream.Meta.Codec}); now {_viewers.Count} tile(s)");
         _lounge.Subscribe(streamId);
         Post(() => WatchingChanged?.Invoke());
     }
@@ -110,6 +111,7 @@ public sealed class WatchService
     {
         if (!_viewers.TryRemove(streamId, out var viewer))
             return;
+        Diag.Log($"watch: stopped #{streamId} ({reason}); {_viewers.Count} tile(s) left, lounge {_lounge.State}");
         if (_lounge.IsConnected)
             _lounge.Unsubscribe(streamId);
         viewer.Dispose();
@@ -136,11 +138,13 @@ public sealed class WatchService
             var again = _lounge.FindStreamLike(viewer.OwnerName, viewer.Title);
             if (again is null || _viewers.ContainsKey(again.Id))
             {
+                Diag.Log($"watch: after reconnect, no stream like #{viewer.Id} by {viewer.OwnerName} '{viewer.Title}' (found {(again is null ? "none" : "#" + again.Id + " already watched")}); dropping");
                 viewer.Dispose();
                 var lost = viewer.Id;
                 Post(() => Stopped?.Invoke(lost, "ended"));
                 continue;
             }
+            Diag.Log($"watch: after reconnect, #{viewer.Id} is now #{again.Id}");
             VideoCodecs.TryParse(again.Meta.Codec, out var codec);
             var fresh = viewer.Rebind(again.Id, codec);
             _viewers[again.Id] = fresh;
@@ -175,7 +179,12 @@ public sealed class WatchService
         if (outcome == Viewer.VideoOutcome.NeedKeyframe)
             _lounge.RequestKeyframe(streamId);
         else if (outcome == Viewer.VideoOutcome.FirstFrame)
+        {
+            Diag.Log($"watch: first frame of #{viewer.Id}");
             Post(() => FirstFrame?.Invoke(viewer.Id));
+        }
+        else if (outcome == Viewer.VideoOutcome.NeedKeyframe)
+            Diag.Log($"watch: decode error on #{viewer.Id}, asking for a keyframe");
         if (viewer.TakeStats() is { } stats)
         {
             // Once a second: a late picture is reported to the publisher (it lowers its bitrate from
@@ -191,6 +200,8 @@ public sealed class WatchService
                 Diag.Log($"watch: stream {viewer.Id} delay {stats.LatencyMs:F0} ms, asking for a fresh keyframe");
                 _lounge.RequestKeyframe(viewer.Id);
             }
+            if (viewer.ShouldLogStats())
+                Diag.Log($"watch: stats #{viewer.Id} {stats.Width}x{stats.Height} {stats.Fps:F1} fps {stats.Kbps:F0} kbps dec {stats.DecodeMs:F1} ms audio {stats.AudioKbps:F0} kbps delay {stats.LatencyMs:F0} ms rtt {_lounge.RoundTripMs} ms");
             Post(() => StatsChanged?.Invoke(viewer.Id, stats));
         }
     }
@@ -243,6 +254,16 @@ public sealed class WatchService
 
         public uint Id { get; private set; }
         public ViewerLagPolicy Lag { get; } = new();
+        private long _lastStatsLog;
+
+        public bool ShouldLogStats()
+        {
+            var now = Environment.TickCount64;
+            if (now - _lastStatsLog < 5000)
+                return false;
+            _lastStatsLog = now;
+            return true;
+        }
         public string OwnerName { get; }
         public string Title { get; }
         public int Order { get; }

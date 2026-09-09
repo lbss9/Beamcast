@@ -2,6 +2,23 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.9.1
+
+- Diag em tudo (só com `diag.on`): `ui:` em RoomPage/LoungePage/MainWindow (go live, pausar,
+  parar, sair, assistir/parar de assistir, tela cheia, abas, salvar/apagar sala, entrar, host,
+  criar, navegação, tema, idioma, `VisibilityChanged`); `lounge:` em `LoungeService`
+  (`SetState`, `CreateAsync`, `JoinAsync`, `LeaveAsync`, `UpdateStreamMeta`, `OnPresence`,
+  `Subscribe`/`Unsubscribe`/`RequestKeyframe`, notice, fechamento, reconexão por tentativa,
+  attach, streams e membros); `net:` em `LoungeClient` (`Close` com estado/CloseStatus/fila,
+  heartbeat rtt+offset, key grant/request); `broadcast:` em `BroadcastService` (`SetState`,
+  `GoLiveAsync` com fonte/preset/fps/bitrate/encoder/áudio, `StopLive`, `SetPaused`,
+  `SelectSource`, stats a cada 5 s com fila pendente); `watch:` em `WatchService` (watch,
+  stop com motivo, rebind/drop na reconexão, primeiro quadro, erro de decode, stats por
+  espectador a cada 5 s). Sem mudança de comportamento.
+- Observador externo (fora do repo, `E:\Workspace\BeamcastObserver`, cópia no vault): console
+  que compila o `Net/*` do app, entra na sala como "Observador", tails `diag.log`/`crash.log`
+  e marca `DUPLICATE` quando o host lista duas transmissões do mesmo membro.
+
 ## 2.9.0
 
 - `Logic/BroadcastProfile.cs` (puro, 11 testes): `Candidates` (presets ≤ fonte, sem upscale),
