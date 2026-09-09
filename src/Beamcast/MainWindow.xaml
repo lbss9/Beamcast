@@ -78,7 +78,7 @@
             Severity="Informational"
         >
             <InfoBar.ActionButton>
-                <Button x:Uid="Update_BarAction" Click="OnUpdateBarAction" />
+                <Button x:Name="UpdateBarButton" Click="OnUpdateBarAction" />
             </InfoBar.ActionButton>
         </InfoBar>
 

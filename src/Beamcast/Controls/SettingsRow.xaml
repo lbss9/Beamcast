@@ -20,6 +20,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <FontIcon x:Name="Icon" Grid.Column="0" FontSize="18" VerticalAlignment="Center" Opacity="0.9" />
+            <CheckBox x:Name="Check" Grid.Column="0" MinWidth="0" Margin="0,0,-10,0" VerticalAlignment="Center" Visibility="Collapsed" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
             <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                 <TextBlock x:Name="HeaderText" Style="{ThemeResource BodyTextBlockStyle}" TextWrapping="Wrap" />
                 <TextBlock x:Name="DescriptionText" Opacity="0.65" Style="{ThemeResource CaptionTextBlockStyle}" TextWrapping="Wrap" />

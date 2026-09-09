@@ -33,7 +33,16 @@ public sealed partial class SettingsPage : Page
         RefreshLastCheck();
         AutoCheckRow.Header = Loc.Get("Settings_UpdatesLabel");
         AutoCheckRow.Description = Loc.Get("Settings_UpdatesDesc");
-        UpdatesSwitch.IsOn = settings.CheckUpdatesOnLaunch;
+        AutoCheckRow.IsChecked = settings.CheckUpdatesOnLaunch;
+        AutoUpdateRow.Header = Loc.Get("Settings_AutoUpdate");
+        AutoUpdateRow.Description = Loc.Get("Settings_AutoUpdateDesc");
+        AutoUpdateRow.IsChecked = settings.AutoUpdate;
+        UpdateNotifyRow.Header = Loc.Get("Settings_UpdateNotify");
+        UpdateNotifyRow.Description = Loc.Get("Settings_UpdateNotifyDesc");
+        UpdateNotifyRow.IsChecked = settings.UpdateNotifications;
+        UpdateNotesRow.Header = Loc.Get("Settings_UpdateNotes");
+        UpdateNotesRow.Description = Loc.Get("Settings_UpdateNotesDesc");
+        UpdateNotesRow.IsChecked = settings.ShowNotesAfterUpdate;
 
         NameRow.Header = Loc.Get("Settings_DisplayName");
         NameRow.Description = Loc.Get("Settings_DisplayNameDesc");
@@ -114,8 +123,33 @@ public sealed partial class SettingsPage : Page
     {
         if (_loading)
             return;
-        var on = UpdatesSwitch.IsOn;
+        var on = AutoCheckRow.IsChecked;
         SettingsStore.Update(s => s.CheckUpdatesOnLaunch = on);
+    }
+
+    private void OnAutoUpdateToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        var on = AutoUpdateRow.IsChecked;
+        Diag.Log($"ui: automatic updates {(on ? "on" : "off")}");
+        SettingsStore.Update(s => s.AutoUpdate = on);
+    }
+
+    private void OnUpdateNotifyToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        var on = UpdateNotifyRow.IsChecked;
+        SettingsStore.Update(s => s.UpdateNotifications = on);
+    }
+
+    private void OnUpdateNotesToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        var on = UpdateNotesRow.IsChecked;
+        SettingsStore.Update(s => s.ShowNotesAfterUpdate = on);
     }
 
     // ----- identity and appearance -----

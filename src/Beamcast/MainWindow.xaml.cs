@@ -22,6 +22,7 @@ public sealed partial class MainWindow : Window
     private DispatcherQueueTimer? _updateTimer;
     private UpdateOffer? _pendingOffer;
     private string? _notifiedVersion;
+    private bool _barRestarts;
     private bool _disclaimerShown;
 
     public MainWindow()
@@ -164,15 +165,48 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Announces a newer build with a discreet bar under the title, never a pop-up.</summary>
-    public void NotifyUpdate(UpdateOffer offer)
+    public void NotifyUpdate(UpdateOffer offer, bool staged = false, bool show = true)
     {
         _pendingOffer = offer;
-        if (_notifiedVersion == offer.Version)
+        var key = offer.Version + (staged ? " ready" : string.Empty);
+        if (!show || _notifiedVersion == key)
             return;
-        _notifiedVersion = offer.Version;
-        UpdateBar.Title = Loc.Get("Update_BarTitle");
-        UpdateBar.Message = Loc.Format("Update_BarBody", offer.Version);
+        _notifiedVersion = key;
+        _barRestarts = staged;
+        UpdateBar.Title = Loc.Get(staged ? "Update_ReadyTitle" : "Update_BarTitle");
+        UpdateBar.Message = Loc.Format(staged ? "Update_ReadyBody" : "Update_BarBody", offer.Version);
+        UpdateBarButton.Content = Loc.Get(staged ? "Update_Restart" : "Update_BarAction");
         UpdateBar.IsOpen = true;
+    }
+
+    /// <summary>
+    /// What to do with a finished check. With automatic updates on (and the connection not metered)
+    /// the new version is fetched in the background and kept for the moment the app closes, so a
+    /// broadcast or a room is never cut short. Nothing here ever restarts the app by itself.
+    /// </summary>
+    public async Task HandleCheckAsync(UpdateCheck check)
+    {
+        if (check.Offer is null)
+            return;
+        var settings = SettingsStore.Load();
+        if (check.Kind == UpdateCheckKind.ReadyToRestart)
+        {
+            NotifyUpdate(check.Offer, staged: true, settings.UpdateNotifications);
+            return;
+        }
+        if (check.Kind != UpdateCheckKind.Available)
+            return;
+        if (settings.AutoUpdate)
+        {
+            if (NetworkCost.IsMetered())
+                Diag.Log("update: metered connection, leaving the download for later");
+            else if (await UpdateService.DownloadAsync())
+            {
+                NotifyUpdate(check.Offer with { Downloaded = true }, staged: true, settings.UpdateNotifications);
+                return;
+            }
+        }
+        NotifyUpdate(check.Offer, staged: false, settings.UpdateNotifications);
     }
 
     public void ShowUpdate(UpdateOffer offer)
@@ -182,11 +216,37 @@ public sealed partial class MainWindow : Window
         window.Activate();
     }
 
-    private void OnUpdateBarAction(object sender, RoutedEventArgs e)
+    private async void OnUpdateBarAction(object sender, RoutedEventArgs e)
     {
         UpdateBar.IsOpen = false;
-        if (_pendingOffer is not null)
+        if (_pendingOffer is null)
+            return;
+        if (!_barRestarts)
+        {
             ShowUpdate(_pendingOffer);
+            return;
+        }
+        // The version is already on disk: the only thing left is to restart into it. Ask first when
+        // that would cut a broadcast or something being watched.
+        if (BroadcastService.Instance.State == BroadcastState.Live || WatchService.Instance.IsWatching)
+        {
+            var dialog = new ContentDialog
+            {
+                XamlRoot = Content.XamlRoot,
+                Title = Loc.Get("Update_RestartBusyTitle"),
+                Content = Loc.Get("Update_RestartBusyBody"),
+                PrimaryButtonText = Loc.Get("Update_Restart"),
+                CloseButtonText = Loc.Get("Dialog_Cancel"),
+                DefaultButton = ContentDialogButton.Close,
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            {
+                UpdateBar.IsOpen = true;
+                return;
+            }
+        }
+        Diag.Log("ui: restart into the staged update");
+        await UpdateService.DownloadAndApplyAsync();
     }
 
     private void StartUpdateTimer()
@@ -202,9 +262,7 @@ public sealed partial class MainWindow : Window
     {
         if (!SettingsStore.Load().CheckUpdatesOnLaunch)
             return;
-        var check = await UpdateService.CheckAsync();
-        if (check.Kind is UpdateCheckKind.Available or UpdateCheckKind.ReadyToRestart && check.Offer is not null)
-            NotifyUpdate(check.Offer);
+        await HandleCheckAsync(await UpdateService.CheckAsync());
     }
 
     /// <summary>Moves <paramref name="content"/> into a black full-window layer and goes borderless.</summary>
@@ -285,6 +343,9 @@ public sealed partial class MainWindow : Window
     private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         _updateTimer?.Stop();
+        // A version downloaded in the background is installed now, with the app on its way out.
+        if (SettingsStore.Load().AutoUpdate && UpdateService.HasStagedUpdate)
+            UpdateService.ApplyWhenClosed();
         BroadcastService.Instance.Shutdown();
         _ = LoungeService.Instance.LeaveAsync();
     }

@@ -49,6 +49,45 @@ public sealed partial class SettingsRow : UserControl
         set => Action.Content = value;
     }
 
+    /// <summary>
+    /// Shows a check box at the left instead of the icon, for a list of options that belong
+    /// together (the shape Windows uses for update preferences).
+    /// </summary>
+    public bool Checkable
+    {
+        set
+        {
+            Check.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+            if (!value)
+                return;
+            Icon.Visibility = Visibility.Collapsed;
+            Root.Padding = new Thickness(14, 10, 14, 10);
+        }
+    }
+
+    /// <summary>State of the check box. Setting it does not raise <see cref="CheckChanged"/>.</summary>
+    public bool IsChecked
+    {
+        get => Check.IsChecked == true;
+        set
+        {
+            _quiet = true;
+            Check.IsChecked = value;
+            _quiet = false;
+        }
+    }
+
+    /// <summary>The person ticked or unticked the box.</summary>
+    public event RoutedEventHandler? CheckChanged;
+
+    private bool _quiet;
+
+    private void OnCheckChanged(object sender, RoutedEventArgs e)
+    {
+        if (!_quiet)
+            CheckChanged?.Invoke(this, e);
+    }
+
     /// <summary>No border or background: for use as an Expander header, which draws its own.</summary>
     public bool Bare
     {

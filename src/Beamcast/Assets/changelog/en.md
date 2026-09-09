@@ -1,3 +1,15 @@
+## 2.9.5
+
+### New
+
+- **Automatic updates that interrupt nothing.** When a new version is out, Beamcast downloads it in the background and keeps it. Nothing is installed while you use the app: it installs the moment you close it, and the next time you open, it is the new version. A bar at the top says "update ready" with a "Restart and finish" button for whoever wants it now, and it asks first if you are broadcasting or watching. On metered connections the download waits.
+- **Release notes after an update.** The first time you open a new version, What's new opens by itself.
+- **Update preferences as check boxes**, the way Windows does it: check on launch, download and install by itself, show notifications and show the notes. Each one can be turned off.
+
+### Fixes
+
+- The chevron that opens the updates panel no longer sits in a square.
+
 ## 2.9.4
 
 ### New

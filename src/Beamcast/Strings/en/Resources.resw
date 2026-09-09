@@ -107,7 +107,7 @@
   <data name="Settings_NeverChecked" xml:space="preserve"><value>Not checked yet this session</value></data>
   <data name="Settings_LastChecked" xml:space="preserve"><value>Last checked: {0}</value></data>
   <data name="Settings_UpdatesLabel" xml:space="preserve"><value>Check on launch</value></data>
-  <data name="Settings_UpdatesDesc" xml:space="preserve"><value>Asks GitHub Releases at startup and every 6 hours. Nothing is installed without your confirmation.</value></data>
+  <data name="Settings_UpdatesDesc" xml:space="preserve"><value>Asks GitHub Releases at startup and every 6 hours.</value></data>
   <data name="Settings_DisplayName" xml:space="preserve"><value>Your name</value></data>
   <data name="Settings_DisplayNameDesc" xml:space="preserve"><value>How other people see you in a room.</value></data>
   <data name="Settings_AppearanceHeader.Text" xml:space="preserve"><value>Appearance and behavior</value></data>
@@ -119,6 +119,14 @@
   <data name="Settings_StreamSound" xml:space="preserve"><value>Sound when someone starts a broadcast</value></data>
   <data name="Settings_StreamSoundDesc" xml:space="preserve"><value>Plays a short sound when another person starts broadcasting in the room you are in.</value></data>
   <data name="Settings_StreamSoundTry" xml:space="preserve"><value>Play</value></data>
+  <data name="Settings_AutoUpdate" xml:space="preserve"><value>Download and install updates automatically</value></data>
+  <data name="Settings_AutoUpdateDesc" xml:space="preserve"><value>Except on metered connections. It installs when you close Beamcast, never in the middle of a broadcast.</value></data>
+  <data name="Settings_UpdateNotify" xml:space="preserve"><value>Show notifications for new updates</value></data>
+  <data name="Settings_UpdateNotifyDesc" xml:space="preserve"><value>A bar at the top of the window when a new version is out.</value></data>
+  <data name="Settings_UpdateNotes" xml:space="preserve"><value>Show the release notes after an update</value></data>
+  <data name="Settings_UpdateNotesDesc" xml:space="preserve"><value>Opens What's new the first time you use the new version.</value></data>
+  <data name="Update_ReadyTitle" xml:space="preserve"><value>Update ready</value></data>
+  <data name="Update_ReadyBody" xml:space="preserve"><value>Beamcast {0} is downloaded and will be installed when you close the app.</value></data>
   <data name="Settings_Diag" xml:space="preserve"><value>Diagnostic log</value></data>
   <data name="Settings_DiagDesc" xml:space="preserve"><value>Records capture, encoder, network and failures in diag.log. No effect on performance outside the logged points.</value></data>
   <data name="Settings_DiagFolder" xml:space="preserve"><value>Diagnostics folder</value></data>
@@ -171,7 +179,7 @@
   <data name="Update_Failed" xml:space="preserve"><value>The update could not be downloaded. Check the connection and try again; if it keeps failing, the new version is also available from the About page.</value></data>
   <data name="Update_BarTitle" xml:space="preserve"><value>Update available</value></data>
   <data name="Update_BarBody" xml:space="preserve"><value>Beamcast {0} is ready to install. See what changes.</value></data>
-  <data name="Update_BarAction.Content" xml:space="preserve"><value>See details</value></data>
+  <data name="Update_BarAction" xml:space="preserve"><value>See what changed</value></data>
 
   <data name="Quality_Encoder.Header" xml:space="preserve"><value>Codec</value></data>
   <data name="Encoder_Auto" xml:space="preserve"><value>Automatic (GPU when available)</value></data>
@@ -389,6 +397,8 @@
   <data name="Room_OwnerBadge" xml:space="preserve"><value>owner</value></data>
   <data name="Room_TemporaryBadge" xml:space="preserve"><value>temporary</value></data>
   <data name="Room_OnlyOwnerBroadcasts.Text" xml:space="preserve"><value>Only the owner broadcasts in this room.</value></data>
+  <data name="Update_RestartBusyTitle" xml:space="preserve"><value>Restart now?</value></data>
+  <data name="Update_RestartBusyBody" xml:space="preserve"><value>You are broadcasting or watching. Restarting ends that for you. If you prefer, close the app when you are done: the update installs by itself then.</value></data>
   <data name="Update_Restart" xml:space="preserve"><value>Restart to finish</value></data>
   <data name="Update_Ready" xml:space="preserve"><value>This version is already downloaded. Restart to finish installing.</value></data>
   <data name="Update_DownloadingPercent" xml:space="preserve"><value>Downloading… {0}%</value></data>

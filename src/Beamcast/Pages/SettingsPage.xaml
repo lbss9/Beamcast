@@ -6,6 +6,10 @@
     xmlns:ctrl="using:Beamcast.Controls"
 >
     <Page.Resources>
+        <!-- The expander's chevron sits in a plain square by default; Windows shows it bare. -->
+        <SolidColorBrush x:Key="ExpanderChevronBackground" Color="Transparent" />
+        <SolidColorBrush x:Key="ExpanderChevronBorderBrush" Color="Transparent" />
+        <Thickness x:Key="ExpanderChevronBorderThickness">0</Thickness>
         <Style x:Key="SettingsExpanderStyle" TargetType="Expander">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -66,11 +70,13 @@
                     </Grid>
                 </Expander.Header>
                 <StackPanel>
-                    <ctrl:SettingsRow x:Name="AutoCheckRow" Nested="True">
-                        <ctrl:SettingsRow.ActionContent>
-                            <ToggleSwitch x:Name="UpdatesSwitch" MinWidth="0" Toggled="OnUpdatesToggled" />
-                        </ctrl:SettingsRow.ActionContent>
-                    </ctrl:SettingsRow>
+                    <ctrl:SettingsRow x:Name="AutoCheckRow" Nested="True" Checkable="True" CheckChanged="OnUpdatesToggled" />
+                    <Border Height="1" Opacity="0.6" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                    <ctrl:SettingsRow x:Name="AutoUpdateRow" Nested="True" Checkable="True" CheckChanged="OnAutoUpdateToggled" />
+                    <Border Height="1" Opacity="0.6" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                    <ctrl:SettingsRow x:Name="UpdateNotifyRow" Nested="True" Checkable="True" CheckChanged="OnUpdateNotifyToggled" />
+                    <Border Height="1" Opacity="0.6" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                    <ctrl:SettingsRow x:Name="UpdateNotesRow" Nested="True" Checkable="True" CheckChanged="OnUpdateNotesToggled" />
                 </StackPanel>
             </Expander>
 

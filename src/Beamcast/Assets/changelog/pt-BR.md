@@ -1,3 +1,15 @@
+## 2.9.5
+
+### Novidades
+
+- **Atualização automática, sem interromper nada.** Quando sai uma versão nova, o Beamcast baixa em segundo plano e guarda. Nada é instalado enquanto você usa o app: a instalação acontece no momento em que você fecha, e na próxima vez que abrir já é a versão nova. Uma faixa no topo avisa "atualização pronta" com o botão "Reiniciar e concluir" para quem quiser na hora; se você estiver transmitindo ou assistindo, ele pergunta antes. Em conexões medidas (celular, plano com limite) o download fica para depois.
+- **Notas da versão depois de atualizar.** Na primeira vez que você abre uma versão nova, a tela Novidades aparece sozinha.
+- **Preferências de atualização em caixas de seleção**, no formato do Windows: verificar ao abrir, baixar e instalar sozinho, mostrar notificações e mostrar as notas. Cada uma pode ser desligada.
+
+### Correções
+
+- A setinha que abre o painel de atualizações não tem mais o quadrado em volta.
+
 ## 2.9.4
 
 ### Novidades

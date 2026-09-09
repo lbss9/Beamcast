@@ -105,6 +105,18 @@ public sealed class AppSettings
 
     public bool CheckUpdatesOnLaunch { get; set; } = true;
 
+    /// <summary>Download a new version in the background and install it when the app closes.</summary>
+    public bool AutoUpdate { get; set; } = true;
+
+    /// <summary>Show the bar at the top of the window when a new version turns up.</summary>
+    public bool UpdateNotifications { get; set; } = true;
+
+    /// <summary>Open "Novidades" the first time the app runs after an update.</summary>
+    public bool ShowNotesAfterUpdate { get; set; } = true;
+
+    /// <summary>The version whose notes were already shown. Empty on a fresh install, so nothing opens then.</summary>
+    public string LastNotesVersion { get; set; } = string.Empty;
+
     /// <summary>Set once the person has read and accepted the study-only notice.</summary>
     public bool DisclaimerAccepted { get; set; }
 }

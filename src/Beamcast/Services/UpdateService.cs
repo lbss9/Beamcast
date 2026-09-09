@@ -136,6 +136,72 @@ public static class UpdateService
         }
     }
 
+    /// <summary>A version already downloaded and waiting to be installed.</summary>
+    public static bool HasStagedUpdate
+    {
+        get
+        {
+            try
+            {
+                return Manager.IsInstalled && Manager.UpdatePendingRestart is not null;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Downloads the pending update and leaves it staged. Nothing is installed and nothing restarts:
+    /// the running app, and any broadcast in it, carry on untouched.
+    /// </summary>
+    public static async Task<bool> DownloadAsync(Action<int>? progress = null)
+    {
+        if (Interlocked.Exchange(ref _busy, 1) != 0)
+            return false;
+        try
+        {
+            var manager = Manager;
+            if (!manager.IsInstalled || _pending is null)
+                return false;
+            Diag.Log($"update: downloading {_pending.TargetFullRelease.Version} in the background");
+            await manager.DownloadUpdatesAsync(_pending, progress).ConfigureAwait(false);
+            Diag.Log("update: download complete, staged for the next close");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Diag.Log("update: background download failed: " + ex.Message);
+            return false;
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _busy, 0);
+        }
+    }
+
+    /// <summary>
+    /// Hands the staged version to the updater, which waits for this process to exit and installs it
+    /// then. Call it while closing: nothing is interrupted and nothing is relaunched.
+    /// </summary>
+    public static bool ApplyWhenClosed()
+    {
+        try
+        {
+            if (Manager.UpdatePendingRestart is not { } staged)
+                return false;
+            Diag.Log($"update: {staged.Version} will be installed right after this run");
+            Manager.WaitExitThenApplyUpdates(staged, silent: true, restart: false);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Diag.Log("update: installing on exit failed: " + ex.Message);
+            return false;
+        }
+    }
+
     /// <summary>Downloads (if needed) and restarts into the new version. Only returns on failure.</summary>
     public static async Task<UpdateCheckKind> DownloadAndApplyAsync(Action<int>? progress = null)
     {

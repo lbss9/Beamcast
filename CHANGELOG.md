@@ -2,6 +2,25 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.9.5
+
+- Atualização automática: `AppSettings.AutoUpdate` / `UpdateNotifications` / `ShowNotesAfterUpdate`
+  / `LastNotesVersion`. `UpdateService.DownloadAsync` baixa e **deixa staged** (`DownloadUpdatesAsync`
+  sem aplicar; `UpdatePendingRestart` passa a existir), `HasStagedUpdate` e `ApplyWhenClosed`
+  (`WaitExitThenApplyUpdates(staged, silent: true, restart: false)`) chamado em
+  `MainWindow.OnClosing` — o updater espera o processo sair, então nada é interrompido e nada
+  reinicia sozinho. `MainWindow.HandleCheckAsync` centraliza a checagem do lançamento e do timer;
+  `NetworkCost.IsMetered` (Windows.Networking.Connectivity) segura o download em conexão medida.
+- Barra do topo: `Update_ReadyTitle`/`Update_ReadyBody` com botão `Update_Restart`; reiniciar com
+  transmissão ou assistindo pede confirmação (`Update_RestartBusy*`). `App.ShowNotesAfterUpdate`
+  abre Novidades na primeira execução de uma versão diferente da última anotada.
+- `SettingsRow`: modo `Checkable` (caixa de seleção à esquerda, `IsChecked`, `CheckChanged`), usado
+  nas quatro preferências de atualização com separadores. Chevron do `Expander` sem caixa
+  (`ExpanderChevronBackground`/`BorderBrush` transparentes, espessura 0 na página).
+- Harnesses: `updatecheck` confere `UpdatePendingRestart` depois do download (é o que a instalação
+  ao fechar usa); `settingscheck` voltou a compilar (faltavam `BroadcastProfile.cs` e
+  `VideoCodec.cs` desde a 2.9.0).
+
 ## 2.9.4
 
 - `Assets/Sounds/stream-start.wav` (0,48 s, 44,1 kHz estéreo) e `SoundEffects.StreamStart`. Toca em

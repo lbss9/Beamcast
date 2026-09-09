@@ -38,6 +38,7 @@ public partial class App : Application
         Main.ApplyTheme(settings.Theme);
         Main.Activate();
 
+        ShowNotesAfterUpdate(settings);
         if (settings.CheckUpdatesOnLaunch)
             _ = CheckUpdatesOnLaunchAsync();
     }
@@ -45,9 +46,26 @@ public partial class App : Application
     private static async Task CheckUpdatesOnLaunchAsync()
     {
         var check = await UpdateService.CheckAsync();
-        if (check.Kind is not (UpdateCheckKind.Available or UpdateCheckKind.ReadyToRestart) || check.Offer is null)
+        if (check.Offer is null)
             return;
-        Main?.DispatcherQueue.TryEnqueue(() => Main.NotifyUpdate(check.Offer));
+        Main?.DispatcherQueue.TryEnqueue(() => _ = Main.HandleCheckAsync(check));
+    }
+
+    /// <summary>
+    /// First run after an update: open Novidades so the change is not a surprise. A fresh install has
+    /// no earlier version recorded, so nothing opens then.
+    /// </summary>
+    private static void ShowNotesAfterUpdate(AppSettings settings)
+    {
+        var current = AppInfo.Version;
+        if (settings.LastNotesVersion == current)
+            return;
+        var updated = settings.LastNotesVersion.Length > 0;
+        SettingsStore.Update(s => s.LastNotesVersion = current);
+        if (!updated || !settings.ShowNotesAfterUpdate)
+            return;
+        Diag.Log($"update: first run of {current}, opening the release notes");
+        Main?.DispatcherQueue.TryEnqueue(() => Main.NavigateTo("about"));
     }
 
     public static void ApplyCulture(string language)
