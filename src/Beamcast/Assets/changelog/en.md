@@ -1,3 +1,15 @@
+## 2.4.0
+
+### Improvements
+
+- Less GPU and network work while the screen is still. Frames where only the mouse moved reach the encoder at most 10 times a second (never with the cursor hidden), and with nothing changing the last frame is repeated once a second. Someone joining the stream gets a frame right away.
+- Window capture on Windows 11 24H2 reports what changed in the window; frames with no change at all are skipped.
+- With the app minimized or hidden behind a game, the preview and the viewers' video stop being drawn (decoding continues, so the picture is back the moment the window returns).
+
+### Fixes
+
+- On AMD cards the encoder slowed down at low bitrates (at 4 Mbps it dropped half the frames) because of a rate-control buffer that was too small. The buffer now follows the vendors' recommendation, and adaptive quality no longer trips on it.
+
 ## 2.3.2
 
 ### Fixes

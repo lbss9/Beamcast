@@ -2,6 +2,24 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.4.0
+
+- `Logic/CapturePacer.cs` (puro, 6 testes): quadro com conteúdo novo sempre passa; só-mouse a no
+  máximo 10/s e nunca com cursor oculto; repetição do último quadro 1×/s quando nada muda, ou na
+  hora após `RequestFrame()` (pedido de keyframe de um espectador novo).
+- `ScreenCapture`: Desktop Duplication usa `AccumulatedFrames`/`LastPresentTime` para distinguir
+  só-mouse de conteúdo; timer de 250 ms (`RepeatLastFrameIfDue`) atende os dois caminhos (antes a
+  repetição só existia no DD, a cada 500 ms, no timeout do `AcquireNextFrame`); WGC com
+  `DirtyRegionMode.ReportOnly` + `DirtyRegions.Count == 0` ⇒ sem mudança (24H2+, guardado por
+  `ApiInformation`). `BroadcastService.OnKeyframeRequested` chama `RequestFrame()`.
+- `MfVideoEncoder`: VBV padrão = 0,1 s (3 quadros a 30 fps, 6 a 60) em vez de 1 quadro; medido
+  no `gpubench`: a 4 Mbps a captura ia a 16–19 fps com 26 ms/quadro na AMD, com VBV 3 volta a
+  28–30 fps. Parâmetro `vbvFrames` (0 = auto) para o harness.
+- `SwapChainPresenter.PresentationPaused` (estático) ligado por `MainWindow.VisibilityChanged`:
+  `Present` vira no-op com a janela minimizada/oculta; `Clear`/decode seguem.
+- Estudo completo e medições em `E:\Documentos\Beamcast\17 - Estudo de GPU e otimização.md`
+  (vault) e harness `gpubench`.
+
 ## 2.3.2
 
 - `ScreenCapture.DuplicationLoop`: `AcquireNextFrame` → `DXGI_ERROR_INVALID_CALL` deixa de ser

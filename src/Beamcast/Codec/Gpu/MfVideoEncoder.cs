@@ -12,6 +12,7 @@ namespace Beamcast.Codec.Gpu;
 /// </summary>
 public sealed class MfVideoEncoder : IDisposable
 {
+    private readonly int _vbvFrames;
     private const int EventNeedInput = 601;
     private const int EventHaveOutput = 602;
     private static readonly Guid Texture2DIid = new("6f15aaf2-d208-4e89-9ab4-489535d34f9c");
@@ -34,13 +35,19 @@ public sealed class MfVideoEncoder : IDisposable
     private long _submittedTicks;
     private volatile bool _disposed;
 
-    public MfVideoEncoder(GpuDevice gpu, VideoCodec codec, int width, int height, int fps, int bitrateKbps)
+    /// <param name="vbvFrames">
+    /// Rate-control buffer in frames; 0 = a tenth of a second (3 at 30 fps, 6 at 60), the value
+    /// AMD and NVIDIA recommend for low-latency CBR. One frame looked tempting for latency but
+    /// made the AMD encoder crawl at lower bitrates (26 ms per frame at 4 Mbps, half the frames dropped).
+    /// </param>
+    public MfVideoEncoder(GpuDevice gpu, VideoCodec codec, int width, int height, int fps, int bitrateKbps, int vbvFrames = 0)
     {
         _gpu = gpu;
         Codec = codec;
         Width = width;
         Height = height;
         Fps = Math.Max(1, fps);
+        _vbvFrames = vbvFrames <= 0 ? Math.Max(1, (int)Math.Round(Fps * 0.1)) : Math.Clamp(vbvFrames, 1, 30);
         _frameDuration = 10_000_000L / Fps;
 
         _transform = MfCodecs.CreateHardwareEncoder(codec, out var name)
@@ -188,8 +195,8 @@ public sealed class MfVideoEncoder : IDisposable
         _codecApi.SetUInt32(CodecApiGuids.AVEncCommonRateControlMode, CodecApiGuids.RateControlCbr);
         _codecApi.SetUInt32(CodecApiGuids.AVEncCommonMeanBitRate, bits);
         _codecApi.SetUInt32(CodecApiGuids.AVEncCommonMaxBitRate, bits);
-        // One frame worth of VBV: the encoder cannot bank bits, so every frame stays small and quick to send.
-        _codecApi.SetUInt32(CodecApiGuids.AVEncCommonBufferSize, Math.Max(bits / (uint)Fps, 64_000u));
+        // VBV of a few frames: the encoder cannot bank much, so frames stay small and quick to send.
+        _codecApi.SetUInt32(CodecApiGuids.AVEncCommonBufferSize, Math.Max(bits / (uint)Fps * (uint)_vbvFrames, 64_000u));
         _codecApi.SetUInt32(CodecApiGuids.AVEncMPVDefaultBPictureCount, 0);
         _codecApi.SetUInt32(CodecApiGuids.AVEncVideoMaxNumRefFrame, 1);
         _codecApi.SetUInt32(CodecApiGuids.AVEncCommonQualityVsSpeed, 0);

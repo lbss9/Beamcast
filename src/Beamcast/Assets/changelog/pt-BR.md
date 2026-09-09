@@ -1,3 +1,15 @@
+## 2.4.0
+
+### Melhorias
+
+- Menos trabalho para a GPU e para a internet quando a tela está parada. Quadros em que só o mouse se moveu vão para o encoder no máximo 10 vezes por segundo (ou nunca, com o cursor oculto), e com nada mudando o último quadro é repetido uma vez por segundo. Quem entra na transmissão recebe um quadro na hora, sem esperar.
+- Na captura de janela, o Windows 11 24H2 informa o que mudou na janela; quadros sem mudança nenhuma são pulados.
+- Com o app minimizado ou escondido atrás do jogo, prévia e vídeo dos espectadores param de ser desenhados (o decode continua, então ao restaurar a imagem volta na hora).
+
+### Correções
+
+- Em placas AMD o encoder ficava lento em bitrates baixos (a 4 Mbps caía para metade dos quadros) por causa de um buffer de rate control pequeno demais. Agora o buffer segue a recomendação dos fabricantes, e a qualidade adaptativa deixa de tropeçar nisso.
+
 ## 2.3.2
 
 ### Correções
