@@ -224,6 +224,9 @@
                                             <Border x:Name="PausedBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,2" Background="#CC333B48">
                                                 <TextBlock x:Uid="Preview_Paused" FontSize="11" FontWeight="Bold" Foreground="White" />
                                             </Border>
+                                            <Border x:Name="StandbyBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,2" Background="#CC6B5B00">
+                                                <TextBlock x:Uid="Preview_Standby" FontSize="11" FontWeight="Bold" Foreground="White" />
+                                            </Border>
                                             <Border x:Name="ViewersBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,2" Background="#B3000000">
                                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                                     <FontIcon Glyph="&#xE7B3;" FontSize="11" Foreground="White" VerticalAlignment="Center" />
@@ -270,6 +273,8 @@
                                             <ComboBox x:Name="AudioBox" x:Uid="Audio_Mode" HorizontalAlignment="Stretch" SelectionChanged="OnAudioChanged" />
                                             <TextBlock x:Name="AudioHintText" Style="{StaticResource HintTextStyle}" />
                                             <ToggleSwitch x:Name="ViewerSoundsSwitch" x:Uid="Stream_ViewerSounds" Toggled="OnViewerSoundsToggled" />
+                                            <ToggleSwitch x:Name="StandbySwitch" x:Uid="Stream_Standby" Toggled="OnStandbyToggled" />
+                                            <TextBlock x:Uid="Stream_StandbyHint" Style="{StaticResource HintTextStyle}" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>

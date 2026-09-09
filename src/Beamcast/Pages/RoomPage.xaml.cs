@@ -76,6 +76,7 @@ public sealed partial class RoomPage : Page
         CursorSwitch.IsOn = _broadcast.ShowCursor;
         AdaptiveSwitch.IsOn = _broadcast.AdaptiveQuality;
         ViewerSoundsSwitch.IsOn = _broadcast.ViewerSounds;
+        StandbySwitch.IsOn = _broadcast.StandbyWithoutViewers;
         TitleBox.Text = settings.StreamTitle;
         VolumeSlider.Value = settings.Volume;
         _watch.Volume = settings.Volume / 100f;
@@ -153,6 +154,7 @@ public sealed partial class RoomPage : Page
             s.ShowCursor = _broadcast.ShowCursor;
             s.AdaptiveQuality = _broadcast.AdaptiveQuality;
             s.ViewerSounds = _broadcast.ViewerSounds;
+            s.StandbyWithoutViewers = _broadcast.StandbyWithoutViewers;
             s.Encoder = _broadcast.EncoderPreferenceValue;
             s.AudioMode = _broadcast.AudioModeValue;
             s.StreamTitle = TitleBox.Text.Trim();
@@ -824,6 +826,13 @@ public sealed partial class RoomPage : Page
         _broadcast.ViewerSounds = ViewerSoundsSwitch.IsOn;
     }
 
+    private void OnStandbyToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        _broadcast.StandbyWithoutViewers = StandbySwitch.IsOn;
+    }
+
     private void OnViewerChanged(string name, bool joined)
     {
         ViewerNoteText.Text = Loc.Format(joined ? "Stream_ViewerJoined" : "Stream_ViewerLeft", name);
@@ -929,14 +938,18 @@ public sealed partial class RoomPage : Page
         {
             var audio = stats.AudioKbps > 0 ? $"  ♪ {stats.AudioKbps:F0} kbps" : string.Empty;
             var adapted = stats.Adapted ? "  " + Loc.Format("Stream_Adapted", stats.TargetKbps) : string.Empty;
-            StatsText.Text = $"{stats.Codec}  {stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  {stats.EncodeMs:F1} ms{audio}{adapted}";
+            StatsText.Text = stats.Standby
+                ? Loc.Get("Stream_StandbyStats")
+                : $"{stats.Codec}  {stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  {stats.EncodeMs:F1} ms{audio}{adapted}";
             ViewersText.Text = Loc.Format("Stream_Viewers", _broadcast.ViewerCount);
             ViewersBadge.Visibility = Visibility.Visible;
+            StandbyBadge.Visibility = stats.Standby ? Visibility.Visible : Visibility.Collapsed;
         }
         else
         {
             StatsText.Text = _broadcast.Source?.SizeLabel ?? string.Empty;
             ViewersBadge.Visibility = Visibility.Collapsed;
+            StandbyBadge.Visibility = Visibility.Collapsed;
             ViewerNoteText.Text = string.Empty;
         }
         StatsBadge.Visibility = StatsText.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;

@@ -1,3 +1,9 @@
+## 2.7.0
+
+### New
+
+- **Broadcast only with viewers** (Broadcast tab, on by default). While nobody watches, capture and preview keep running but the encoder and the upload stay idle: no video GPU or upload spent for nothing. When someone joins, the stream resumes at once with a full frame. A "WAITING FOR A VIEWER" badge shows next to LIVE meanwhile. Same behaviour as Discord; only engages with hosts 2.3.0 or newer.
+
 ## 2.6.2
 
 ### Fixes

@@ -2,6 +2,16 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.7.0
+
+- `BroadcastService.StandbyWithoutViewers` (setting `AppSettings.StandbyWithoutViewers`, default
+  true) e `IsStandby = live && ligado && _lounge.ClockSynced && ViewerCount == 0`. `ClockSynced`
+  faz de guarda: só um host 2.3.0+ (que ecoa o relógio) manda `ViewerJoined/Left`, então em host
+  antigo o standby nunca engata. `OnTexture` e `OnAudioPacket` retornam em standby depois da
+  prévia; `OnStandbyChanged` (no join/leave de espectador, no toggle e no go-live) pede keyframe
+  ao sair, zera stats e publica `HostStats.Standby`. Aba Transmitir: toggle + dica, badge
+  "AGUARDANDO ESPECTADOR", texto de stats próprio. Primeiro item da estratégia nova (nota 17).
+
 ## 2.6.2
 
 - Reversão integral da 2.4.0 a pedido do autor ("ficou pior"): `ScreenCapture.cs`,

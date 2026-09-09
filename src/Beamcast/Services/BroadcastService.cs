@@ -23,9 +23,10 @@ public enum BroadcastState
 /// <param name="Viewers">People currently watching this stream (host 2.3.0+; 0 on older hosts).</param>
 /// <param name="TargetKbps">The bitrate the encoder runs at now: the chosen one, or lower while adapting.</param>
 /// <param name="Adapted">True while adaptive quality holds the bitrate below the chosen one.</param>
-public sealed record HostStats(double Fps, double Kbps, double AudioKbps, double EncodeMs, int Width, int Height, string Codec, int Viewers, int TargetKbps, bool Adapted)
+/// <param name="Standby">True while live with nobody watching: capture and preview run, encoder and network rest.</param>
+public sealed record HostStats(double Fps, double Kbps, double AudioKbps, double EncodeMs, int Width, int Height, string Codec, int Viewers, int TargetKbps, bool Adapted, bool Standby)
 {
-    public static readonly HostStats Empty = new(0, 0, 0, 0, 0, 0, string.Empty, 0, 0, false);
+    public static readonly HostStats Empty = new(0, 0, 0, 0, 0, 0, string.Empty, 0, 0, false, false);
 }
 
 /// <summary>
@@ -89,6 +90,7 @@ public sealed class BroadcastService
     private readonly AdaptiveBitrate _adaptive = new();
     private volatile bool _adaptiveEnabled = true;
     private volatile bool _viewerSounds = true;
+    private volatile bool _standbyEnabled = true;
     private readonly HashSet<uint> _viewers = [];
 
     private BroadcastService()
@@ -216,6 +218,27 @@ public sealed class BroadcastService
         set => _viewerSounds = value;
     }
 
+    /// <summary>
+    /// Encode and send only while someone is watching. With nobody in, capture and preview keep
+    /// running so going live again is instant, but the encoder and the uplink rest. Needs a host
+    /// that reports viewers (2.3.0+); on older hosts the count is unknown, so this never engages.
+    /// </summary>
+    public bool StandbyWithoutViewers
+    {
+        get => _standbyEnabled;
+        set
+        {
+            if (_standbyEnabled == value)
+                return;
+            _standbyEnabled = value;
+            Diag.Log($"broadcast: standby without viewers {(value ? "on" : "off")}");
+            OnStandbyChanged();
+        }
+    }
+
+    /// <summary>True while live and resting because nobody is watching.</summary>
+    public bool IsStandby => _live && _standbyEnabled && _lounge.ClockSynced && ViewerCount == 0;
+
     /// <summary>People watching my stream right now (needs host 2.3.0; 0 otherwise).</summary>
     public int ViewerCount
     {
@@ -241,6 +264,35 @@ public sealed class BroadcastService
         if (_viewerSounds)
             SoundEffects.Play(joined ? SoundEffects.ViewerIn : SoundEffects.ViewerOut);
         ViewerChanged?.Invoke(name, joined);
+        OnStandbyChanged();
+    }
+
+    private bool _wasStandby;
+
+    /// <summary>Leaving standby: the first frame out must be a keyframe. Entering: tell the UI the numbers stopped.</summary>
+    private void OnStandbyChanged()
+    {
+        var standby = IsStandby;
+        if (standby == _wasStandby)
+            return;
+        _wasStandby = standby;
+        if (!_live)
+            return;
+        if (standby)
+        {
+            Diag.Log("broadcast: standby (nobody watching), encoder and uplink resting");
+            LastStats = LastStats with { Fps = 0, Kbps = 0, AudioKbps = 0, EncodeMs = 0, Viewers = 0, Standby = true };
+            Post(() => StatsChanged?.Invoke(LastStats));
+        }
+        else
+        {
+            Diag.Log("broadcast: leaving standby, keyframe requested");
+            Interlocked.Exchange(ref _keyframeRequested, 1);
+            _gpuEncoder?.RequestKeyframe();
+            ResetStats();
+            LastStats = LastStats with { Standby = false, Viewers = ViewerCount };
+            Post(() => StatsChanged?.Invoke(LastStats));
+        }
     }
 
     private void ClearViewers()
@@ -304,6 +356,7 @@ public sealed class BroadcastService
         BitrateKbps = settings.BitrateKbps;
         AdaptiveQuality = settings.AdaptiveQuality;
         ViewerSounds = settings.ViewerSounds;
+        StandbyWithoutViewers = settings.StandbyWithoutViewers;
         ShowCursor = settings.ShowCursor;
         EncoderPreferenceValue = settings.Encoder;
         _audioMode = AudioMode.Normalize(settings.AudioMode);
@@ -396,6 +449,8 @@ public sealed class BroadcastService
             _live = true;
             Interlocked.Exchange(ref _keyframeRequested, 1);
             SetState(BroadcastState.Live);
+            _wasStandby = false;
+            OnStandbyChanged();
         }
 
         if (meta.Audio is not null)
@@ -577,7 +632,7 @@ public sealed class BroadcastService
     {
         MaybePreview(frame);
 
-        if (!_live || _paused)
+        if (!_live || _paused || IsStandby)
             return;
 
         if (ActiveCodec == VideoCodec.Vp8)
@@ -729,7 +784,7 @@ public sealed class BroadcastService
 
     private void OnAudioPacket(byte[] packet)
     {
-        if (!_live || _paused || _streamId == 0)
+        if (!_live || _paused || _streamId == 0 || IsStandby)
             return;
         _lounge.SendMedia(_streamId, MessageType.Audio, packet, false);
         Interlocked.Add(ref _statsAudioBytes, packet.Length);
@@ -862,7 +917,8 @@ public sealed class BroadcastService
             ActiveCodec.ToWireName().ToUpperInvariant(),
             ViewerCount,
             EffectiveBitrateKbps,
-            _adaptiveEnabled && _adaptive.IsAdapted
+            _adaptiveEnabled && _adaptive.IsAdapted,
+            false
         );
         LastStats = stats;
         _statsWindowStart = Stopwatch.GetTimestamp();

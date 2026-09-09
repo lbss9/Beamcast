@@ -1,3 +1,9 @@
+## 2.7.0
+
+### Novidades
+
+- **Transmitir só com espectadores** (aba Transmitir, ligado por padrão). Enquanto ninguém assiste, a captura e a prévia continuam, mas o encoder e o envio ficam parados: nada de GPU de vídeo nem de upload gastos à toa. Quando alguém entra, a transmissão volta na hora com um quadro completo. O selo "AGUARDANDO ESPECTADOR" aparece ao lado do LIVE enquanto isso. É o mesmo comportamento do Discord, e só age com hosts 2.3.0 ou mais novos.
+
 ## 2.6.2
 
 ### Correções
