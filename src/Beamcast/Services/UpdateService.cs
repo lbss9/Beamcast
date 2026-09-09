@@ -72,7 +72,23 @@ public static class UpdateService
         }
     }
 
+    /// <summary>When the last check finished (any outcome), for the Settings page.</summary>
+    public static DateTimeOffset? LastCheckedAt { get; private set; }
+
+    public static UpdateCheckKind? LastKind { get; private set; }
+
     public static async Task<UpdateCheck> CheckAsync()
+    {
+        var check = await CheckCoreAsync().ConfigureAwait(false);
+        if (check.Error != "busy")
+        {
+            LastCheckedAt = DateTimeOffset.Now;
+            LastKind = check.Kind;
+        }
+        return check;
+    }
+
+    private static async Task<UpdateCheck> CheckCoreAsync()
     {
         if (Interlocked.Exchange(ref _busy, 1) != 0)
             return new UpdateCheck(UpdateCheckKind.Failed, Error: "busy");

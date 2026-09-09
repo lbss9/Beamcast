@@ -2,6 +2,21 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.6.0
+
+- `Controls/SettingsRow` (UserControl: glifo, título, descrição, `ActionContent` à direita;
+  `Nested` para linhas dentro de `Expander`, `Bare` para cabeçalho de Expander) e
+  `Pages/SettingsPage` refeita: cabeçalho com links (`AppInfo.GitHubRepoUrl`), Expander de versão
+  (`UpdateService.LastCheckedAt`/`LastKind` novos; `ShowUpdate`; notas via `MarkdownLite` em
+  ContentDialog), linhas de nome/idioma/tema, Expander de diagnóstico (`Diag.SetEnabled` cria ou
+  apaga `diag.on` e liga em tempo de execução; `Diag.LogPath`/`SwitchPath`; abrir pasta) e
+  `Logic/BugReport.cs` (zip na área de trabalho: diag.log lido com `FileShare.ReadWrite`, crash.log,
+  `info.txt` com versão/SO/GPUs por DXGI/monitores/encoders, `settings.json` com
+  `protectedAppKey`/`appKey`/`protectedPassword`/`protectedToken`/`relayAppKey` substituídos).
+- Harness `reportcheck` (vault): gera o pacote, confere entradas e que nenhum blob DPAPI do
+  settings real vazou; apaga o zip.
+- Strings `Settings_*` reorganizadas (chaves de cabeçalho antigas removidas).
+
 ## 2.5.1
 
 - `RoomPage.WatchTile` ganha `Host` (painel onde `Root` está) com `AttachTo`/`Detach`, no lugar

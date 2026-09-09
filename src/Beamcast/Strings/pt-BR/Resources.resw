@@ -75,11 +75,39 @@
   <data name="Error_Unreachable" xml:space="preserve"><value>Não foi possível alcançar o host.</value></data>
   <data name="Error_Generic" xml:space="preserve"><value>Algo deu errado: {0}</value></data>
 
-  <data name="Settings_IdentityHeader.Text" xml:space="preserve"><value>Identidade e rede</value></data>
-  <data name="Settings_DisplayName.Header" xml:space="preserve"><value>Seu nome</value></data>
-  <data name="Settings_LanguageHeader.Text" xml:space="preserve"><value>Idioma</value></data>
+  <data name="Settings_IdentityHeader.Text" xml:space="preserve"><value>Identidade</value></data>
+  <data name="Settings_About.Text" xml:space="preserve"><value>Compartilhamento de tela entre amigos, com host próprio e tudo cifrado de ponta a ponta. Projeto de estudo, feito com carinho e por conta e risco de quem usa.</value></data>
+  <data name="Settings_LinkDocs.Content" xml:space="preserve"><value>Documentação</value></data>
+  <data name="Settings_LinkRepo.Content" xml:space="preserve"><value>Repositório no GitHub</value></data>
+  <data name="Settings_LinkIssue.Content" xml:space="preserve"><value>Relatar um bug</value></data>
+  <data name="Settings_VersionHeader.Text" xml:space="preserve"><value>Versão e atualizações</value></data>
+  <data name="Settings_ReleaseNotes.Content" xml:space="preserve"><value>Notas da versão</value></data>
+  <data name="Settings_ReleaseNotesTitle" xml:space="preserve"><value>Notas da versão</value></data>
+  <data name="Settings_CheckUpdates.Content" xml:space="preserve"><value>Verificar se há atualizações</value></data>
+  <data name="Settings_NeverChecked" xml:space="preserve"><value>Ainda não verificou nesta sessão</value></data>
+  <data name="Settings_LastChecked" xml:space="preserve"><value>Última verificação: {0}</value></data>
+  <data name="Settings_UpdatesLabel" xml:space="preserve"><value>Verificar ao abrir</value></data>
+  <data name="Settings_UpdatesDesc" xml:space="preserve"><value>Consulta o GitHub Releases ao iniciar e a cada 6 horas. Nada é instalado sem você confirmar.</value></data>
+  <data name="Settings_DisplayName" xml:space="preserve"><value>Seu nome</value></data>
+  <data name="Settings_DisplayNameDesc" xml:space="preserve"><value>Como você aparece para as outras pessoas na sala.</value></data>
+  <data name="Settings_AppearanceHeader.Text" xml:space="preserve"><value>Aparência e comportamento</value></data>
+  <data name="Settings_Language" xml:space="preserve"><value>Idioma</value></data>
+  <data name="Settings_LanguageDesc" xml:space="preserve"><value>Por padrão o Beamcast segue o idioma do Windows.</value></data>
+  <data name="Settings_Theme" xml:space="preserve"><value>Tema</value></data>
+  <data name="Settings_ThemeDesc" xml:space="preserve"><value>Claro, escuro ou as cores do Windows.</value></data>
+  <data name="Settings_DiagHeader.Text" xml:space="preserve"><value>Diagnóstico e feedback</value></data>
+  <data name="Settings_Diag" xml:space="preserve"><value>Registro de diagnóstico</value></data>
+  <data name="Settings_DiagDesc" xml:space="preserve"><value>Grava captura, encoder, rede e falhas em diag.log. Não afeta o desempenho fora dos pontos registrados.</value></data>
+  <data name="Settings_DiagFolder" xml:space="preserve"><value>Pasta de diagnóstico</value></data>
+  <data name="Settings_DiagFolderDesc" xml:space="preserve"><value>diag.log, crash.log e settings.json ficam em {0}.</value></data>
+  <data name="Settings_OpenDiagFolder.Content" xml:space="preserve"><value>Abrir pasta</value></data>
+  <data name="Settings_BugReportTitle" xml:space="preserve"><value>Gerar pacote de relatório de bug</value></data>
+  <data name="Settings_BugReportDesc" xml:space="preserve"><value>Junta diag.log, crash.log, um resumo da máquina e as configurações sem chaves e senhas num .zip na área de trabalho.</value></data>
+  <data name="Settings_BugReport.Content" xml:space="preserve"><value>Gerar pacote</value></data>
+  <data name="Settings_BugReportBuilding" xml:space="preserve"><value>Gerando…</value></data>
+  <data name="Settings_BugReportDone" xml:space="preserve"><value>{0} salvo na área de trabalho.</value></data>
+  <data name="Dialog_Close" xml:space="preserve"><value>Fechar</value></data>
   <data name="Settings_LanguageSystem" xml:space="preserve"><value>Seguir o sistema</value></data>
-  <data name="Settings_ThemeHeader.Text" xml:space="preserve"><value>Tema</value></data>
   <data name="Settings_ThemeSystem" xml:space="preserve"><value>Seguir o sistema</value></data>
   <data name="Settings_ThemeLight" xml:space="preserve"><value>Claro</value></data>
   <data name="Settings_ThemeDark" xml:space="preserve"><value>Escuro</value></data>
@@ -121,9 +149,6 @@
   <data name="About_ChangelogHeading.Text" xml:space="preserve"><value>Novidades desta versão</value></data>
   <data name="Changelog_Missing" xml:space="preserve"><value>Sem notas para esta versão.</value></data>
 
-  <data name="Settings_UpdatesHeader.Text" xml:space="preserve"><value>Atualizações</value></data>
-  <data name="Settings_UpdatesLabel.Text" xml:space="preserve"><value>Verificar ao abrir</value></data>
-  <data name="Settings_UpdatesDesc.Text" xml:space="preserve"><value>Consulta o GitHub Releases ao iniciar e a cada 6 horas. Nada é instalado sem você confirmar.</value></data>
 
   <data name="Update_WindowTitle.Text" xml:space="preserve"><value>Atualização do Beamcast</value></data>
   <data name="Update_Badge.Text" xml:space="preserve"><value>ATUALIZAÇÃO DISPONÍVEL</value></data>

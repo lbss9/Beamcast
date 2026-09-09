@@ -1,3 +1,10 @@
+## 2.6.0
+
+### New
+
+- Settings screen redone in the Windows settings style: a header with the app, a description and links to the documentation, the repository and bug reports; a version card with "Check for updates", last check and release notes; rows with icon, title and description for name, language and theme.
+- Diagnostics and feedback section: turn the diagnostic log on and off without restarting, open the log folder and generate a bug report package (a .zip on the Desktop with diag.log, crash.log, a machine summary and the settings without keys or passwords).
+
 ## 2.5.1
 
 ### Fixes

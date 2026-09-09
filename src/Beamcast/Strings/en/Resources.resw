@@ -75,11 +75,39 @@
   <data name="Error_Unreachable" xml:space="preserve"><value>Could not reach the host.</value></data>
   <data name="Error_Generic" xml:space="preserve"><value>Something went wrong: {0}</value></data>
 
-  <data name="Settings_IdentityHeader.Text" xml:space="preserve"><value>Identity and network</value></data>
-  <data name="Settings_DisplayName.Header" xml:space="preserve"><value>Your name</value></data>
-  <data name="Settings_LanguageHeader.Text" xml:space="preserve"><value>Language</value></data>
+  <data name="Settings_IdentityHeader.Text" xml:space="preserve"><value>Identity</value></data>
+  <data name="Settings_About.Text" xml:space="preserve"><value>Screen sharing among friends, on your own host, encrypted end to end. A study project, made with care and used at your own risk.</value></data>
+  <data name="Settings_LinkDocs.Content" xml:space="preserve"><value>Documentation</value></data>
+  <data name="Settings_LinkRepo.Content" xml:space="preserve"><value>GitHub repository</value></data>
+  <data name="Settings_LinkIssue.Content" xml:space="preserve"><value>Report a bug</value></data>
+  <data name="Settings_VersionHeader.Text" xml:space="preserve"><value>Version and updates</value></data>
+  <data name="Settings_ReleaseNotes.Content" xml:space="preserve"><value>Release notes</value></data>
+  <data name="Settings_ReleaseNotesTitle" xml:space="preserve"><value>Release notes</value></data>
+  <data name="Settings_CheckUpdates.Content" xml:space="preserve"><value>Check for updates</value></data>
+  <data name="Settings_NeverChecked" xml:space="preserve"><value>Not checked yet this session</value></data>
+  <data name="Settings_LastChecked" xml:space="preserve"><value>Last checked: {0}</value></data>
+  <data name="Settings_UpdatesLabel" xml:space="preserve"><value>Check on launch</value></data>
+  <data name="Settings_UpdatesDesc" xml:space="preserve"><value>Asks GitHub Releases at startup and every 6 hours. Nothing is installed without your confirmation.</value></data>
+  <data name="Settings_DisplayName" xml:space="preserve"><value>Your name</value></data>
+  <data name="Settings_DisplayNameDesc" xml:space="preserve"><value>How other people see you in a room.</value></data>
+  <data name="Settings_AppearanceHeader.Text" xml:space="preserve"><value>Appearance and behavior</value></data>
+  <data name="Settings_Language" xml:space="preserve"><value>Language</value></data>
+  <data name="Settings_LanguageDesc" xml:space="preserve"><value>By default Beamcast follows the Windows language.</value></data>
+  <data name="Settings_Theme" xml:space="preserve"><value>Theme</value></data>
+  <data name="Settings_ThemeDesc" xml:space="preserve"><value>Light, dark or the Windows colors.</value></data>
+  <data name="Settings_DiagHeader.Text" xml:space="preserve"><value>Diagnostics and feedback</value></data>
+  <data name="Settings_Diag" xml:space="preserve"><value>Diagnostic log</value></data>
+  <data name="Settings_DiagDesc" xml:space="preserve"><value>Records capture, encoder, network and failures in diag.log. No effect on performance outside the logged points.</value></data>
+  <data name="Settings_DiagFolder" xml:space="preserve"><value>Diagnostics folder</value></data>
+  <data name="Settings_DiagFolderDesc" xml:space="preserve"><value>diag.log, crash.log and settings.json live in {0}.</value></data>
+  <data name="Settings_OpenDiagFolder.Content" xml:space="preserve"><value>Open folder</value></data>
+  <data name="Settings_BugReportTitle" xml:space="preserve"><value>Generate a bug report package</value></data>
+  <data name="Settings_BugReportDesc" xml:space="preserve"><value>Bundles diag.log, crash.log, a machine summary and the settings without keys or passwords into a .zip on the Desktop.</value></data>
+  <data name="Settings_BugReport.Content" xml:space="preserve"><value>Generate package</value></data>
+  <data name="Settings_BugReportBuilding" xml:space="preserve"><value>Building…</value></data>
+  <data name="Settings_BugReportDone" xml:space="preserve"><value>{0} saved to the Desktop.</value></data>
+  <data name="Dialog_Close" xml:space="preserve"><value>Close</value></data>
   <data name="Settings_LanguageSystem" xml:space="preserve"><value>Follow the system</value></data>
-  <data name="Settings_ThemeHeader.Text" xml:space="preserve"><value>Theme</value></data>
   <data name="Settings_ThemeSystem" xml:space="preserve"><value>Follow the system</value></data>
   <data name="Settings_ThemeLight" xml:space="preserve"><value>Light</value></data>
   <data name="Settings_ThemeDark" xml:space="preserve"><value>Dark</value></data>
@@ -121,9 +149,6 @@
   <data name="About_ChangelogHeading.Text" xml:space="preserve"><value>What is new in this version</value></data>
   <data name="Changelog_Missing" xml:space="preserve"><value>No notes for this version.</value></data>
 
-  <data name="Settings_UpdatesHeader.Text" xml:space="preserve"><value>Updates</value></data>
-  <data name="Settings_UpdatesLabel.Text" xml:space="preserve"><value>Check on launch</value></data>
-  <data name="Settings_UpdatesDesc.Text" xml:space="preserve"><value>Looks at GitHub Releases on start-up and every 6 hours. Nothing is installed without your confirmation.</value></data>
 
   <data name="Update_WindowTitle.Text" xml:space="preserve"><value>Beamcast update</value></data>
   <data name="Update_Badge.Text" xml:space="preserve"><value>UPDATE AVAILABLE</value></data>

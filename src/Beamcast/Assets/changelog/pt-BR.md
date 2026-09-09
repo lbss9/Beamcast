@@ -1,3 +1,10 @@
+## 2.6.0
+
+### Novidades
+
+- Tela de Configurações refeita no estilo das configurações do Windows: cabeçalho com o app, descrição e links para documentação, repositório e relatar bug; card de versão com "Verificar se há atualizações", última verificação e notas da versão; linhas com ícone, título e descrição para nome, idioma e tema.
+- Seção Diagnóstico e feedback: liga e desliga o registro de diagnóstico sem reiniciar, abre a pasta dos logs e gera um pacote de relatório de bug (.zip na área de trabalho com diag.log, crash.log, resumo da máquina e configurações sem chaves nem senhas).
+
 ## 2.5.1
 
 ### Correções

@@ -14,11 +14,38 @@ public static class Diag
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Beamcast"
     );
-    private static readonly bool Enabled =
+    private static volatile bool Enabled =
         Environment.GetEnvironmentVariable("BEAMCAST_DIAG") == "1"
-        || File.Exists(Path.Combine(Directory, "diag.on"));
+        || File.Exists(SwitchPath);
 
     public static bool IsEnabled => Enabled;
+
+    public static string LogPath => Path.Combine(Directory, "diag.log");
+    public static string SwitchPath => Path.Combine(Directory, "diag.on");
+
+    /// <summary>Turns the log on or off for this run and the next ones (creates or deletes diag.on).</summary>
+    public static void SetEnabled(bool on)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(Directory);
+            if (on)
+                File.WriteAllText(SwitchPath, string.Empty);
+            else if (File.Exists(SwitchPath))
+                File.Delete(SwitchPath);
+        }
+        catch { }
+        if (on && !Enabled)
+        {
+            Enabled = true;
+            Log("diag: enabled from Settings");
+        }
+        else if (!on && Enabled)
+        {
+            Log("diag: disabled from Settings");
+            Enabled = false;
+        }
+    }
 
     public static string CrashLogPath => Path.Combine(Directory, "crash.log");
 
