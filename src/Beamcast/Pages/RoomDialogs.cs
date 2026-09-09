@@ -28,7 +28,7 @@ internal static class RoomDialogs
         return new RoomCreateOptions
         {
             Name = form.NameBox.Text.Trim(),
-            Visibility = form.SelectedVisibility,
+            Visibility = RoomVisibility.Public,
             Kind = form.SelectedKind,
             TtlHours = form.TtlHours,
             Password = form.PasswordBox.Password,
@@ -117,12 +117,6 @@ internal static class RoomDialogs
             NameBox = new TextBox { Header = Loc.Get("Lounge_Name/Header"), MaxLength = LoungeProtocol.MaxNameLength, Text = existing?.Name ?? string.Empty };
             Panel.Children.Add(NameBox);
 
-            VisibilityBox = new ComboBox { Header = Loc.Get("Create_Visibility"), HorizontalAlignment = HorizontalAlignment.Stretch };
-            VisibilityBox.Items.Add(Loc.Get("Visibility_Public"));
-            VisibilityBox.Items.Add(Loc.Get("Visibility_Private"));
-            VisibilityBox.SelectedIndex = existing?.IsPublic == true ? 0 : 1;
-            Panel.Children.Add(VisibilityBox);
-
             KindBox = new ComboBox { Header = Loc.Get("Create_Kind"), HorizontalAlignment = HorizontalAlignment.Stretch };
             KindBox.Items.Add(Loc.Get("Kind_Permanent"));
             KindBox.Items.Add(Loc.Get("Kind_Temporary"));
@@ -171,7 +165,6 @@ internal static class RoomDialogs
 
         public StackPanel Panel { get; }
         public TextBox NameBox { get; }
-        public ComboBox VisibilityBox { get; }
         public ComboBox KindBox { get; }
         public ComboBox TtlBox { get; }
         public PasswordBox PasswordBox { get; }
@@ -179,7 +172,6 @@ internal static class RoomDialogs
         public ComboBox BroadcastBox { get; }
         public NumberBox MaxMembersBox { get; }
 
-        public string SelectedVisibility => VisibilityBox.SelectedIndex == 0 ? RoomVisibility.Public : RoomVisibility.Private;
         public string SelectedKind => KindBox.SelectedIndex == 1 ? RoomKind.Temporary : RoomKind.Permanent;
         public double TtlHours => TtlChoices[Math.Clamp(TtlBox.SelectedIndex, 0, TtlChoices.Length - 1)];
         public string SelectedBroadcast => BroadcastBox.SelectedIndex == 1 ? BroadcastPolicy.Owner : BroadcastPolicy.Everyone;
@@ -191,7 +183,6 @@ internal static class RoomDialogs
             var update = new RoomUpdateMessage
             {
                 Name = NameBox.Text.Trim().Length > 0 ? NameBox.Text.Trim() : null,
-                Visibility = SelectedVisibility,
                 Kind = SelectedKind,
                 TtlHours = TtlHours,
                 Broadcast = SelectedBroadcast,

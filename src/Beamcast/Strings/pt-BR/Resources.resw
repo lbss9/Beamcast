@@ -162,7 +162,7 @@
 
   <data name="Nav_Lounge.Content" xml:space="preserve"><value>Salas</value></data>
   <data name="Lounge_Heading.Text" xml:space="preserve"><value>Salas</value></data>
-  <data name="Lounge_Summary.Text" xml:space="preserve"><value>Escolha um host (o servidor de quem hospeda), veja as salas públicas dele, entre em uma favorita, use um código ou convite, ou crie a sua sala. Dentro da sala, qualquer pessoa transmite a tela e cada um escolhe o que assistir.</value></data>
+  <data name="Lounge_Summary.Text" xml:space="preserve"><value>Escolha um host (o servidor de quem hospeda), veja as salas dele, entre em uma favorita, use um código ou convite, ou crie a sua sala. Salas com cadeado pedem senha. Dentro da sala, qualquer pessoa transmite a tela e cada um escolhe o que assistir.</value></data>
   <data name="Lounge_Server.Header" xml:space="preserve"><value>Servidor (host ou IP)</value></data>
   <data name="Lounge_Server.PlaceholderText" xml:space="preserve"><value>192.168.1.20 ou wss://beamcast.exemplo.com</value></data>
   <data name="Lounge_YourName.Header" xml:space="preserve"><value>Seu nome</value></data>
@@ -173,7 +173,7 @@
   <data name="Lounge_CreatePassword.Header" xml:space="preserve"><value>Senha (mín. 4 caracteres)</value></data>
   <data name="Lounge_CreateButton.Content" xml:space="preserve"><value>Criar sala</value></data>
   <data name="Lounge_JoinHeading.Text" xml:space="preserve"><value>Entrar com código ou convite</value></data>
-  <data name="Lounge_JoinHint.Text" xml:space="preserve"><value>Cole o código da sala ou o convite BC-… que a pessoa te mandou. Salas privadas só entram assim. Convites podem carregar a chave e dispensar a senha.</value></data>
+  <data name="Lounge_JoinHint.Text" xml:space="preserve"><value>Cole o código da sala ou o convite BC-… que a pessoa te mandou. Convites podem carregar a chave e dispensar a senha.</value></data>
   <data name="Lounge_Code.Header" xml:space="preserve"><value>Código ou convite</value></data>
   <data name="Lounge_Code.PlaceholderText" xml:space="preserve"><value>ABC234 ou BC-…</value></data>
   <data name="Lounge_JoinPassword.Header" xml:space="preserve"><value>Senha (se a sala tiver)</value></data>
@@ -249,12 +249,12 @@
   <data name="Lounge_Refresh.ToolTipService.ToolTip" xml:space="preserve"><value>Atualizar</value></data>
   <data name="Lounge_HostStatus" xml:space="preserve"><value>{0} · v{1} · {2} online</value></data>
   <data name="Lounge_HostNeedsKey" xml:space="preserve"><value>Este host exige a chave do app (BEAMCAST_APP_KEY no servidor). Informe a chave para ver as salas.</value></data>
-  <data name="Lounge_PublicRooms.Text" xml:space="preserve"><value>Salas públicas</value></data>
-  <data name="Lounge_PublicRoomsEmpty.Text" xml:space="preserve"><value>Nenhuma sala pública neste host.</value></data>
+  <data name="Lounge_PublicRooms.Text" xml:space="preserve"><value>Salas do host</value></data>
+  <data name="Lounge_PublicRoomsEmpty.Text" xml:space="preserve"><value>Nenhuma sala neste host ainda. Crie a primeira.</value></data>
   <data name="Lounge_FavoriteRooms.Text" xml:space="preserve"><value>Salas favoritas</value></data>
   <data name="Lounge_FavoriteRoomsEmpty.Text" xml:space="preserve"><value>Marque uma sala com a estrela para ela aparecer aqui.</value></data>
   <data name="Lounge_OwnedRooms.Text" xml:space="preserve"><value>Suas salas</value></data>
-  <data name="Lounge_OwnedRoomsEmpty.Text" xml:space="preserve"><value>Salas que você criou neste host aparecem aqui, inclusive as privadas. Salas antigas sem dono passam a ser suas na primeira vez que você entrar.</value></data>
+  <data name="Lounge_OwnedRoomsEmpty.Text" xml:space="preserve"><value>Salas que você criou neste host aparecem aqui. Salas antigas sem dono passam a ser suas na primeira vez que você entrar.</value></data>
   <data name="Lounge_RoomOwned" xml:space="preserve"><value>Você é o dono desta sala.</value></data>
   <data name="Lounge_RoomMore" xml:space="preserve"><value>Mais opções</value></data>
   <data name="Lounge_NotOwner" xml:space="preserve"><value>O host não reconhece mais você como dono desta sala. Ela foi tirada de Suas salas.</value></data>
@@ -302,9 +302,6 @@
   <data name="Dialog_Cancel" xml:space="preserve"><value>Cancelar</value></data>
   <data name="Create_Title" xml:space="preserve"><value>Criar sala</value></data>
   <data name="Create_Button" xml:space="preserve"><value>Criar</value></data>
-  <data name="Create_Visibility" xml:space="preserve"><value>Visibilidade</value></data>
-  <data name="Visibility_Public" xml:space="preserve"><value>Pública (aparece na lista do host)</value></data>
-  <data name="Visibility_Private" xml:space="preserve"><value>Privada (só com código ou convite)</value></data>
   <data name="Create_Kind" xml:space="preserve"><value>Duração</value></data>
   <data name="Kind_Permanent" xml:space="preserve"><value>Permanente</value></data>
   <data name="Kind_Temporary" xml:space="preserve"><value>Temporária (some depois de ficar vazia)</value></data>
@@ -347,8 +344,6 @@
   <data name="Room_Favorite.ToolTipService.ToolTip" xml:space="preserve"><value>Favoritar sala</value></data>
   <data name="Room_Kick" xml:space="preserve"><value>Expulsar</value></data>
   <data name="Room_OwnerBadge" xml:space="preserve"><value>dono</value></data>
-  <data name="Room_PublicBadge" xml:space="preserve"><value>pública</value></data>
-  <data name="Room_PrivateBadge" xml:space="preserve"><value>privada</value></data>
   <data name="Room_TemporaryBadge" xml:space="preserve"><value>temporária</value></data>
   <data name="Room_OnlyOwnerBroadcasts.Text" xml:space="preserve"><value>Nesta sala só o dono transmite.</value></data>
   <data name="Update_Restart" xml:space="preserve"><value>Reiniciar e concluir</value></data>

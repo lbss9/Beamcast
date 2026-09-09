@@ -1,3 +1,10 @@
+## 2.5.0
+
+### Novidades
+
+- Toda sala do host aparece na lista. As que têm senha mostram um cadeado e pedem a senha ao entrar; as sem senha entram direto. A opção "privada" saiu da criação e da edição de sala: quem quer controlar quem entra usa a senha. Salas antigas marcadas como privadas passam a aparecer na lista também (precisa do host na versão 2.4.0).
+- O card "Salas públicas" virou "Salas do host".
+
 ## 2.4.0
 
 ### Melhorias

@@ -2,6 +2,17 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.5.0
+
+- **Modelo de salas**: "privada" (escondida, código de 10 chars como segredo) deixa de existir na
+  UI. **Servidor 2.4.0** lista todas as salas em `GET /rooms` (`Visibility` continua no protocolo
+  e nos registros, só não esconde mais nada). App: `RoomForm` sem combo de visibilidade
+  (criação = `public`, edição não toca no campo), badge pública/privada removido do cabeçalho da
+  sala e do resumo da aba Configurações, strings `Visibility_*`/`Create_Visibility`/
+  `Room_*Badge` removidas, "Salas públicas" → "Salas do host", textos de convite/summary
+  ajustados, README idem. Decisão do autor: cadeado = senha, estilo Discord.
+- `managecheck` cenário 1 confere que a sala privada aparece em `/rooms` com `HasPassword`.
+
 ## 2.4.0
 
 - `Logic/CapturePacer.cs` (puro, 6 testes): quadro com conteúdo novo sempre passa; só-mouse a no

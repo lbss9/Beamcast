@@ -43,12 +43,12 @@ O mesmo aviso aparece dentro do app no primeiro uso e na página Sobre.
 1. Alguém sobe o **host** (o servidor, um container Docker) em qualquer máquina alcançável:
    um VPS, o PC de casa atrás de um túnel, um servidor na LAN. Um host tem quantas salas quiser.
 2. No app, você adiciona o host à sua lista (e pode favoritá-lo). Ao selecioná-lo, vê as
-   **salas públicas** dele, suas **salas favoritas** naquele host, um campo para **código ou
+   **salas** dele (as com senha aparecem com cadeado), suas **salas favoritas** naquele host, um campo para **código ou
    convite**, e o botão **Criar sala**.
-3. Uma sala tem nome, visibilidade (**pública** aparece na lista; **privada** só entra por
-   código ou convite), duração (**permanente** ou **temporária**, que some depois de ficar vazia
-   pelo tempo escolhido), **senha opcional**, quem pode transmitir (todo mundo ou só o dono) e
-   limite de pessoas.
+3. Uma sala tem nome, duração (**permanente** ou **temporária**, que some depois de ficar vazia
+   pelo tempo escolhido), **senha opcional** (o cadeado na lista), quem pode transmitir (todo
+   mundo ou só o dono) e limite de pessoas. Toda sala do host aparece na lista; a senha é o que
+   controla quem entra.
 4. Dentro da sala todo mundo vê quem está online e quais transmissões existem. Qualquer membro
    transmite (várias ao mesmo tempo, salvo se o dono restringir), cada um escolhe o que assistir
    e pode parar sem sair.
@@ -88,7 +88,7 @@ Convites e dono
 ```
 
 Entradas erradas (senha, convite, código) são limitadas por endereço e por sala com janela de
-10 minutos. Salas privadas usam códigos de 10 caracteres. O host só lê o tipo de cada mensagem
+10 minutos. Salas criadas antes da 2.5.0 como "privadas" usam códigos de 10 caracteres. O host só lê o tipo de cada mensagem
 e a flag de keyframe, que usa para descartar quadros de um espectador lento e pedir um keyframe
 ao transmissor sem prejudicar os outros.
 
@@ -114,7 +114,7 @@ Variáveis opcionais num `.env` ao lado do `docker-compose.yml`:
 
 As salas (código, nome, configurações, salt e verificador, hashes de convites e do dono; nunca
 conteúdo) ficam no volume `beamcast_data` e sobrevivem a reinícios. `GET /health` mostra salas,
-membros e transmissões ativos; `GET /rooms` lista as salas públicas.
+membros e transmissões ativos; `GET /rooms` lista todas as salas.
 
 **Pela internet:** abra a porta `47710/tcp` no roteador, ou coloque o container atrás de um
 reverse proxy/túnel com TLS (Cloudflare Tunnel, Caddy, nginx) e use `wss://seu-host` no app.

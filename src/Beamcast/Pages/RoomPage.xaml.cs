@@ -199,7 +199,7 @@ public sealed partial class RoomPage : Page
     {
         LoungeNameText.Text = room.Name;
         CodeText.Text = room.Code;
-        var badges = new List<string> { LoungeProtocol.DisplayHost(_lounge.ServerUrl), Loc.Get(room.IsPublic ? "Room_PublicBadge" : "Room_PrivateBadge") };
+        var badges = new List<string> { LoungeProtocol.DisplayHost(_lounge.ServerUrl) };
         if (room.IsTemporary)
             badges.Add(Loc.Get("Room_TemporaryBadge"));
         if (room.HasPassword)
@@ -266,7 +266,6 @@ public sealed partial class RoomPage : Page
         SettingsSummary.Children.Clear();
         string[] lines =
         [
-            room.IsPublic ? Loc.Get("Visibility_Public") : Loc.Get("Visibility_Private"),
             room.IsTemporary ? Loc.Get("Kind_Temporary") : Loc.Get("Kind_Permanent"),
             room.HasPassword ? Loc.Get("Room_SummaryPassword") : Loc.Get("Room_SummaryNoPassword"),
             Loc.Format("Room_SummaryBroadcast", room.Broadcast == BroadcastPolicy.Owner ? Loc.Get("Broadcast_Owner") : Loc.Get("Broadcast_Everyone")),

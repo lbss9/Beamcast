@@ -1,3 +1,10 @@
+## 2.5.0
+
+### New
+
+- Every room on the host shows in the list. Rooms with a password show a lock and ask for it on entry; rooms without one open right away. The "private" option is gone from room creation and editing: use a password to control who gets in. Old rooms marked private now show in the list too (needs the host on 2.4.0).
+- The "Public rooms" card is now "Rooms on this host".
+
 ## 2.4.0
 
 ### Improvements

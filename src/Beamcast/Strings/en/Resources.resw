@@ -162,7 +162,7 @@
 
   <data name="Nav_Lounge.Content" xml:space="preserve"><value>Rooms</value></data>
   <data name="Lounge_Heading.Text" xml:space="preserve"><value>Rooms</value></data>
-  <data name="Lounge_Summary.Text" xml:space="preserve"><value>Pick a host (the server of whoever hosts Beamcast), see its public rooms, jump into a favorite, use a code or invite, or create your own room. Inside, anyone can broadcast their screen and everyone picks what to watch.</value></data>
+  <data name="Lounge_Summary.Text" xml:space="preserve"><value>Pick a host (the server of whoever hosts), see its rooms, enter a favorite, use a code or invite, or create your own room. Rooms with a lock ask for a password. Inside, anyone broadcasts their screen and everyone picks what to watch.</value></data>
   <data name="Lounge_Server.Header" xml:space="preserve"><value>Server (host or IP)</value></data>
   <data name="Lounge_Server.PlaceholderText" xml:space="preserve"><value>192.168.1.20 or wss://beamcast.example.com</value></data>
   <data name="Lounge_YourName.Header" xml:space="preserve"><value>Your name</value></data>
@@ -173,7 +173,7 @@
   <data name="Lounge_CreatePassword.Header" xml:space="preserve"><value>Password (min. 4 characters)</value></data>
   <data name="Lounge_CreateButton.Content" xml:space="preserve"><value>Create room</value></data>
   <data name="Lounge_JoinHeading.Text" xml:space="preserve"><value>Join with a code or invite</value></data>
-  <data name="Lounge_JoinHint.Text" xml:space="preserve"><value>Paste the room code or the BC-… invite you were given. Private rooms can only be joined this way. Invites may carry the key and skip the password.</value></data>
+  <data name="Lounge_JoinHint.Text" xml:space="preserve"><value>Paste the room code or the BC-… invite someone sent you. Invites can carry the key and skip the password.</value></data>
   <data name="Lounge_Code.Header" xml:space="preserve"><value>Code or invite</value></data>
   <data name="Lounge_Code.PlaceholderText" xml:space="preserve"><value>ABC234 or BC-…</value></data>
   <data name="Lounge_JoinPassword.Header" xml:space="preserve"><value>Password (if any)</value></data>
@@ -249,12 +249,12 @@
   <data name="Lounge_Refresh.ToolTipService.ToolTip" xml:space="preserve"><value>Refresh</value></data>
   <data name="Lounge_HostStatus" xml:space="preserve"><value>{0} · v{1} · {2} online</value></data>
   <data name="Lounge_HostNeedsKey" xml:space="preserve"><value>This host requires the app key (BEAMCAST_APP_KEY on the server). Enter the key to see its rooms.</value></data>
-  <data name="Lounge_PublicRooms.Text" xml:space="preserve"><value>Public rooms</value></data>
-  <data name="Lounge_PublicRoomsEmpty.Text" xml:space="preserve"><value>No public rooms on this host.</value></data>
+  <data name="Lounge_PublicRooms.Text" xml:space="preserve"><value>Rooms on this host</value></data>
+  <data name="Lounge_PublicRoomsEmpty.Text" xml:space="preserve"><value>No rooms on this host yet. Create the first one.</value></data>
   <data name="Lounge_FavoriteRooms.Text" xml:space="preserve"><value>Favorite rooms</value></data>
   <data name="Lounge_FavoriteRoomsEmpty.Text" xml:space="preserve"><value>Star a room and it shows up here.</value></data>
   <data name="Lounge_OwnedRooms.Text" xml:space="preserve"><value>Your rooms</value></data>
-  <data name="Lounge_OwnedRoomsEmpty.Text" xml:space="preserve"><value>Rooms you created on this host show up here, private ones included. Old rooms without an owner become yours the first time you enter.</value></data>
+  <data name="Lounge_OwnedRoomsEmpty.Text" xml:space="preserve"><value>Rooms you created on this host show up here. Old rooms without an owner become yours the first time you enter.</value></data>
   <data name="Lounge_RoomOwned" xml:space="preserve"><value>You own this room.</value></data>
   <data name="Lounge_RoomMore" xml:space="preserve"><value>More options</value></data>
   <data name="Lounge_NotOwner" xml:space="preserve"><value>The host no longer recognises you as this room's owner. It was removed from Your rooms.</value></data>
@@ -302,9 +302,6 @@
   <data name="Dialog_Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="Create_Title" xml:space="preserve"><value>Create room</value></data>
   <data name="Create_Button" xml:space="preserve"><value>Create</value></data>
-  <data name="Create_Visibility" xml:space="preserve"><value>Visibility</value></data>
-  <data name="Visibility_Public" xml:space="preserve"><value>Public (listed on the host)</value></data>
-  <data name="Visibility_Private" xml:space="preserve"><value>Private (code or invite only)</value></data>
   <data name="Create_Kind" xml:space="preserve"><value>Lifetime</value></data>
   <data name="Kind_Permanent" xml:space="preserve"><value>Permanent</value></data>
   <data name="Kind_Temporary" xml:space="preserve"><value>Temporary (removed after sitting empty)</value></data>
@@ -347,8 +344,6 @@
   <data name="Room_Favorite.ToolTipService.ToolTip" xml:space="preserve"><value>Favorite room</value></data>
   <data name="Room_Kick" xml:space="preserve"><value>Kick</value></data>
   <data name="Room_OwnerBadge" xml:space="preserve"><value>owner</value></data>
-  <data name="Room_PublicBadge" xml:space="preserve"><value>public</value></data>
-  <data name="Room_PrivateBadge" xml:space="preserve"><value>private</value></data>
   <data name="Room_TemporaryBadge" xml:space="preserve"><value>temporary</value></data>
   <data name="Room_OnlyOwnerBroadcasts.Text" xml:space="preserve"><value>Only the owner broadcasts in this room.</value></data>
   <data name="Update_Restart" xml:space="preserve"><value>Restart to finish</value></data>

@@ -43,7 +43,9 @@ public sealed class LoungeHub
 
     public HostInfo HostInfo(bool includeRooms)
     {
-        var publicRooms = _rooms.Values.Where(r => r.Visibility == RoomVisibility.Public).OrderByDescending(r => r.MemberCount).ThenBy(r => r.Name).ToList();
+        // Since 2.4.0 every room is listed; a lock (password) is what keeps people out, not secrecy.
+        // Visibility is kept in the records and the protocol for older clients but no longer hides anything.
+        var publicRooms = _rooms.Values.OrderByDescending(r => r.MemberCount).ThenBy(r => r.Name).ToList();
         return new HostInfo
         {
             Name = _options.HostName,
