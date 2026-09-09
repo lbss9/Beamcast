@@ -1,3 +1,9 @@
+## 2.6.2
+
+### Correções
+
+- As otimizações de GPU da versão 2.4.0 foram desfeitas: a transmissão ficou pior em uso real. Captura, encoder e prévia voltam a se comportar exatamente como na 2.3.2 (quadros repetidos a cada meio segundo, todo movimento de mouse codificado, buffer do encoder de um quadro, prévia sempre desenhada). O que veio depois (salas listadas, tela de Configurações, Novidades, correções de crash) continua.
+
 ## 2.6.1
 
 ### Melhorias

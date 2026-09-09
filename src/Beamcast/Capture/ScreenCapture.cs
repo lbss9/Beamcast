@@ -34,10 +34,7 @@ public readonly record struct GpuFrame(ID3D11Texture2D Texture, int Width, int H
 /// </summary>
 public sealed class ScreenCapture : IDisposable
 {
-    private static readonly TimeSpan IdleCheckInterval = TimeSpan.FromMilliseconds(250);
-    private readonly CapturePacer _pacer = new();
-    private Timer? _idleTimer;
-    private bool _dirtyRegionsSupported;
+    private static readonly TimeSpan IdleRepeatInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan RecreateBudget = TimeSpan.FromSeconds(20);
 
     private readonly GpuDevice _gpu;
@@ -91,8 +88,6 @@ public sealed class ScreenCapture : IDisposable
         {
             StopCore();
             MaxFps = maxFps;
-            _pacer.Reset();
-            _idleTimer = new Timer(_ => RepeatLastFrameIfDue(), null, IdleCheckInterval, IdleCheckInterval);
 
             if (source.Kind == CaptureSourceKind.Monitor && TryStartDuplication(source))
             {
@@ -214,7 +209,10 @@ public sealed class ScreenCapture : IDisposable
                 if (result.Failure)
                 {
                     if (result.Code == Vortice.DXGI.ResultCode.WaitTimeout.Code)
+                    {
+                        RepeatLastFrameIfIdle();
                         continue;
+                    }
                     if (result.Code == Vortice.DXGI.ResultCode.AccessLost.Code || result.Code == Vortice.DXGI.ResultCode.DeviceRemoved.Code)
                     {
                         Diag.Log("capture: duplication access lost, recreating");
@@ -244,12 +242,7 @@ public sealed class ScreenCapture : IDisposable
 
                 try
                 {
-                    // AccumulatedFrames == 0 means the desktop image did not change: only the pointer
-                    // moved. Those are paced by the CapturePacer so a wiggling mouse over a static
-                    // screen does not cost a full encode per refresh.
-                    var now = Stopwatch.GetTimestamp();
-                    var contentChanged = info.AccumulatedFrames > 0 || info.LastPresentTime != 0;
-                    if (resource is not null && IsDue(now) && _pacer.ShouldDeliver(now, contentChanged, ShowCursor))
+                    if (resource is not null && IsDue(Stopwatch.GetTimestamp()))
                         DeliverDuplicatedFrame(resource);
                 }
                 finally
@@ -328,14 +321,10 @@ public sealed class ScreenCapture : IDisposable
     /// need a keyframe, and the encoder needs an input for that, so the last frame is re-offered
     /// at a slow rate while nothing moves.
     /// </summary>
-    /// <summary>A viewer needs a frame now (keyframe request): repeat the last one at the next idle check instead of waiting a second.</summary>
-    public void RequestFrame() => _pacer.RequestFrame();
-
-    /// <summary>Timer thread: with nothing changing, hand the encoder the last frame again once a second (or at once when asked).</summary>
-    private void RepeatLastFrameIfDue()
+    private void RepeatLastFrameIfIdle()
     {
         var handler = TextureArrived;
-        if (handler is null || Method.Length == 0 || !_pacer.ShouldRepeat(Stopwatch.GetTimestamp()))
+        if (handler is null || _lastDeliveredTicks == 0 || Stopwatch.GetElapsedTime(_lastDeliveredTicks) < IdleRepeatInterval)
             return;
         lock (_gpu.ContextLock)
         {
@@ -442,19 +431,6 @@ public sealed class ScreenCapture : IDisposable
         // 75/120/144 Hz display means every other frame. 4 ms lets the display rate through.
         if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName!, "MinUpdateInterval"))
             SafeTry.Run(() => _session!.MinUpdateInterval = TimeSpan.FromMilliseconds(4));
-        // Windows 11 24H2+: ask for dirty rectangles so frames with nothing new can be skipped
-        // (the window is still rendered whole; only the report is added).
-        _dirtyRegionsSupported = false;
-        if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName!, "DirtyRegionMode")
-            && ApiInformation.IsPropertyPresent(typeof(Direct3D11CaptureFrame).FullName!, "DirtyRegions"))
-        {
-            SafeTry.Run(() =>
-            {
-                _session!.DirtyRegionMode = GraphicsCaptureDirtyRegionMode.ReportOnly;
-                _dirtyRegionsSupported = true;
-            });
-            Diag.Log($"capture: dirty regions {(_dirtyRegionsSupported ? "on" : "unavailable")}");
-        }
     }
 
     public void Stop()
@@ -468,9 +444,6 @@ public sealed class ScreenCapture : IDisposable
     private void StopCore()
     {
         Method = string.Empty;
-        var timer = _idleTimer;
-        _idleTimer = null;
-        timer?.Dispose();
 
         var cts = _duplicationCts;
         _duplicationCts = null;
@@ -520,9 +493,7 @@ public sealed class ScreenCapture : IDisposable
                 return;
 
             var contentSize = frame.ContentSize;
-            var now = Stopwatch.GetTimestamp();
-            var contentChanged = !_dirtyRegionsSupported || SafeTry.Run(() => frame.DirtyRegions.Count) != 0;
-            if (contentSize.Width > 0 && contentSize.Height > 0 && IsDue(now) && _pacer.ShouldDeliver(now, contentChanged, cursorVisible: true))
+            if (IsDue(Stopwatch.GetTimestamp()) && contentSize.Width > 0 && contentSize.Height > 0)
                 DeliverFrame(frame, contentSize);
 
             if (contentSize.Width != _poolSize.Width || contentSize.Height != _poolSize.Height)
@@ -589,7 +560,6 @@ public sealed class ScreenCapture : IDisposable
             EnsureFrameTexture(width, height, gdiCompatible: false);
             var box = new Box(0, 0, 0, width, height, 1);
             _gpu.Context.CopySubresourceRegion(_frameTexture, 0, 0, 0, 0, source, 0, box);
-            _lastDeliveredTicks = Stopwatch.GetTimestamp();
             handler(new GpuFrame(_frameTexture!, width, height, Environment.TickCount64));
         }
     }

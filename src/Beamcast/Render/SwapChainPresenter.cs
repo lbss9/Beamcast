@@ -41,12 +41,6 @@ public sealed class SwapChainPresenter : IDisposable
 
     public bool IsAttached => _swapChain is not null;
 
-    /// <summary>
-    /// Set while the app window is minimized or hidden: nothing on screen can be seen, so frames
-    /// are decoded (the stream must keep its reference frames) but not converted or presented.
-    /// </summary>
-    public static volatile bool PresentationPaused;
-
     /// <summary>Must be called on the UI thread that owns the panel.</summary>
     public void Attach(SwapChainPanel panel)
     {
@@ -164,7 +158,7 @@ public sealed class SwapChainPresenter : IDisposable
     /// <summary>Presents a texture (NV12 from the decoder, or BGRA from capture). Any thread.</summary>
     public void Present(ID3D11Texture2D texture, uint subresource, int width, int height, bool isYuv)
     {
-        if (_disposed || PresentationPaused)
+        if (_disposed)
             return;
 
         lock (_sync)

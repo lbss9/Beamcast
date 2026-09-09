@@ -1,3 +1,9 @@
+## 2.6.2
+
+### Fixes
+
+- The GPU optimizations from 2.4.0 are rolled back: broadcasting got worse in real use. Capture, encoder and preview behave exactly as in 2.3.2 again (frames repeated every half second, every mouse move encoded, one-frame encoder buffer, preview always drawn). Everything that came later (listed rooms, the Settings screen, What's new, crash fixes) stays.
+
 ## 2.6.1
 
 ### Improvements

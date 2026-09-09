@@ -570,8 +570,6 @@ public sealed class BroadcastService
         Diag.Log("broadcast: keyframe needed");
         Interlocked.Exchange(ref _keyframeRequested, 1);
         _gpuEncoder?.RequestKeyframe();
-        // With a static screen the capture only repeats once a second; a waiting viewer should not wait that long.
-        _capture?.RequestFrame();
     }
 
     /// <summary>Capture thread, context lock held by the caller.</summary>

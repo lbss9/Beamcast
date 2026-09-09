@@ -57,8 +57,6 @@ public sealed partial class MainWindow : Window
         // WinUI shows an automatic "Esc" tooltip for accelerators on hover; not wanted for the whole window.
         RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
 
-        // Minimized or hidden: keep decoding, stop painting (nothing can be seen anyway).
-        VisibilityChanged += (_, e) => Render.SwapChainPresenter.PresentationPaused = !e.Visible;
         AppWindow.Closing += OnClosing;
         NavView.Loaded += (_, _) =>
         {

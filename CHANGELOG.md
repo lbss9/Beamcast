@@ -2,6 +2,15 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.6.2
+
+- Reversão integral da 2.4.0 a pedido do autor ("ficou pior"): `ScreenCapture.cs`,
+  `MfVideoEncoder.cs`, `SwapChainPresenter.cs`, `MainWindow.xaml.cs` e `BroadcastService.cs`
+  restaurados do commit 510e0e7 (2.3.2); `Logic/CapturePacer.cs` e seus testes removidos. Sem
+  pacing de captura, sem dirty regions, VBV de 1 quadro, sem `PresentationPaused`. A correção
+  do INVALID_CALL (2.3.2) e tudo da 2.5.0 em diante permanecem. Causa exata ainda a apurar
+  (relato: "mudou para 60 fps e ficou péssimo"); ver nota 17 do vault.
+
 ## 2.6.1
 
 - `AboutPage` reduzida a "Novidades": título + versão + `MarkdownLite` do changelog inteiro +
