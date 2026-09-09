@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Net.Http;
 using System.Net.WebSockets;
@@ -131,6 +132,12 @@ public sealed class LoungeClient : IDisposable
     /// <summary>Someone started watching one of our streams: stream id, viewer member id (server 2.3.0+).</summary>
     public event Action<uint, uint>? ViewerJoined;
     public event Action<uint, uint>? ViewerLeft;
+    /// <summary>A viewer of our stream reports its delay: stream id, viewer id, delay in ms (server 2.5.0+).</summary>
+    public event Action<uint, uint, int>? ViewerReported;
+
+    /// <summary>Viewer side: tell the publisher (through the server) how late our picture is.</summary>
+    public void SendViewerReport(uint streamId, int latencyMs) =>
+        Enqueue(LoungeMux.Encode(LoungeMux.ViewerReport, streamId, (uint)Math.Clamp(latencyMs, 0, int.MaxValue), ReadOnlySpan<byte>.Empty));
 
     private int _clockOffsetMs;
     private int _clockKnown;
@@ -717,6 +724,10 @@ public sealed class LoungeClient : IDisposable
                 break;
             case LoungeMux.ViewerLeft:
                 ViewerLeft?.Invoke(a, b);
+                break;
+            case LoungeMux.ViewerReport:
+                if (payload.Length >= 4)
+                    ViewerReported?.Invoke(a, BinaryPrimitives.ReadUInt32LittleEndian(payload), (int)Math.Min(b, int.MaxValue));
                 break;
             case LoungeMux.RoomInfo:
                 if (Json.Deserialize<RoomInfo>(payload) is { } info)

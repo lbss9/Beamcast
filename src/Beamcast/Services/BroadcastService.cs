@@ -24,9 +24,10 @@ public enum BroadcastState
 /// <param name="TargetKbps">The bitrate the encoder runs at now: the chosen one, or lower while adapting.</param>
 /// <param name="Adapted">True while adaptive quality holds the bitrate below the chosen one.</param>
 /// <param name="Standby">True while live with nobody watching: capture and preview run, encoder and network rest.</param>
-public sealed record HostStats(double Fps, double Kbps, double AudioKbps, double EncodeMs, int Width, int Height, string Codec, int Viewers, int TargetKbps, bool Adapted, bool Standby)
+/// <param name="WorstViewerDelayMs">The highest delay any viewer reported in this window (0 = nobody complained; host 2.5.0+).</param>
+public sealed record HostStats(double Fps, double Kbps, double AudioKbps, double EncodeMs, int Width, int Height, string Codec, int Viewers, int TargetKbps, bool Adapted, bool Standby, int WorstViewerDelayMs)
 {
-    public static readonly HostStats Empty = new(0, 0, 0, 0, 0, 0, string.Empty, 0, 0, false, false);
+    public static readonly HostStats Empty = new(0, 0, 0, 0, 0, 0, string.Empty, 0, 0, false, false, 0);
 }
 
 /// <summary>
@@ -98,6 +99,7 @@ public sealed class BroadcastService
         _lounge.KeyframeRequested += OnKeyframeRequested;
         _lounge.ViewerJoined += (streamId, viewerId, name) => OnViewer(streamId, viewerId, name, joined: true);
         _lounge.ViewerLeft += (streamId, viewerId, name) => OnViewer(streamId, viewerId, name, joined: false);
+        _lounge.ViewerReported += OnViewerReported;
         _lounge.StateChanged += state =>
         {
             if (state == LoungeState.Disconnected)
@@ -281,7 +283,7 @@ public sealed class BroadcastService
         if (standby)
         {
             Diag.Log("broadcast: standby (nobody watching), encoder and uplink resting");
-            LastStats = LastStats with { Fps = 0, Kbps = 0, AudioKbps = 0, EncodeMs = 0, Viewers = 0, Standby = true };
+            LastStats = LastStats with { Fps = 0, Kbps = 0, AudioKbps = 0, EncodeMs = 0, Viewers = 0, Standby = true, WorstViewerDelayMs = 0 };
             Post(() => StatsChanged?.Invoke(LastStats));
         }
         else
@@ -299,6 +301,25 @@ public sealed class BroadcastService
     {
         lock (_viewers)
             _viewers.Clear();
+    }
+
+    private int _worstViewerDelayMs;
+
+    /// <summary>Network thread. A viewer is late: that is the signal the adaptive ladder was missing.</summary>
+    private void OnViewerReported(uint streamId, uint viewerId, int delayMs)
+    {
+        if (streamId != _streamId || !_live)
+            return;
+        Diag.Log($"broadcast: viewer {viewerId} reports {delayMs} ms of delay");
+        InterlockedMax(ref _worstViewerDelayMs, delayMs);
+        if (delayMs >= ViewerLagPolicy.ReportAboveMs)
+            AdaptOnDrop();
+    }
+
+    private static void InterlockedMax(ref int target, int value)
+    {
+        int current;
+        while ((current = Volatile.Read(ref target)) < value && Interlocked.CompareExchange(ref target, value, current) != current) { }
     }
 
     /// <summary>Once per stats window: let the ladder climb back after a quiet spell.</summary>
@@ -907,6 +928,7 @@ public sealed class BroadcastService
         AdaptTick();
         var seconds = elapsed.TotalSeconds;
         var audioBytes = Interlocked.Exchange(ref _statsAudioBytes, 0);
+        var worstDelay = Interlocked.Exchange(ref _worstViewerDelayMs, 0);
         var stats = new HostStats(
             _statsFrames / seconds,
             _statsBytes * 8 / 1000.0 / seconds,
@@ -918,7 +940,8 @@ public sealed class BroadcastService
             ViewerCount,
             EffectiveBitrateKbps,
             _adaptiveEnabled && _adaptive.IsAdapted,
-            false
+            false,
+            worstDelay
         );
         LastStats = stats;
         _statsWindowStart = Stopwatch.GetTimestamp();

@@ -405,6 +405,13 @@ public static class LoungeMux
     /// <summary>Server→publisher (2.3.0): a=streamId, b=memberId of a viewer that stopped (or left the room).</summary>
     public const byte ViewerLeft = 27;
 
+    /// <summary>
+    /// Viewer→server (2.5.0): a=streamId, b=that viewer's measured delay in ms; sent only while the
+    /// delay is high. Server→publisher: same a and b, payload = viewer member id (uint32 LE), so
+    /// the publisher can lower its bitrate from what viewers actually experience.
+    /// </summary>
+    public const byte ViewerReport = 28;
+
     /// <summary>Unix milliseconds folded to 32 bits, the unit the heartbeat and media stamps use.</summary>
     public static uint ClockNow() => unchecked((uint)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 

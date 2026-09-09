@@ -665,6 +665,16 @@ internal sealed class Room
                 }
                 break;
 
+            case LoungeMux.ViewerReport:
+                // A viewer says its delay is b ms: hand it to the publisher, stamped with who said so.
+                if (_streams.TryGetValue(a, out var reported) && reported.Subscribers.ContainsKey(member.Id) && _members.TryGetValue(reported.Owner, out var publisher))
+                {
+                    Span<byte> who = stackalloc byte[4];
+                    System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(who, member.Id);
+                    publisher.Enqueue(LoungeMux.Encode(LoungeMux.ViewerReport, a, b, who), 0);
+                }
+                break;
+
             case LoungeMux.RoomUpdate:
             case LoungeMux.InviteCreate:
             case LoungeMux.InviteRevokeAll:

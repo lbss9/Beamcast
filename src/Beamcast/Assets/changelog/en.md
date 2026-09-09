@@ -1,3 +1,12 @@
+## 2.8.0
+
+### New
+
+- **Viewers report when they fall behind.** When the measured delay passes 0.4 s, the viewer's app tells the broadcaster every 2 s, and adaptive quality lowers the bitrate from that real number, not only from the upload queue. The broadcaster sees "viewer behind by X ms" in the stats.
+- **A large delay turns into action.** Above 0.9 s the viewer asks the host to drop what is queued for it and send a full frame, at most every 3 s. The picture jumps to the present instead of staying behind.
+
+Both need the host on 2.5.0; on older hosts nothing changes.
+
 ## 2.7.0
 
 ### New

@@ -177,7 +177,22 @@ public sealed class WatchService
         else if (outcome == Viewer.VideoOutcome.FirstFrame)
             Post(() => FirstFrame?.Invoke(viewer.Id));
         if (viewer.TakeStats() is { } stats)
+        {
+            // Once a second: a late picture is reported to the publisher (it lowers its bitrate from
+            // real numbers) and, when very late, the host is asked to drop our queue and send a keyframe.
+            var action = viewer.Lag.Evaluate(Environment.TickCount64, stats.LatencyMs);
+            if ((action & ViewerLagPolicy.Steps.Report) != 0)
+            {
+                Diag.Log($"watch: stream {viewer.Id} delay {stats.LatencyMs:F0} ms, reporting to the publisher");
+                _lounge.SendViewerReport(viewer.Id, (int)stats.LatencyMs);
+            }
+            if ((action & ViewerLagPolicy.Steps.Keyframe) != 0)
+            {
+                Diag.Log($"watch: stream {viewer.Id} delay {stats.LatencyMs:F0} ms, asking for a fresh keyframe");
+                _lounge.RequestKeyframe(viewer.Id);
+            }
             Post(() => StatsChanged?.Invoke(viewer.Id, stats));
+        }
     }
 
     private void Post(Action action)
@@ -227,6 +242,7 @@ public sealed class WatchService
         }
 
         public uint Id { get; private set; }
+        public ViewerLagPolicy Lag { get; } = new();
         public string OwnerName { get; }
         public string Title { get; }
         public int Order { get; }

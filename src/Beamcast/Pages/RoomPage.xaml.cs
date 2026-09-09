@@ -938,9 +938,10 @@ public sealed partial class RoomPage : Page
         {
             var audio = stats.AudioKbps > 0 ? $"  ♪ {stats.AudioKbps:F0} kbps" : string.Empty;
             var adapted = stats.Adapted ? "  " + Loc.Format("Stream_Adapted", stats.TargetKbps) : string.Empty;
+            var lag = stats.WorstViewerDelayMs > 0 ? "  " + Loc.Format("Stream_ViewerLag", stats.WorstViewerDelayMs) : string.Empty;
             StatsText.Text = stats.Standby
                 ? Loc.Get("Stream_StandbyStats")
-                : $"{stats.Codec}  {stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  {stats.EncodeMs:F1} ms{audio}{adapted}";
+                : $"{stats.Codec}  {stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  {stats.EncodeMs:F1} ms{audio}{adapted}{lag}";
             ViewersText.Text = Loc.Format("Stream_Viewers", _broadcast.ViewerCount);
             ViewersBadge.Visibility = Visibility.Visible;
             StandbyBadge.Visibility = stats.Standby ? Visibility.Visible : Visibility.Collapsed;

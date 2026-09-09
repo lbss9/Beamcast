@@ -69,6 +69,10 @@ public sealed class LoungeService
     /// <summary>Someone started/stopped watching one of my streams: stream id, viewer id, viewer name. UI thread.</summary>
     public event Action<uint, uint, string>? ViewerJoined;
     public event Action<uint, uint, string>? ViewerLeft;
+    /// <summary>A viewer of my stream reports its delay (stream id, viewer id, ms). Network thread, like media.</summary>
+    public event Action<uint, uint, int>? ViewerReported;
+
+    public void SendViewerReport(uint streamId, int latencyMs) => _client?.SendViewerReport(streamId, latencyMs);
 
     /// <summary>Round trip to the host in ms (0 until the first heartbeat echo).</summary>
     public int RoundTripMs => _client?.RoundTripMs ?? 0;
@@ -345,6 +349,7 @@ public sealed class LoungeService
         client.KeyframeRequested += id => KeyframeRequested?.Invoke(id);
         client.ViewerJoined += (streamId, viewerId) => Post(() => ViewerJoined?.Invoke(streamId, viewerId, NameOf(viewerId)));
         client.ViewerLeft += (streamId, viewerId) => Post(() => ViewerLeft?.Invoke(streamId, viewerId, NameOf(viewerId)));
+        client.ViewerReported += (streamId, viewerId, ms) => ViewerReported?.Invoke(streamId, viewerId, ms);
         client.Closed += reason => Post(() => OnClosed(client, reason));
 
         _client = client;

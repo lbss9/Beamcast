@@ -2,6 +2,21 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.8.0
+
+- Protocolo (v3 intacto): `ViewerReport = 28`. Espectador → servidor: `a` = stream, `b` = atraso
+  em ms; **servidor 2.5.0** repassa ao transmissor com `payload` = id do espectador (uint32 LE),
+  só se quem mandou é assinante da stream.
+- `Logic/ViewerLagPolicy.cs` (puro, 4 testes): ≥ 400 ms → `Report` a cada 2 s; ≥ 900 ms →
+  também `Keyframe` a cada 3 s. `WatchService` avalia uma vez por segundo com `LatencyMs` da
+  janela (`Viewer.Lag`), manda `SendViewerReport` e/ou `RequestKeyframe` (o servidor já reseta o
+  gate e pede keyframe ao transmissor).
+- `BroadcastService.OnViewerReported` (thread de rede): guarda o pior atraso da janela
+  (`HostStats.WorstViewerDelayMs`) e chama `AdaptOnDrop()` (mesma escada, no máximo um degrau
+  por 1,5 s). `LoungeClient.ViewerReported`/`SendViewerReport`, `LoungeService` idem.
+- Aba Transmitir: "espectador atrasado {0} ms" no texto de stats. Harness `managecheck` cenário 5
+  ganha o check do report (32 checks).
+
 ## 2.7.0
 
 - `BroadcastService.StandbyWithoutViewers` (setting `AppSettings.StandbyWithoutViewers`, default

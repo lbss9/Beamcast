@@ -1,3 +1,12 @@
+## 2.8.0
+
+### Novidades
+
+- **Quem assiste avisa quando está atrasado.** Se o atraso medido passa de 0,4 s, o app do espectador avisa o transmissor a cada 2 s, e a qualidade adaptativa baixa o bitrate a partir desse número real, não só da fila de envio. O transmissor vê "espectador atrasado X ms" nas estatísticas.
+- **Atraso grande vira ação.** Acima de 0,9 s o espectador pede ao host que descarte o que está na fila dele e mande um quadro completo, no máximo a cada 3 s. A imagem dá um pulo para o presente em vez de ficar atrás.
+
+Os dois precisam do host na versão 2.5.0; em hosts antigos nada muda.
+
 ## 2.7.0
 
 ### Novidades
