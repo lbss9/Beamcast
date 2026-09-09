@@ -32,6 +32,9 @@ public sealed class RoomCreateOptions
     public string Password { get; set; } = string.Empty;
     public string Broadcast { get; set; } = BroadcastPolicy.Everyone;
     public int MaxMembers { get; set; }
+
+    /// <summary>See <see cref="LoungeRequest.Client"/>. Null = do not replace anything.</summary>
+    public string? ClientId { get; set; }
 }
 
 public sealed class RoomJoinOptions
@@ -51,6 +54,9 @@ public sealed class RoomJoinOptions
     /// so it does not wait for the content-key handoff in rooms without a password.
     /// </summary>
     public bool ManageOnly { get; set; }
+
+    /// <summary>See <see cref="LoungeRequest.Client"/>. Null = do not replace anything (manage sessions leave it null).</summary>
+    public string? ClientId { get; set; }
 }
 
 /// <summary>
@@ -255,6 +261,7 @@ public sealed class LoungeClient : IDisposable
                 TtlHours = options.TtlHours,
                 Broadcast = BroadcastPolicy.Normalize(options.Broadcast),
                 MaxMembers = options.MaxMembers,
+                Client = options.ClientId,
             };
 
             byte[] contentKey;
@@ -311,6 +318,7 @@ public sealed class LoungeClient : IDisposable
                 Invite = options.InviteToken,
                 OwnerToken = options.OwnerToken,
                 JoinKey = Convert.ToBase64String(joinPublic),
+                Client = options.ClientId,
             };
             await SendJsonAsync(socket, request, timeout.Token).ConfigureAwait(false);
 

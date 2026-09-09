@@ -79,6 +79,7 @@
   <data name="Watch_Leave.Content" xml:space="preserve"><value>Sair</value></data>
   <data name="Watch_Subtitle" xml:space="preserve"><value>Transmitido por {0} · {1} assistindo</value></data>
   <data name="Watch_Waiting" xml:space="preserve"><value>Aguardando o primeiro quadro…</value></data>
+  <data name="Watch_PublisherBack" xml:space="preserve"><value>A conexão de {0} caiu. Esperando a transmissão voltar…</value></data>
   <data name="Watch_PausedByHost" xml:space="preserve"><value>A transmissão está pausada.</value></data>
   <data name="Watch_Ended" xml:space="preserve"><value>A transmissão terminou.</value></data>
   <data name="Watch_Lost" xml:space="preserve"><value>A conexão com o host caiu.</value></data>
@@ -331,6 +332,7 @@
   <data name="Lounge_InviteExpired" xml:space="preserve"><value>Este convite expirou ou já foi usado.</value></data>
   <data name="Lounge_RoomFull" xml:space="preserve"><value>A sala está cheia.</value></data>
   <data name="Lounge_RateLimited" xml:space="preserve"><value>Muitas tentativas. Espere alguns minutos e tente de novo.</value></data>
+  <data name="Lounge_Replaced" xml:space="preserve"><value>Este PC entrou na sala por outra conexão, e esta foi encerrada.</value></data>
   <data name="Lounge_Kicked" xml:space="preserve"><value>O dono removeu você da sala.</value></data>
   <data name="Lounge_RoomDeleted" xml:space="preserve"><value>O dono apagou a sala.</value></data>
   <data name="Lounge_PasswordChanged" xml:space="preserve"><value>A senha da sala mudou. Entre de novo com a senha nova.</value></data>

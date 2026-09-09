@@ -51,6 +51,9 @@ public sealed class AppSettings
 
     public string DisplayName { get; set; } = string.Empty;
 
+    /// <summary>Random id of this installation, sent on join so a host can drop this client's stale connection (see LoungeRequest.Client). Not a secret.</summary>
+    public string ClientId { get; set; } = string.Empty;
+
     public string QualityPreset { get; set; } = Beamcast.QualityPreset.Source;
 
     public int Fps { get; set; } = 60;

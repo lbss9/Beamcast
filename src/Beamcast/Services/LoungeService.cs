@@ -214,6 +214,7 @@ public sealed class LoungeService
     public async Task CreateAsync(string serverUrl, RoomCreateOptions options, string displayName, CancellationToken ct)
     {
         Diag.Log($"lounge: creating room '{options.Name}' at {LoungeProtocol.DisplayHost(serverUrl)} ({options.Visibility}, {options.Kind}, password {(options.Password.Length > 0 ? "yes" : "no")})");
+        options.ClientId = ClientId;
         if (!LoungeProtocol.TryNormalizeServer(serverUrl, out var url))
             throw new LoungeException(LoungeProtocol.ReasonBadRequest);
         var appKey = AppKeyFor(url);
@@ -232,6 +233,7 @@ public sealed class LoungeService
             Code = client.Code,
             PasswordKey = client.PasswordKey,
             OwnerToken = client.OwnerToken,
+            ClientId = options.ClientId,
         })
         { LastRoom = client.Room, IsOwner = true };
         RememberHost(url);
@@ -249,6 +251,7 @@ public sealed class LoungeService
         var appKey = AppKeyFor(url);
         options.Code = LoungeProtocol.NormalizeCode(options.Code);
         options.OwnerToken ??= OwnerTokenFor(url, options.Code);
+        options.ClientId = ClientId;
         Diag.Log($"lounge: joining {options.Code} at {LoungeProtocol.DisplayHost(url)} (password {(options.Password.Length > 0 ? "yes" : "no")}, invite {(options.InviteToken is null ? "no" : "yes")}, owner token {(options.OwnerToken is null ? "no" : "yes")})");
         var client = await ConnectAsync(() => LoungeClient.JoinAsync(url, options, appKey, ct), displayName);
 
@@ -269,6 +272,7 @@ public sealed class LoungeService
             InviteToken = options.InviteToken,
             InviteKey = options.InviteKey,
             OwnerToken = client.OwnerToken ?? options.OwnerToken,
+            ClientId = options.ClientId,
         })
         { LastRoom = client.Room, IsOwner = client.IsOwner };
         RememberHost(url);
@@ -700,6 +704,20 @@ public sealed class LoungeService
     }
 
     /// <summary>After a reconnect: the stream that looks like the one we were watching (same owner and title).</summary>
+    /// <summary>Id of this installation, created on first use; hosts use it to replace a stale connection of ours.</summary>
+    public static string ClientId
+    {
+        get
+        {
+            var current = SettingsStore.Load().ClientId;
+            if (current.Length > 0)
+                return current;
+            var fresh = Guid.NewGuid().ToString("N");
+            SettingsStore.Update(s => s.ClientId = fresh);
+            return fresh;
+        }
+    }
+
     public LoungeStream? FindStreamLike(string ownerName, string title)
     {
         lock (_sync)

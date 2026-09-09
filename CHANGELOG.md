@@ -2,6 +2,23 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.9.3
+
+- Fantasma de reconexão (bug 19 do vault, medido com o Observer): `LoungeRequest.Client` leva o id da
+  instalação (`AppSettings.ClientId`, GUID criado no primeiro uso, definido em
+  `LoungeService.ClientId` e copiado para a `Session`; `RoomManagement` não manda, para a sessão de
+  dono não derrubar a principal). **Servidor 2.7.0**: no join, todo membro com o mesmo `Client` na
+  sala sofre `Leave` + `CloseWith("replaced")` **antes** do welcome, então ninguém vê dois membros
+  nem duas streams; novo motivo `LoungeProtocol.ReasonReplaced` + `Lounge_Replaced`.
+- `WatchService`: `StreamEnded` de um stream assistido não fecha mais o tile. `TryFollow` procura
+  stream vivo do mesmo dono/título (`FindStreamLike`) e faz `Rebind`; se não há, marca
+  `Viewer.WaitingSince` e espera `FollowGrace` (20 s), reagindo a `StreamsChanged` (a presença do
+  novo membro pode chegar depois do StreamStarted). `RoomPage` mostra `Watch_PublisherBack` no tile
+  enquanto espera.
+- `loungee2e`: +5 checks do "replaced" (fecha a antiga, welcome sem fantasma, os outros veem sair,
+  id diferente não derruba, sem id não derruba). O check "private room is not listed" era anterior
+  à 2.5.0 e virou "listed with its lock".
+
 ## 2.9.2
 
 - `SettingsPage`/`AboutPage`: StackPanel de conteúdo com `HorizontalAlignment="Center"` (MaxWidth 780) e padding simétrico do ScrollViewer.

@@ -32,7 +32,8 @@ public sealed class WatchService
     private WatchService()
     {
         _lounge.MediaReceived += OnMedia;
-        _lounge.StreamEnded += id => StopWatching(id, "ended");
+        _lounge.StreamEnded += OnStreamEnded;
+        _lounge.StreamsChanged += OnStreamsChanged;
         _lounge.StateChanged += state =>
         {
             if (state == LoungeState.Disconnected)
@@ -55,6 +56,10 @@ public sealed class WatchService
     public IReadOnlyList<uint> Watching => _viewers.Values.OrderBy(v => v.Order).Select(v => v.Id).ToList();
 
     public bool HasFrame(uint streamId) => _viewers.TryGetValue(streamId, out var v) && v.HasFrame;
+
+    /// <summary>Name of the person whose stream this tile is waiting for, or null when the tile is live.</summary>
+    public string? WaitingOwner(uint streamId) =>
+        _viewers.TryGetValue(streamId, out var viewer) && viewer.WaitingSince != 0 ? viewer.OwnerName : null;
     public ViewerStats? LastStats(uint streamId) => _viewers.TryGetValue(streamId, out var v) ? v.LastStats : null;
     public SwapChainPresenter? PresenterFor(uint streamId) => _viewers.TryGetValue(streamId, out var v) ? v.Presenter : null;
 
@@ -126,6 +131,60 @@ public sealed class WatchService
     {
         foreach (var id in _viewers.Keys.ToList())
             StopWatching(id, reason);
+    }
+
+    /// <summary>
+    /// How long a tile waits for its publisher to come back after the host ended the stream. A
+    /// publisher whose connection dropped reconnects under a new member and stream id; the host may
+    /// announce the new stream before or after it notices the old one is gone.
+    /// </summary>
+    public static readonly TimeSpan FollowGrace = TimeSpan.FromSeconds(20);
+
+    /// <summary>UI thread. The host ended a stream we watch: follow the same person's new stream, or wait for it a little.</summary>
+    private void OnStreamEnded(uint streamId)
+    {
+        if (!_viewers.TryGetValue(streamId, out var viewer))
+            return;
+        if (TryFollow(viewer))
+            return;
+        viewer.WaitingSince = Environment.TickCount64;
+        Diag.Log($"watch: #{streamId} ended; keeping the tile up to {FollowGrace.TotalSeconds:F0} s for {viewer.OwnerName} '{viewer.Title}' to come back");
+        Post(() => WatchingChanged?.Invoke());
+        _ = Task.Delay(FollowGrace).ContinueWith(_ => Post(() =>
+        {
+            if (_viewers.TryGetValue(streamId, out var still) && ReferenceEquals(still, viewer) && still.WaitingSince != 0)
+                StopWatching(streamId, "ended");
+        }));
+    }
+
+    /// <summary>UI thread. A stream appeared or changed: any waiting tile whose publisher is back follows it.</summary>
+    private void OnStreamsChanged()
+    {
+        foreach (var viewer in _viewers.Values.Where(v => v.WaitingSince != 0).ToList())
+            TryFollow(viewer);
+    }
+
+    /// <summary>Rebinds the tile to a live stream by the same owner (and title when possible). False when there is none yet.</summary>
+    private bool TryFollow(Viewer viewer)
+    {
+        var again = _lounge.FindStreamLike(viewer.OwnerName, viewer.Title);
+        if (again is null || again.Id == viewer.Id)
+            return false;
+        if (_viewers.ContainsKey(again.Id))
+        {
+            Diag.Log($"watch: #{viewer.Id} ended and its successor #{again.Id} is already on screen; closing the old tile");
+            StopWatching(viewer.Id, "ended");
+            return true;
+        }
+        Diag.Log($"watch: #{viewer.Id} by {viewer.OwnerName} '{viewer.Title}' continues as #{again.Id}");
+        _viewers.TryRemove(viewer.Id, out _);
+        VideoCodecs.TryParse(again.Meta.Codec, out var codec);
+        var fresh = viewer.Rebind(again.Id, codec);
+        fresh.WaitingSince = 0;
+        _viewers[again.Id] = fresh;
+        _lounge.Subscribe(again.Id);
+        Post(() => WatchingChanged?.Invoke());
+        return true;
     }
 
     /// <summary>Stream ids are new after a reconnect; follow each stream with the same owner and title.</summary>
@@ -254,6 +313,9 @@ public sealed class WatchService
 
         public uint Id { get; private set; }
         public ViewerLagPolicy Lag { get; } = new();
+
+        /// <summary>Non-zero while the host ended this stream and the tile waits for the publisher's new one.</summary>
+        public long WaitingSince;
         private long _lastStatsLog;
 
         public bool ShouldLogStats()

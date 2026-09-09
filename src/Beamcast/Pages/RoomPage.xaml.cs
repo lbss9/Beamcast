@@ -550,6 +550,13 @@ public sealed partial class RoomPage : Page
     {
         foreach (var (id, tile) in Tiles)
         {
+            // The host ended this stream and the tile is holding the last frame while its publisher
+            // reconnects: say so instead of leaving a frozen picture with no explanation.
+            if (_watch.WaitingOwner(id) is { } absent)
+            {
+                tile.ShowOverlay(Loc.Format("Watch_PublisherBack", absent));
+                continue;
+            }
             var stream = _lounge.FindStream(id);
             if (stream is null)
                 continue;

@@ -53,6 +53,9 @@ public static class LoungeProtocol
     public const string ReasonPasswordChanged = "password_changed";
     public const string ReasonNoKey = "no_key";
 
+    /// <summary>The same client (see <see cref="LoungeRequest.Client"/>) connected again; this older connection was dropped for it.</summary>
+    public const string ReasonReplaced = "replaced";
+
     private const string CodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     public const int PublicCodeLength = 6;
     public const int PrivateCodeLength = 10;
@@ -216,6 +219,14 @@ public sealed class LoungeRequest
 
     // ----- join -----
     public string? Code { get; set; }
+
+    /// <summary>
+    /// Create/join: opaque id of the client installation. When a connection with the same id is
+    /// already in the room (a reconnect whose old socket the host has not noticed yet), the host
+    /// drops the old one at once instead of listing the same person and stream twice for up to
+    /// the idle timeout. Optional; older clients send nothing and keep the old behaviour.
+    /// </summary>
+    public string? Client { get; set; }
 
     /// <summary>Join: an invite token; a valid one skips the password.</summary>
     public string? Invite { get; set; }

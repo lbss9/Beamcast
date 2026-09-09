@@ -1,3 +1,10 @@
+## 2.9.3
+
+### Fixes
+
+- **The stream you are watching no longer closes on its own.** When the broadcaster's connection drops, the host ends the old stream and the person comes back with a new one. Your app used to close the tile at once and you had to click watch again. Now it holds the last picture, says "so-and-so lost connection, waiting for the stream to come back" and follows the new stream by itself, waiting up to 20 seconds.
+- **Nobody shows up broadcasting twice.** When someone dropped and came back, the host still listed the old connection for up to 30 seconds and the same person appeared with two streams. Now the app identifies itself when it joins again and the host drops the stale connection at once. Needs the host on 2.7.0; on older hosts the duplicate still lasts those 30 seconds, but the stream you watch no longer closes.
+
 ## 2.9.2
 
 ### Improvements

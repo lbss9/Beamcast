@@ -67,6 +67,7 @@ public sealed partial class LoungePage : Page
         LoungeProtocol.ReasonPasswordChanged => Loc.Get("Lounge_PasswordChanged"),
         LoungeProtocol.ReasonNoKey => Loc.Get("Lounge_NoKey"),
         LoungeProtocol.ReasonNotAllowed => Loc.Get("Lounge_NotAllowed"),
+        LoungeProtocol.ReasonReplaced => Loc.Get("Lounge_Replaced"),
         "not_owner" => Loc.Get("Lounge_NotOwner"),
         "unreachable" => Loc.Get("Lounge_Unreachable"),
         "left" or "disposed" or "" => string.Empty,

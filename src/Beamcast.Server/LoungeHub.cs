@@ -195,7 +195,7 @@ public sealed class LoungeHub
         Persist();
         _log.LogInformation("Room {Code} \"{Name}\" ({Visibility}, {Kind}, password {Password}) created by {Remote}.",
             room.Code, name, room.Visibility, room.Kind, room.HasPassword ? "yes" : "no", remote);
-        return new Admission(room, IsOwner: true, NeedsKey: false, JoinKey: null, OwnerToken: ownerToken);
+        return new Admission(room, IsOwner: true, NeedsKey: false, JoinKey: null, OwnerToken: ownerToken, ClientIdOf(request));
     }
 
     private async Task<Admission?> JoinAsync(WebSocket socket, LoungeRequest request, string remote, CancellationToken ct)
@@ -305,7 +305,7 @@ public sealed class LoungeHub
             Persist();
             _log.LogInformation("Room {Code} had no owner; claimed by {Remote}.", room.Code, remote);
         }
-        return new Admission(room, isOwner, needsKey, joinKey, OwnerToken: claimedToken);
+        return new Admission(room, isOwner, needsKey, joinKey, OwnerToken: claimedToken, ClientIdOf(request));
     }
 
     private static bool TryReadPassword(string? saltText, string? verifierText, out byte[] salt, out byte[] verifier)
@@ -361,7 +361,11 @@ public sealed class LoungeHub
             ? socket.SendAsync(Json.Serialize(value), WebSocketMessageType.Text, true, ct)
             : Task.CompletedTask;
 
-    internal sealed record Admission(Room Room, bool IsOwner, bool NeedsKey, byte[]? JoinKey, string? OwnerToken);
+    internal sealed record Admission(Room Room, bool IsOwner, bool NeedsKey, byte[]? JoinKey, string? OwnerToken, string? ClientId = null);
+
+    /// <summary>The client's installation id, when it sent a sane one (opaque, ASCII letters and digits, at most 64).</summary>
+    private static string? ClientIdOf(LoungeRequest request) =>
+        request.Client is { Length: > 0 and <= 64 } id && id.All(char.IsAsciiLetterOrDigit) ? id : null;
 }
 
 /// <summary>Periodically drops temporary rooms nobody has used for their TTL.</summary>
@@ -511,7 +515,19 @@ internal sealed class Room
         {
             KeyPending = admission.NeedsKey,
             JoinKey = admission.JoinKey,
+            ClientId = admission.ClientId,
         };
+        // A reconnect of a client whose old socket we have not noticed yet: drop the old member
+        // now (ending its streams for everyone) so the room never lists the same person twice.
+        if (member.ClientId is not null)
+        {
+            foreach (var stale in _members.Values.Where(m => m.ClientId == member.ClientId).ToList())
+            {
+                _log.LogInformation("Member {Old} in room {Code} replaced by a new connection of the same client.", stale.Id, Code);
+                Leave(stale);
+                stale.CloseWith(LoungeProtocol.ReasonReplaced);
+            }
+        }
         _members[member.Id] = member;
         LastActiveAt = DateTimeOffset.UtcNow;
 
@@ -1016,6 +1032,7 @@ internal sealed class Room
         public byte[]? Presence { get; set; }
         public volatile bool KeyPending;
         public byte[]? JoinKey { get; set; }
+        public string? ClientId { get; init; }
         public Task? Sender { get; set; }
 
         public void Subscribe(uint streamId, int maxPending) => _subscriptions[streamId] = new Subscription(maxPending);

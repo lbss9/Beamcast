@@ -1,3 +1,10 @@
+## 2.9.3
+
+### Correções
+
+- **A transmissão de quem você assiste não fecha mais sozinha.** Quando a conexão de quem transmite cai, o host encerra a transmissão antiga e a pessoa volta com uma transmissão nova. Antes o seu app fechava a janelinha na hora e você tinha que clicar em assistir de novo. Agora ele segura a última imagem, avisa "a conexão de fulano caiu, esperando a transmissão voltar" e reengancha sozinho assim que ela volta, esperando até 20 segundos.
+- **Ninguém mais aparece transmitindo duas vezes.** Quando alguém caía e voltava, o host ainda listava a conexão antiga por até 30 segundos, e a mesma pessoa aparecia com duas transmissões. Agora, ao entrar de novo, o app se identifica e o host derruba a conexão velha na hora. Precisa do host na versão 2.7.0; em hosts antigos a duplicata ainda dura os 30 segundos, mas a transmissão que você assiste não fecha mais.
+
 ## 2.9.2
 
 ### Melhorias

@@ -79,6 +79,7 @@
   <data name="Watch_Leave.Content" xml:space="preserve"><value>Leave</value></data>
   <data name="Watch_Subtitle" xml:space="preserve"><value>Hosted by {0} · {1} watching</value></data>
   <data name="Watch_Waiting" xml:space="preserve"><value>Waiting for the first frame…</value></data>
+  <data name="Watch_PublisherBack" xml:space="preserve"><value>{0} lost connection. Waiting for the stream to come back…</value></data>
   <data name="Watch_PausedByHost" xml:space="preserve"><value>The stream is paused.</value></data>
   <data name="Watch_Ended" xml:space="preserve"><value>The stream has ended.</value></data>
   <data name="Watch_Lost" xml:space="preserve"><value>Lost the connection to the host.</value></data>
@@ -331,6 +332,7 @@
   <data name="Lounge_InviteExpired" xml:space="preserve"><value>This invite has expired or was already used.</value></data>
   <data name="Lounge_RoomFull" xml:space="preserve"><value>The room is full.</value></data>
   <data name="Lounge_RateLimited" xml:space="preserve"><value>Too many attempts. Wait a few minutes and try again.</value></data>
+  <data name="Lounge_Replaced" xml:space="preserve"><value>This PC joined the room from another connection, so this one was closed.</value></data>
   <data name="Lounge_Kicked" xml:space="preserve"><value>The owner removed you from the room.</value></data>
   <data name="Lounge_RoomDeleted" xml:space="preserve"><value>The owner deleted the room.</value></data>
   <data name="Lounge_PasswordChanged" xml:space="preserve"><value>The room password changed. Join again with the new one.</value></data>
