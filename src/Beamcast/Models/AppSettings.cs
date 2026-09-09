@@ -71,6 +71,9 @@ public sealed class AppSettings
     /// <summary>Play a sound when someone starts or stops watching my stream.</summary>
     public bool ViewerSounds { get; set; } = true;
 
+    /// <summary>Play a short sound when another person starts broadcasting in the room.</summary>
+    public bool StreamSounds { get; set; } = true;
+
     /// <summary>While live with nobody watching, keep capturing but stop encoding and sending.</summary>
     public bool StandbyWithoutViewers { get; set; } = true;
 

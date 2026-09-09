@@ -1,3 +1,4 @@
+using Beamcast.Audio;
 using Beamcast.Net;
 using Microsoft.UI.Dispatching;
 
@@ -54,6 +55,15 @@ public sealed class LoungeService
     private string _displayName = string.Empty;
 
     private LoungeService() { }
+
+    private bool _streamSounds = SettingsStore.Load().StreamSounds;
+
+    /// <summary>Play a short sound when another person starts broadcasting in this room.</summary>
+    public bool StreamSounds
+    {
+        get => _streamSounds;
+        set => _streamSounds = value;
+    }
 
     public event Action<LoungeState>? StateChanged;
     public event Action? MembersChanged;
@@ -560,6 +570,10 @@ public sealed class LoungeService
 
     private void OnStreamStarted(uint streamId, uint owner, StreamMetaMessage meta)
     {
+        // Only for other people's streams: this fires on the announcement, never for the streams
+        // already listed in the welcome, so entering a busy room stays quiet.
+        if (owner != MemberId && _streamSounds)
+            SoundEffects.Play(SoundEffects.StreamStart);
         lock (_sync)
         {
             _streams[streamId] = new LoungeStream { Id = streamId, OwnerId = owner, OwnerName = NameOf(owner), Meta = meta, IsMine = owner == MemberId };

@@ -116,6 +116,9 @@
   <data name="Settings_Theme" xml:space="preserve"><value>Theme</value></data>
   <data name="Settings_ThemeDesc" xml:space="preserve"><value>Light, dark or the Windows colors.</value></data>
   <data name="Settings_DiagHeader.Text" xml:space="preserve"><value>Diagnostics and feedback</value></data>
+  <data name="Settings_StreamSound" xml:space="preserve"><value>Sound when someone starts a broadcast</value></data>
+  <data name="Settings_StreamSoundDesc" xml:space="preserve"><value>Plays a short sound when another person starts broadcasting in the room you are in.</value></data>
+  <data name="Settings_StreamSoundTry" xml:space="preserve"><value>Play</value></data>
   <data name="Settings_Diag" xml:space="preserve"><value>Diagnostic log</value></data>
   <data name="Settings_DiagDesc" xml:space="preserve"><value>Records capture, encoder, network and failures in diag.log. No effect on performance outside the logged points.</value></data>
   <data name="Settings_DiagFolder" xml:space="preserve"><value>Diagnostics folder</value></data>

@@ -12,6 +12,9 @@ public static class SoundEffects
     public const string ViewerIn = "viewer-in";
     public const string ViewerOut = "viewer-out";
 
+    /// <summary>Someone else in the room started broadcasting.</summary>
+    public const string StreamStart = "stream-start";
+
     public static string PathFor(string name) => Path.Combine(AppContext.BaseDirectory, "Assets", "Sounds", name + ".wav");
 
     public static void Play(string name, float volume = 0.8f)

@@ -2,6 +2,14 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.9.4
+
+- `Assets/Sounds/stream-start.wav` (0,48 s, 44,1 kHz estéreo) e `SoundEffects.StreamStart`. Toca em
+  `LoungeService.OnStreamStarted` quando `owner != MemberId` e `StreamSounds` está ligado; como o
+  evento só chega no anúncio (as streams do welcome passam por outro caminho), entrar numa sala
+  cheia não dispara nada. Preferência `AppSettings.StreamSounds` (padrão ligado) espelhada em
+  `LoungeService.StreamSounds`; linha em Configurações → Aparência com toggle e botão de ouvir.
+
 ## 2.9.3
 
 - Fantasma de reconexão (bug 19 do vault, medido com o Observer): `LoungeRequest.Client` leva o id da

@@ -1,3 +1,9 @@
+## 2.9.4
+
+### Novidades
+
+- **Som quando alguém abre uma transmissão na sala.** Toca um som curto no momento em que outra pessoa começa a transmitir, mesmo que você esteja em outra tela do app. Entrar numa sala que já tem transmissões continua em silêncio. Dá para desligar e para ouvir uma prévia em Configurações, em Aparência e comportamento.
+
 ## 2.9.3
 
 ### Correções

@@ -116,6 +116,9 @@
   <data name="Settings_Theme" xml:space="preserve"><value>Tema</value></data>
   <data name="Settings_ThemeDesc" xml:space="preserve"><value>Claro, escuro ou as cores do Windows.</value></data>
   <data name="Settings_DiagHeader.Text" xml:space="preserve"><value>Diagnóstico e feedback</value></data>
+  <data name="Settings_StreamSound" xml:space="preserve"><value>Som quando alguém abre uma transmissão</value></data>
+  <data name="Settings_StreamSoundDesc" xml:space="preserve"><value>Toca um som curto quando outra pessoa começa a transmitir na sala em que você está.</value></data>
+  <data name="Settings_StreamSoundTry" xml:space="preserve"><value>Ouvir</value></data>
   <data name="Settings_Diag" xml:space="preserve"><value>Registro de diagnóstico</value></data>
   <data name="Settings_DiagDesc" xml:space="preserve"><value>Grava captura, encoder, rede e falhas em diag.log. Não afeta o desempenho fora dos pontos registrados.</value></data>
   <data name="Settings_DiagFolder" xml:space="preserve"><value>Pasta de diagnóstico</value></data>

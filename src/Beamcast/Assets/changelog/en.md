@@ -1,3 +1,9 @@
+## 2.9.4
+
+### New
+
+- **A sound when someone starts a broadcast in the room.** A short sound plays the moment another person goes live, even if you are on another screen of the app. Entering a room that already has streams stays quiet. You can turn it off, and hear a preview, in Settings under Appearance and behaviour.
+
 ## 2.9.3
 
 ### Fixes

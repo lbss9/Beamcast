@@ -94,6 +94,14 @@
                     <ComboBox x:Name="ThemeBox" MinWidth="200" SelectionChanged="OnThemeChanged" />
                 </ctrl:SettingsRow.ActionContent>
             </ctrl:SettingsRow>
+            <ctrl:SettingsRow x:Name="StreamSoundRow" Glyph="&#xE767;">
+                <ctrl:SettingsRow.ActionContent>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button x:Name="StreamSoundPlay" Click="OnPlayStreamSound" />
+                        <ToggleSwitch x:Name="StreamSoundSwitch" MinWidth="0" Toggled="OnStreamSoundToggled" />
+                    </StackPanel>
+                </ctrl:SettingsRow.ActionContent>
+            </ctrl:SettingsRow>
 
             <!-- diagnostics -->
             <TextBlock x:Uid="Settings_DiagHeader" Style="{StaticResource SectionHeaderStyle}" Margin="0,14,0,8" />

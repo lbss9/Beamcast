@@ -1,3 +1,4 @@
+using Beamcast.Audio;
 using Beamcast.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -53,6 +54,11 @@ public sealed partial class SettingsPage : Page
         ThemeBox.Items.Add(Loc.Get("Settings_ThemeLight"));
         ThemeBox.Items.Add(Loc.Get("Settings_ThemeDark"));
         ThemeBox.SelectedIndex = Math.Max(0, Array.IndexOf(Themes, settings.Theme));
+
+        StreamSoundRow.Header = Loc.Get("Settings_StreamSound");
+        StreamSoundRow.Description = Loc.Get("Settings_StreamSoundDesc");
+        StreamSoundPlay.Content = Loc.Get("Settings_StreamSoundTry");
+        StreamSoundSwitch.IsOn = settings.StreamSounds;
 
         DiagRow.Header = Loc.Get("Settings_Diag");
         DiagRow.Description = Loc.Get("Settings_DiagDesc");
@@ -143,6 +149,19 @@ public sealed partial class SettingsPage : Page
     }
 
     // ----- diagnostics -----
+
+    private void OnStreamSoundToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        var on = StreamSoundSwitch.IsOn;
+        LoungeService.Instance.StreamSounds = on;
+        SettingsStore.Update(s => s.StreamSounds = on);
+        if (on)
+            SoundEffects.Play(SoundEffects.StreamStart);
+    }
+
+    private void OnPlayStreamSound(object sender, RoutedEventArgs e) => SoundEffects.Play(SoundEffects.StreamStart);
 
     private void OnDiagToggled(object sender, RoutedEventArgs e)
     {
