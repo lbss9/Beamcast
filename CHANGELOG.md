@@ -2,6 +2,10 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.9.2
+
+- `SettingsPage`/`AboutPage`: StackPanel de conteúdo com `HorizontalAlignment="Center"` (MaxWidth 780) e padding simétrico do ScrollViewer.
+
 ## 2.9.1
 
 - Diag em tudo (só com `diag.on`): `ui:` em RoomPage/LoungePage/MainWindow (go live, pausar,

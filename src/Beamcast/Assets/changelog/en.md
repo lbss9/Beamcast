@@ -1,3 +1,9 @@
+## 2.9.2
+
+### Improvements
+
+- The Settings and What's new pages are centered in the window instead of hugging the left edge.
+
 ## 2.9.1
 
 ### Improvements

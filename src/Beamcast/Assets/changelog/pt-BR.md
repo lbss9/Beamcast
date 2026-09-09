@@ -1,3 +1,9 @@
+## 2.9.2
+
+### Melhorias
+
+- As telas de Configurações e Novidades ficam centralizadas na janela em vez de encostadas à esquerda.
+
 ## 2.9.1
 
 ### Melhorias
