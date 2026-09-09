@@ -1,3 +1,13 @@
+## 2.5.1
+
+### Correções
+
+- Assistindo uma transmissão, ir para Sobre ou Configurações e voltar para a sala fechava o app. O bloco de vídeo ficava preso à tela anterior e o Windows recusava colocá-lo na nova.
+
+### Melhorias
+
+- Registro de falhas mais útil: o `crash.log` guarda as últimas quedas com a versão do app e a pilha completa, inclusive erros fora da interface, e o `diag.log` anota a versão, o sistema, a navegação entre telas e a presença de um crash anterior.
+
 ## 2.5.0
 
 ### Novidades

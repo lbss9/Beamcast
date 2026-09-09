@@ -106,6 +106,7 @@ public sealed partial class RoomPage : Page
         OnLoungeState(_lounge.State);
         Preview.Bind(_broadcast.Preview);
         SyncTiles();
+        Diag.Log($"room: page loaded, watching {_watch.Watching.Count}, live {_broadcast.State == BroadcastState.Live}");
 
         _loading = false;
         OnMembersChanged();
@@ -439,7 +440,7 @@ public sealed partial class RoomPage : Page
         {
             var gone = Tiles[id];
             Tiles.Remove(id);
-            RemoveFromParent(gone.Root);
+            gone.Detach();
             gone.Video.Unbind();
         }
         foreach (var id in wanted)
@@ -476,10 +477,15 @@ public sealed partial class RoomPage : Page
         for (var i = 0; i < count; i++)
         {
             var tile = tiles[i];
-            if (!ReferenceEquals(tile.Root.Parent, VideoHost))
+            try
             {
-                RemoveFromParent(tile.Root);
-                VideoHost.Children.Add(tile.Root);
+                tile.AttachTo(VideoHost);
+            }
+            catch (Exception ex)
+            {
+                // Never let a stray parent take the page down; the tile is skipped this pass.
+                Diag.Log($"room: could not attach tile {tile.StreamId}: {ex.Message}");
+                continue;
             }
             Grid.SetRow(tile.Root, i / columns);
             Grid.SetColumn(tile.Root, i % columns);
@@ -502,15 +508,10 @@ public sealed partial class RoomPage : Page
     {
         foreach (var tile in Tiles.Values)
         {
-            if (ReferenceEquals(tile.Root.Parent, VideoHost))
-                VideoHost.Children.Remove(tile.Root);
+            if (ReferenceEquals(tile.Host, VideoHost))
+                tile.Detach();
         }
-    }
-
-    private static void RemoveFromParent(FrameworkElement element)
-    {
-        if (element.Parent is Panel panel)
-            panel.Children.Remove(element);
+        Diag.Log($"room: page unloaded, {Tiles.Count} tile(s) kept");
     }
 
     private WatchTile CreateTile(uint streamId)
@@ -601,7 +602,7 @@ public sealed partial class RoomPage : Page
             main.ExitFullscreen();
             return;
         }
-        RemoveFromParent(tile.Root);
+        tile.Detach();
         tile.Root.Margin = new Thickness(0);
         main.EnterFullscreen(tile.Root);
     }
@@ -661,6 +662,31 @@ public sealed partial class RoomPage : Page
 
         public uint StreamId { get; }
         public Border Root { get; }
+
+        /// <summary>
+        /// The panel <see cref="Root"/> currently sits in. Tracked here rather than read from
+        /// <c>Root.Parent</c>: while a page is being torn down Parent already reads null even though
+        /// the element is still in the old panel's Children, and adding it to the next page then
+        /// fails with WinUI's "No installed components were detected" (crash of 2.4.0).
+        /// </summary>
+        public Panel? Host { get; private set; }
+
+        public void AttachTo(Panel host)
+        {
+            if (ReferenceEquals(Host, host))
+                return;
+            Detach();
+            host.Children.Add(Root);
+            Host = host;
+        }
+
+        public void Detach()
+        {
+            var host = Host;
+            Host = null;
+            if (host is not null)
+                SafeTry.Run(() => host.Children.Remove(Root));
+        }
         public GpuVideoView Video { get; }
         public Grid Overlay { get; }
         public TextBlock OverlayText { get; }

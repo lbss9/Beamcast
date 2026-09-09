@@ -10,17 +10,15 @@ public partial class App : Application
 
     public App()
     {
-        UnhandledException += (_, e) =>
+        // Three nets: XAML (UI thread), the runtime (any thread) and faulted tasks nobody awaited.
+        // Everything lands in crash.log (always) and diag.log (when enabled) with the full chain
+        // of inner exceptions and the stack, which is what a bug report needs.
+        UnhandledException += (_, e) => Diag.RecordCrash("xaml", e.Exception, e.Message);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => Diag.RecordCrash("runtime", e.ExceptionObject as Exception, e.IsTerminating ? "terminating" : "non-terminating");
+        TaskScheduler.UnobservedTaskException += (_, e) =>
         {
-            try
-            {
-                Directory.CreateDirectory(SettingsStore.DirectoryPath);
-                File.WriteAllText(
-                    Path.Combine(SettingsStore.DirectoryPath, "crash.log"),
-                    $"{DateTime.UtcNow:O}\n{e.Exception.GetType().FullName}: {e.Message}\n{e.Exception.StackTrace}"
-                );
-            }
-            catch { }
+            Diag.RecordCrash("task", e.Exception, "unobserved (app keeps running)");
+            e.SetObserved();
         };
         InitializeComponent();
     }
@@ -32,6 +30,8 @@ public partial class App : Application
             SettingsStore.Save(settings);
 
         ApplyCulture(settings.Language);
+        Diag.Log($"startup: Beamcast {AppInfo.Version} on {Environment.OSVersion.VersionString}, {Environment.ProcessorCount} cores, {(Environment.Is64BitProcess ? "x64" : "x86")}");
+        Diag.NoteCrashLogAtStartup();
         // Ask Windows early for capture without the coloured border, so the first capture is clean.
         _ = Capture.CaptureAccess.EnsureBorderlessAsync();
         Main = new MainWindow();

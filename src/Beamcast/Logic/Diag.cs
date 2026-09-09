@@ -20,6 +20,41 @@ public static class Diag
 
     public static bool IsEnabled => Enabled;
 
+    public static string CrashLogPath => Path.Combine(Directory, "crash.log");
+
+    /// <summary>
+    /// Writes a crash (or a swallowed fault) to crash.log, always, and to diag.log when enabled.
+    /// crash.log keeps the last few reports, newest first, so a second crash does not erase the first.
+    /// </summary>
+    public static void RecordCrash(string source, Exception? exception, string? note = null)
+    {
+        var report =
+            $"==== {DateTime.UtcNow:O}  Beamcast {AppInfo.Version}  {source}{(string.IsNullOrEmpty(note) ? "" : "  (" + note + ")")}\n" +
+            (exception is null ? "(no exception object)\n" : exception.ToString() + "\n") +
+            $"thread {Environment.CurrentManagedThreadId}, uptime {Clock.Elapsed.TotalSeconds:F1} s\n\n";
+        Log("CRASH " + source + ": " + (exception?.GetType().Name ?? "?") + ": " + (exception?.Message ?? note));
+        try
+        {
+            System.IO.Directory.CreateDirectory(Directory);
+            var previous = File.Exists(CrashLogPath) ? File.ReadAllText(CrashLogPath) : string.Empty;
+            if (previous.Length > 64 * 1024)
+                previous = previous[..(64 * 1024)];
+            File.WriteAllText(CrashLogPath, report + previous);
+        }
+        catch { }
+    }
+
+    /// <summary>At startup: if the previous run left a crash report, mention it in the diag so the two files line up.</summary>
+    public static void NoteCrashLogAtStartup()
+    {
+        try
+        {
+            if (File.Exists(CrashLogPath))
+                Log($"startup: crash.log present ({new FileInfo(CrashLogPath).Length} B, last write {File.GetLastWriteTimeUtc(CrashLogPath):O})");
+        }
+        catch { }
+    }
+
     public static void Log(string message)
     {
         if (!Enabled)

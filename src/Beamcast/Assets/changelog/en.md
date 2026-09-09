@@ -1,3 +1,13 @@
+## 2.5.1
+
+### Fixes
+
+- While watching a stream, going to About or Settings and back to the room closed the app. The video tile stayed attached to the previous screen and Windows refused to place it on the new one.
+
+### Improvements
+
+- More useful crash reporting: `crash.log` keeps the latest crashes with the app version and the full stack, including errors outside the UI, and `diag.log` notes the version, the OS, screen navigation and any earlier crash.
+
 ## 2.5.0
 
 ### New

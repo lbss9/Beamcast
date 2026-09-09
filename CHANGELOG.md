@@ -2,6 +2,19 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.5.1
+
+- `RoomPage.WatchTile` ganha `Host` (painel onde `Root` está) com `AttachTo`/`Detach`, no lugar
+  de ler `Root.Parent`. Durante a descarga da página `Parent` já devolve null enquanto o elemento
+  continua em `Children` do painel antigo; `Children.Add` na página nova então lança
+  `COMException 0x800F1000` ("Nenhum componente instalado foi detectado") em `LayoutTiles`
+  (crash.log da 2.4.0). `AttachTo` também está em try/catch com log, como rede de segurança.
+- `Diag.RecordCrash(source, ex, note)`: crash.log com versão, fonte (xaml/runtime/task), `ToString()`
+  completo (inner exceptions), thread e uptime; mantém os últimos relatórios (64 KB). Ligado a
+  `Application.UnhandledException`, `AppDomain.UnhandledException` e
+  `TaskScheduler.UnobservedTaskException`. `NoteCrashLogAtStartup` + linha de versão/SO no diag;
+  `RoomPage` registra carga/descarga com contagem de tiles.
+
 ## 2.5.0
 
 - **Modelo de salas**: "privada" (escondida, código de 10 chars como segredo) deixa de existir na
