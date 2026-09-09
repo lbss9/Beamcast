@@ -1,3 +1,16 @@
+## 2.9.6
+
+### Correções
+
+- **O app não trava mais ao encerrar a transmissão.** Ao clicar em parar, a transmissão termina na hora para você e para quem assiste, e o trabalho pesado (fechar o encoder da placa, o áudio e a captura) passou a acontecer fora da janela. Antes, se o driver de vídeo demorasse ou travasse nesse fechamento, o app inteiro congelava junto. Fechar o encoder também deixou de acontecer no mesmo instante em que um quadro estava sendo entregue a ele, que é onde o driver da AMD travava.
+- **Fim do ciclo de encoders recriados sem parar.** Quando a placa ignora o pedido de quadro-chave, o app recria o encoder para conseguir um. Em telas grandes com upload apertado isso virava um ciclo: cada encoder novo gera um quadro-chave gigante, o envio atrasa, outro quadro-chave é pedido, e assim por diante, duas vezes por segundo. Agora há um intervalo mínimo de 2 segundos entre recriações, e o encoder recém-criado já conta como resposta ao pedido pendente.
+
+- **O selo "aguardando espectador" agora aparece na hora certa.** Quando a transmissão entra em repouso porque ninguém está assistindo, o app às vezes não avisava nem parava os números na tela, embora já estivesse economizando placa e upload.
+
+### Diagnóstico
+
+- Com o registro ligado, o app anota uma linha a cada 10 segundos dizendo que a janela está respondendo, e avisa quando uma transmissão ao vivo passa mais de 5 segundos sem produzir quadros. Se algo travar de novo, o log diz o segundo exato e o que estava acontecendo.
+
 ## 2.9.5
 
 ### Novidades

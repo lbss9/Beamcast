@@ -70,11 +70,20 @@ public sealed class BroadcastService
     private CancellationTokenSource? _vp8Cts;
     private int _keyframeRequested;
     private long _lastPreviewTicks;
+    private long _lastRebuildTicks;
+    private bool _rebuildHeld;
+
+    /// <summary>Shortest gap between two encoder rebuilds forced by an overdue keyframe.</summary>
+    private const long RebuildGapMs = 2000;
     private volatile bool _paused;
     private volatile bool _live;
     private uint _streamId;
     private StreamMetaMessage _meta = new();
 
+    private Task? _teardown;
+    private System.Threading.Timer? _watchdog;
+    private long _lastFrameTicks;
+    private bool _framesStalled;
     private long _statsWindowStart;
     private long _lastStatsLogTicks;
     private int _statsFrames;
@@ -389,6 +398,11 @@ public sealed class BroadcastService
     public void SelectSource(CaptureSource source)
     {
         Diag.Log($"broadcast: source {source.Kind} '{source.Title}' {source.Width}x{source.Height}");
+        if (!WaitForTeardown())
+        {
+            Post(() => Error?.Invoke(Loc.Get("Broadcast_StillStopping")));
+            return;
+        }
         lock (_sync)
         {
             _capture ??= CreateCapture();
@@ -405,6 +419,8 @@ public sealed class BroadcastService
 
     public void ClearSource()
     {
+        if (!WaitForTeardown())
+            return;
         lock (_sync)
         {
             if (State == BroadcastState.Live)
@@ -473,6 +489,10 @@ public sealed class BroadcastService
 
             _live = true;
             Interlocked.Exchange(ref _keyframeRequested, 1);
+            Volatile.Write(ref _lastFrameTicks, Environment.TickCount64);
+            _framesStalled = false;
+            _watchdog?.Dispose();
+            _watchdog = new System.Threading.Timer(_ => CheckFrames(), null, 5000, 2000);
             SetState(BroadcastState.Live);
             _wasStandby = false;
             OnStandbyChanged();
@@ -482,6 +502,12 @@ public sealed class BroadcastService
             _audio.Start(_audioMode, Source);
     }
 
+    /// <summary>
+    /// Ends the broadcast. The state flips right away and the teardown (encoder, audio, capture)
+    /// runs on its own thread: closing a hardware encoder can take seconds, or hang in the driver,
+    /// and the window must not freeze with it. <see cref="WaitForTeardown"/> is what anything that
+    /// needs the old session gone waits on.
+    /// </summary>
     public void StopLive()
     {
         Diag.Log($"broadcast: stop live (state {State}, stream #{_streamId}, viewers {ViewerCount})");
@@ -489,14 +515,51 @@ public sealed class BroadcastService
         {
             if (State != BroadcastState.Live)
                 return;
+            // Stops the capture thread from feeding the encoder before anything is disposed.
+            _live = false;
+            // Viewers learn now, not when the encoder finally lets go.
+            if (_streamId != 0)
+            {
+                _lounge.Unpublish(_streamId);
+                _lounge.ForgetOwnStream(_streamId);
+                _streamId = 0;
+            }
+            ClearViewers();
+            Source = null;
+            SetState(BroadcastState.Idle);
+            _teardown = Task.Run(TearDown);
+        }
+    }
+
+    private void TearDown()
+    {
+        var started = Stopwatch.GetTimestamp();
+        lock (_sync)
+        {
             StopLiveCore();
+            Diag.Log("broadcast: stop, session closed");
             // Release the capture too: after "stop" nothing of the screen should be read any more,
             // and Windows only removes its capture border once the session is gone.
             _capture?.Stop();
-            Source = null;
-            SetState(BroadcastState.Idle);
         }
         _preview?.Clear();
+        Diag.Log($"broadcast: stop finished in {Stopwatch.GetElapsedTime(started).TotalMilliseconds:F0} ms");
+    }
+
+    /// <summary>
+    /// Waits for a teardown started by <see cref="StopLive"/>. False means it is still running after
+    /// <paramref name="seconds"/>, and the caller must give up instead of blocking on the same lock.
+    /// </summary>
+    private bool WaitForTeardown(int seconds = 8)
+    {
+        var teardown = _teardown;
+        if (teardown is null || teardown.IsCompleted)
+            return true;
+        Diag.Log("broadcast: waiting for the previous stop to finish");
+        if (teardown.Wait(TimeSpan.FromSeconds(seconds)))
+            return true;
+        Diag.Log($"broadcast: the previous stop has not finished in {seconds} s");
+        return false;
     }
 
     /// <summary>
@@ -566,6 +629,9 @@ public sealed class BroadcastService
 
     public void Shutdown()
     {
+        // On the way out a stuck driver is not worth waiting for: the process is about to end.
+        if (!WaitForTeardown(3))
+            return;
         lock (_sync)
         {
             if (State == BroadcastState.Live)
@@ -583,9 +649,40 @@ public sealed class BroadcastService
         _gpu = null;
     }
 
+    /// <summary>
+    /// Off the UI thread, every couple of seconds: a live broadcast that is neither paused nor
+    /// resting should be producing frames. Silence means the capture or the encoder is stuck, and
+    /// the log is the only place that can say when it started.
+    /// </summary>
+    private void CheckFrames()
+    {
+        if (!_live || _paused || IsStandby)
+        {
+            _framesStalled = false;
+            return;
+        }
+        var quiet = Environment.TickCount64 - Volatile.Read(ref _lastFrameTicks);
+        if (quiet < 5000)
+        {
+            if (_framesStalled)
+            {
+                _framesStalled = false;
+                Diag.Log("broadcast: frames are coming again");
+            }
+            return;
+        }
+        if (_framesStalled)
+            return;
+        _framesStalled = true;
+        Diag.Log($"broadcast: no encoded frame for {quiet} ms (codec {ActiveCodec}, {Source?.Kind} {Source?.Width}x{Source?.Height}, viewers {ViewerCount}, capture {(_capture?.Method is { Length: > 0 } m ? m : "?")})");
+    }
+
     private void StopLiveCore()
     {
         _live = false;
+        _watchdog?.Dispose();
+        _watchdog = null;
+        _framesStalled = false;
         _audio.Stop();
 
         var cts = _vp8Cts;
@@ -660,6 +757,8 @@ public sealed class BroadcastService
         MaybePreview(frame);
         _calibration?.Offer(frame);
 
+        if (_live && IsStandby != _wasStandby)
+            OnStandbyChanged();
         if (!_live || _paused || IsStandby)
             return;
 
@@ -879,15 +978,31 @@ public sealed class BroadcastService
         if (encoder is not null && encoder.KeyframeOverdue)
         {
             // The driver ignored the keyframe request; a fresh encoder starts with an IDR frame.
-            Diag.Log("broadcast: keyframe overdue, recreating encoder");
-            encoder.Dispose();
-            encoder = null;
-            _gpuEncoder = null;
+            // Rebuilding costs a full-size IDR, which on a slow uplink causes the next drop and the
+            // next request: without this gap an encoder that never honours the property is rebuilt
+            // twice a second for ever (seen on AMD at 2560x1080).
+            var now = Environment.TickCount64;
+            if (now - _lastRebuildTicks >= RebuildGapMs)
+            {
+                _lastRebuildTicks = now;
+                Diag.Log("broadcast: keyframe overdue, recreating encoder");
+                encoder.Dispose();
+                encoder = null;
+                _gpuEncoder = null;
+            }
+            else if (!_rebuildHeld)
+            {
+                _rebuildHeld = true;
+                Diag.Log($"broadcast: keyframe overdue again less than {RebuildGapMs} ms after the last rebuild, carrying on with this encoder");
+            }
         }
         if (encoder is null || encoder.Width != width || encoder.Height != height || encoder.Fps != _fps)
         {
             encoder?.Dispose();
             encoder = new MfVideoEncoder(Gpu, ActiveCodec, width, height, _fps, EffectiveBitrateKbps);
+            // It opens with an IDR frame, so anything waiting for a keyframe is already served.
+            Interlocked.Exchange(ref _keyframeRequested, 0);
+            _rebuildHeld = false;
             encoder.FrameEncoded += OnGpuFrameEncoded;
             encoder.Faulted += ex => Post(() =>
             {
@@ -936,6 +1051,7 @@ public sealed class BroadcastService
     {
         if (!_live)
             return;
+        Volatile.Write(ref _lastFrameTicks, Environment.TickCount64);
         if (frame.IsKeyframe || frame.Sequence % 120 == 1)
             Diag.Log($"broadcast: frame #{frame.Sequence} key={frame.IsKeyframe} {frame.Data.Length} B");
         Publish(frame);

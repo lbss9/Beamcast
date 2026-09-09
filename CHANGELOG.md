@@ -2,6 +2,33 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.9.6
+
+- Travamento ao parar (bug 20 do vault, diag do amigo com AMD): `StopLive` agora só marca
+  `_live = false`, despublica o stream, limpa espectadores e vai para `Idle` na thread da UI; o
+  resto (`StopLiveCore` + `_capture.Stop()` + `_preview.Clear()`) roda em `TearDown` numa Task, com
+  diag "stop, session closed" e "stop finished in N ms". `WaitForTeardown` (8 s; 3 s no `Shutdown`)
+  devolve false e o chamador desiste em vez de travar no mesmo lock — `SelectSource` mostra
+  `Broadcast_StillStopping`.
+- `MfVideoEncoder.Dispose` passou a pegar o `_inputLock` (com `Monitor.TryEnter` de 2 s, seguindo
+  mesmo se estourar) antes de `MessageNotifyEndOfStream`/`Flush`/`MFShutdownObject`: derrubar um MFT
+  de hardware enquanto outra thread está dentro de `ProcessInput` trava alguns drivers AMD.
+- Ciclo de recriação: `RebuildGapMs` de 2 s entre recriações por keyframe atrasado e
+  `_keyframeRequested` zerado ao criar o encoder (o primeiro quadro dele já é IDR). O log do amigo
+  mostrava recriação a cada ~0,5 s, cada uma com IDR de 270 kB em 2560x1080, alimentando o próximo
+  descarte do FrameGate.
+- Harness novo `stopcheck` (vault): submete quadros de uma thread e fecha o encoder de outra, N
+  rodadas, medindo o pior fechamento. Na 6750 XT daqui não reproduz o travamento (pior caso 24 ms
+  antes e 20 ms depois), então serve como regressão, não como prova do driver do amigo.
+
+- `IsStandby` só era reavaliado em eventos de espectador, então o repouso que começa quando o relógio
+  sincroniza não atualizava selo nem estatísticas: `OnTexture` agora compara com `_wasStandby` e
+  chama `OnStandbyChanged`.
+- Diagnóstico do travamento: `MainWindow` escreve `ui: alive (...)` a cada 10 s (só com diag ligado)
+  — a lacuna nessa linha marca o instante em que a UI parou — e `BroadcastService` roda um
+  `System.Threading.Timer` de 2 s que loga `no encoded frame for N ms` quando uma transmissão ao
+  vivo (sem pausa nem repouso) para de gerar quadros.
+
 ## 2.9.5
 
 - Atualização automática: `AppSettings.AutoUpdate` / `UpdateNotifications` / `ShowNotesAfterUpdate`

@@ -79,6 +79,7 @@
   <data name="Watch_Leave.Content" xml:space="preserve"><value>Leave</value></data>
   <data name="Watch_Subtitle" xml:space="preserve"><value>Hosted by {0} · {1} watching</value></data>
   <data name="Watch_Waiting" xml:space="preserve"><value>Waiting for the first frame…</value></data>
+  <data name="Broadcast_StillStopping" xml:space="preserve"><value>The previous broadcast is still closing. Try again in a few seconds.</value></data>
   <data name="Watch_PublisherBack" xml:space="preserve"><value>{0} lost connection. Waiting for the stream to come back…</value></data>
   <data name="Watch_PausedByHost" xml:space="preserve"><value>The stream is paused.</value></data>
   <data name="Watch_Ended" xml:space="preserve"><value>The stream has ended.</value></data>

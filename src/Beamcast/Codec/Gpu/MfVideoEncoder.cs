@@ -298,6 +298,26 @@ public sealed class MfVideoEncoder : IDisposable
         if (_disposed)
             return;
         _disposed = true;
+
+        // Shutting a hardware transform down while another thread is inside ProcessInput hangs some
+        // drivers (seen on AMD H.264). Take the same lock the submit path uses, but never wait for
+        // ever: a submit already stuck in the driver must not freeze whoever is closing the encoder.
+        var taken = Monitor.TryEnter(_inputLock, TimeSpan.FromSeconds(2));
+        if (!taken)
+            Diag.Log("encoder: dispose could not get the submit lock in 2 s, shutting down anyway");
+        try
+        {
+            DisposeCore();
+        }
+        finally
+        {
+            if (taken)
+                Monitor.Exit(_inputLock);
+        }
+    }
+
+    private void DisposeCore()
+    {
         SafeTry.Run(() => _transform.ProcessMessage(TMessageType.MessageNotifyEndOfStream, UIntPtr.Zero));
         SafeTry.Run(() => _transform.ProcessMessage(TMessageType.MessageCommandFlush, UIntPtr.Zero));
         SafeTry.Run(() => MediaFactory.MFShutdownObject(_transform));

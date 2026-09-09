@@ -23,6 +23,7 @@ public sealed partial class MainWindow : Window
     private UpdateOffer? _pendingOffer;
     private string? _notifiedVersion;
     private bool _barRestarts;
+    private DispatcherQueueTimer? _uiHeartbeat;
     private bool _disclaimerShown;
 
     public MainWindow()
@@ -66,6 +67,7 @@ public sealed partial class MainWindow : Window
             _ = ShowDisclaimerIfNeededAsync();
         };
         StartUpdateTimer();
+        StartUiHeartbeat();
     }
 
     public bool IsFullscreen => _fullscreenContent is not null;
@@ -249,6 +251,26 @@ public sealed partial class MainWindow : Window
         await UpdateService.DownloadAndApplyAsync();
     }
 
+    /// <summary>
+    /// One line every ten seconds from the UI thread, only while the diagnostic log is on. A frozen
+    /// window stops writing it, so a log tells apart "nothing happened" from "the app stopped
+    /// answering", and says at what second it stopped.
+    /// </summary>
+    private void StartUiHeartbeat()
+    {
+        _uiHeartbeat = DispatcherQueue.CreateTimer();
+        _uiHeartbeat.Interval = TimeSpan.FromSeconds(10);
+        _uiHeartbeat.IsRepeating = true;
+        _uiHeartbeat.Tick += (_, _) =>
+        {
+            if (!Diag.IsEnabled)
+                return;
+            var broadcast = BroadcastService.Instance;
+            Diag.Log($"ui: alive (broadcast {broadcast.State}{(broadcast.IsStandby ? ", standby" : string.Empty)}, watching {WatchService.Instance.Watching.Count}, lounge {LoungeService.Instance.State})");
+        };
+        _uiHeartbeat.Start();
+    }
+
     private void StartUpdateTimer()
     {
         _updateTimer = DispatcherQueue.CreateTimer();
@@ -343,6 +365,7 @@ public sealed partial class MainWindow : Window
     private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         _updateTimer?.Stop();
+        _uiHeartbeat?.Stop();
         // A version downloaded in the background is installed now, with the app on its way out.
         if (SettingsStore.Load().AutoUpdate && UpdateService.HasStagedUpdate)
             UpdateService.ApplyWhenClosed();

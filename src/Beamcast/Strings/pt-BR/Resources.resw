@@ -79,6 +79,7 @@
   <data name="Watch_Leave.Content" xml:space="preserve"><value>Sair</value></data>
   <data name="Watch_Subtitle" xml:space="preserve"><value>Transmitido por {0} · {1} assistindo</value></data>
   <data name="Watch_Waiting" xml:space="preserve"><value>Aguardando o primeiro quadro…</value></data>
+  <data name="Broadcast_StillStopping" xml:space="preserve"><value>A transmissão anterior ainda está encerrando. Tente de novo em alguns segundos.</value></data>
   <data name="Watch_PublisherBack" xml:space="preserve"><value>A conexão de {0} caiu. Esperando a transmissão voltar…</value></data>
   <data name="Watch_PausedByHost" xml:space="preserve"><value>A transmissão está pausada.</value></data>
   <data name="Watch_Ended" xml:space="preserve"><value>A transmissão terminou.</value></data>

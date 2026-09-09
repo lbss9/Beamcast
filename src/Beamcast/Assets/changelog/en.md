@@ -1,3 +1,16 @@
+## 2.9.6
+
+### Fixes
+
+- **The app no longer freezes when you end a broadcast.** Pressing stop ends the broadcast at once for you and for the viewers, and the heavy part (closing the card's encoder, the audio and the capture) now happens off the window. Before, if the video driver was slow or stuck in that shutdown, the whole app froze with it. Closing the encoder also no longer happens at the exact moment a frame is being handed to it, which is where the AMD driver got stuck.
+- **No more endless encoder rebuilds.** When the card ignores a keyframe request, the app rebuilds the encoder to get one. On large screens with a tight uplink that became a loop: every new encoder makes a huge keyframe, the upload falls behind, another keyframe is asked for, twice a second. There is now a minimum gap of 2 seconds between rebuilds, and a freshly built encoder already counts as the answer to the pending request.
+
+- **The "waiting for a viewer" badge now shows at the right moment.** When a broadcast rests because nobody is watching, the app sometimes did not say so and left the numbers on screen, even though it was already sparing the card and the uplink.
+
+### Diagnostics
+
+- With the log on, the app writes a line every 10 seconds saying the window is answering, and reports when a live broadcast goes more than 5 seconds without producing frames. If something freezes again, the log says the exact second and what was going on.
+
 ## 2.9.5
 
 ### New
