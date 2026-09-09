@@ -2,6 +2,25 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.9.0
+
+- `Logic/BroadcastProfile.cs` (puro, 11 testes): `Candidates` (presets ≤ fonte, sem upscale),
+  `Fits` (ms/quadro ≤ orçamento × fração do perfil: 0,35 / 0,55 / 0,75, e ≥ 90 % dos quadros
+  mantidos), `UplinkAllows` (share do upload: 0,5 / 0,6 / 0,7 ≥ 90 % do bitrate sugerido ×
+  escala 0,75 / 1,0 / 1,25), `Recommend` por perfil (Desempenho ≤ 720p30; Equilibrado 1080p,
+  60 só se cabe e o upload carrega, desce de tamanho se não; Qualidade maior tamanho primeiro,
+  60 → 30 → menor; HEVC na Qualidade quando existe; VP8 → 720p30), `PickTier` para o
+  Recomendado (Qualidade: ≥1080p60 ou ≥1440p sem corte de upload; Equilibrado: ≥1080p sem
+  corte; senão Desempenho; sem encoder HW sempre Desempenho).
+- `BroadcastService.CalibrateAsync`: em Preview, `Calibration` por preset alimentada pelo
+  `OnTexture` (encoder descartável a 60 fps por 1,4 s, converter/NV12 próprios, ms médio e fps
+  mantidos), captura a 60 durante a medição, `LoungeClient.MeasureUploadAsync` (1,5 MB para
+  `POST /probe`, 8 s; timeout vira piso), aplica Preset/Fps/Bitrate/Encoder. **Servidor 2.6.0**:
+  `POST /probe` descarta o corpo (até 8 MB, chave do app).
+- `RoomPage`: ComboBox de perfil + "Medir e aplicar" + progresso/resultado; `DropToManual` ao
+  editar preset/fps/bitrate/encoder; `AppSettings.BroadcastProfile` persiste a escolha.
+- Harness `managecheck` cenário 5 confere o `/probe` (33 checks).
+
 ## 2.8.0
 
 - Protocolo (v3 intacto): `ViewerReport = 28`. Espectador → servidor: `a` = stream, `b` = atraso

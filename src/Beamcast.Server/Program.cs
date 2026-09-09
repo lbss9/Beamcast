@@ -40,6 +40,23 @@ app.MapGet(LoungeProtocol.RoomsPath, (HttpContext context, LoungeHub hub) =>
         ? Results.Json(hub.HostInfo(includeRooms: true))
         : Results.Json(new { reason = LoungeProtocol.ReasonBadKey }, statusCode: StatusCodes.Status403Forbidden));
 
+// Upload probe: the app posts a few MB of noise and measures how long it took. Nothing is stored.
+app.MapPost(LoungeProtocol.ProbePath, async (HttpContext context, LoungeHub hub) =>
+{
+    if (!hub.KeyMatches(context.Request.Headers[LoungeProtocol.AppKeyHeader].FirstOrDefault()))
+        return Results.Json(new { reason = LoungeProtocol.ReasonBadKey }, statusCode: StatusCodes.Status403Forbidden);
+    var buffer = new byte[64 * 1024];
+    long total = 0;
+    int read;
+    while ((read = await context.Request.Body.ReadAsync(buffer, context.RequestAborted)) > 0)
+    {
+        total += read;
+        if (total > LoungeProtocol.ProbeMaxBytes)
+            return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+    }
+    return Results.Json(new { bytes = total });
+});
+
 app.Map(LoungeProtocol.DefaultPath, async (HttpContext context, LoungeHub hub) =>
 {
     if (!context.WebSockets.IsWebSocketRequest)

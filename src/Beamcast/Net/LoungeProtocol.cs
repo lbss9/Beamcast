@@ -19,6 +19,10 @@ public static class LoungeProtocol
     public const string DefaultPath = "/ws";
     public const string RoomsPath = "/rooms";
     public const string InfoPath = "/info";
+
+    /// <summary>POST (2.6.0): the body is read and discarded, so a client can time its own upload to this host.</summary>
+    public const string ProbePath = "/probe";
+    public const int ProbeMaxBytes = 8 * 1024 * 1024;
     public const string AppKeyHeader = "X-Beamcast-Key";
 
     public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(10);

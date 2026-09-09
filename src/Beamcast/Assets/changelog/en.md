@@ -1,3 +1,11 @@
+## 2.9.0
+
+### New
+
+- **Broadcast profile** on the Broadcast tab: Manual, Recommended, Performance, Balanced and Quality. Picking a profile **measures** before adjusting: it encodes your screen for a moment at every candidate size to learn how long your GPU's encoder takes per frame and how many frames it sustains, and times an upload to the host. From those numbers it picks resolution, fps, bitrate and codec, shows the result with the measurements and fills the controls. Touching any control by hand goes back to Manual.
+- **Recommended** picks among the three by itself, from what the card and the connection sustain: Quality when the machine holds 1080p60 (or 1440p) and the upload carries the bitrate; Balanced when it holds 1080p; Performance otherwise, and always without a hardware encoder.
+- The upload measurement needs the host on 2.6.0; on older hosts the profile uses the encoder measurements only.
+
 ## 2.8.0
 
 ### New

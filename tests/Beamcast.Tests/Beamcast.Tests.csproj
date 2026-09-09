@@ -23,6 +23,8 @@
     <Compile Include="..\..\src\Beamcast\Logic\SafeTry.cs" Link="Logic\SafeTry.cs" />
     <Compile Include="..\..\src\Beamcast\Logic\AdaptiveBitrate.cs" Link="Logic\AdaptiveBitrate.cs" />
     <Compile Include="..\..\src\Beamcast\Logic\ViewerLagPolicy.cs" Link="Logic\ViewerLagPolicy.cs" />
+    <Compile Include="..\..\src\Beamcast\Logic\BroadcastProfile.cs" Link="Logic\BroadcastProfile.cs" />
+    <Compile Include="..\..\src\Beamcast\Codec\VideoCodec.cs" Link="Codec\VideoCodec.cs" />
     <Compile Include="..\..\src\Beamcast\Net\Protocol.cs" Link="Net\Protocol.cs" />
     <Compile Include="..\..\src\Beamcast\Net\Messages.cs" Link="Net\Messages.cs" />
     <Compile Include="..\..\src\Beamcast\Net\FrameGate.cs" Link="Net\FrameGate.cs" />

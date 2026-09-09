@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Collections.Concurrent;
 using System.Net.Http;
 using System.Net.WebSockets;
@@ -187,6 +188,46 @@ public sealed class LoungeClient : IDisposable
         catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or FormatException or System.Text.Json.JsonException)
         {
             throw new LoungeException("unreachable", ex);
+        }
+    }
+
+    /// <summary>
+    /// Times an upload of <paramref name="bytes"/> of noise to the host's probe endpoint and returns
+    /// the rate in kbps. 0 when the host does not offer the probe (before 2.6.0) or the upload
+    /// failed; a timeout returns the rate that would have completed just now, i.e. a lower bound.
+    /// </summary>
+    public static async Task<int> MeasureUploadAsync(string serverUrl, string? appKey, int bytes, TimeSpan timeout, CancellationToken ct)
+    {
+        if (!LoungeProtocol.TryNormalizeServer(serverUrl, out var url))
+            return 0;
+        var payload = new byte[bytes];
+        Random.Shared.NextBytes(payload); // incompressible, so a proxy cannot shrink it on the way
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(timeout);
+        var watch = Stopwatch.StartNew();
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, LoungeProtocol.HttpUrl(url, LoungeProtocol.ProbePath))
+            {
+                Content = new ByteArrayContent(payload),
+            };
+            request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+            if (!string.IsNullOrEmpty(appKey))
+                request.Headers.TryAddWithoutValidation(LoungeProtocol.AppKeyHeader, appKey);
+            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, limit.Token).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+                return 0;
+            var seconds = watch.Elapsed.TotalSeconds;
+            return seconds <= 0 ? 0 : (int)(bytes * 8.0 / 1000.0 / seconds);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            var seconds = Math.Max(0.001, timeout.TotalSeconds);
+            return (int)(bytes * 8.0 / 1000.0 / seconds);
+        }
+        catch (Exception)
+        {
+            return 0;
         }
     }
 

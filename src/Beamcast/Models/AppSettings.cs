@@ -71,6 +71,9 @@ public sealed class AppSettings
     /// <summary>While live with nobody watching, keep capturing but stop encoding and sending.</summary>
     public bool StandbyWithoutViewers { get; set; } = true;
 
+    /// <summary>Manual, Performance, Balanced or Quality: the last profile picked on the Broadcast tab.</summary>
+    public string BroadcastProfile { get; set; } = BroadcastProfileNames.Manual;
+
     /// <summary>The host used last, e.g. ws://192.168.1.20:47710/ws. Always one of <see cref="Hosts"/>.</summary>
     public string RelayUrl { get; set; } = string.Empty;
 

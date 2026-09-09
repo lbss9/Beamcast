@@ -28,8 +28,12 @@ public sealed partial class RoomPage : Page
     private readonly WatchService _watch = WatchService.Instance;
     private readonly ObservableCollection<CaptureSource> _monitors = [];
     private readonly ObservableCollection<CaptureSource> _windows = [];
+    private static readonly BroadcastProfile[] Profiles = [BroadcastProfile.Manual, BroadcastProfile.Recommended, BroadcastProfile.Performance, BroadcastProfile.Balanced, BroadcastProfile.Quality];
+
     private bool _loading = true;
     private bool _syncingSelection;
+    private bool _applyingProfile;
+    private CancellationTokenSource? _calibrateCts;
     private RoomDialogs.RoomForm? _settingsForm;
 
     public RoomPage()
@@ -74,6 +78,15 @@ public sealed partial class RoomPage : Page
 
         BitrateBox.Value = _broadcast.BitrateKbps;
         CursorSwitch.IsOn = _broadcast.ShowCursor;
+
+        ProfileBox.Items.Clear();
+        ProfileBox.Items.Add(Loc.Get("Profile_Manual"));
+        ProfileBox.Items.Add(Loc.Get("Profile_Recommended"));
+        ProfileBox.Items.Add(Loc.Get("Profile_Performance"));
+        ProfileBox.Items.Add(Loc.Get("Profile_Balanced"));
+        ProfileBox.Items.Add(Loc.Get("Profile_Quality"));
+        ProfileBox.SelectedIndex = Math.Max(0, Array.IndexOf(Profiles, BroadcastProfileNames.Parse(settings.BroadcastProfile)));
+        CalibrateButton.IsEnabled = ProfileBox.SelectedIndex > 0;
         AdaptiveSwitch.IsOn = _broadcast.AdaptiveQuality;
         ViewerSoundsSwitch.IsOn = _broadcast.ViewerSounds;
         StandbySwitch.IsOn = _broadcast.StandbyWithoutViewers;
@@ -152,6 +165,7 @@ public sealed partial class RoomPage : Page
             s.Fps = _broadcast.Fps;
             s.BitrateKbps = _broadcast.BitrateKbps;
             s.ShowCursor = _broadcast.ShowCursor;
+            s.BroadcastProfile = BroadcastProfileNames.ToName(Profiles[Math.Max(0, ProfileBox.SelectedIndex)]);
             s.AdaptiveQuality = _broadcast.AdaptiveQuality;
             s.ViewerSounds = _broadcast.ViewerSounds;
             s.StandbyWithoutViewers = _broadcast.StandbyWithoutViewers;
@@ -777,10 +791,111 @@ public sealed partial class RoomPage : Page
         }
     }
 
+    // ----- broadcast profile -----
+
+    private void OnProfileChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || _applyingProfile || ProfileBox.SelectedIndex < 0)
+            return;
+        CalibrateButton.IsEnabled = ProfileBox.SelectedIndex > 0;
+        if (ProfileBox.SelectedIndex == 0)
+        {
+            ProfileStatus.Text = string.Empty;
+            return;
+        }
+        _ = RunCalibrationAsync();
+    }
+
+    private void OnCalibrate(object sender, RoutedEventArgs e) => _ = RunCalibrationAsync();
+
+    /// <summary>A hand edit of any quality control means the person wants manual settings.</summary>
+    private void DropToManual()
+    {
+        if (_loading || _applyingProfile || ProfileBox.SelectedIndex <= 0)
+            return;
+        _applyingProfile = true;
+        ProfileBox.SelectedIndex = 0;
+        CalibrateButton.IsEnabled = false;
+        ProfileStatus.Text = string.Empty;
+        _applyingProfile = false;
+    }
+
+    private async Task RunCalibrationAsync()
+    {
+        var profile = Profiles[Math.Max(0, ProfileBox.SelectedIndex)];
+        if (profile == BroadcastProfile.Manual)
+            return;
+        if (_broadcast.Source is null)
+        {
+            ProfileStatus.Text = Loc.Get("Profile_NoSource");
+            return;
+        }
+        if (_broadcast.State == BroadcastState.Live)
+        {
+            ProfileStatus.Text = Loc.Get("Profile_WhileLive");
+            return;
+        }
+        _calibrateCts?.Cancel();
+        var cts = _calibrateCts = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+        CalibrateButton.IsEnabled = false;
+        ProfileBox.IsEnabled = false;
+        CalibrateSpinner.IsActive = true;
+        var progress = new Progress<string>(step =>
+            ProfileStatus.Text = step == "upload" ? Loc.Get("Profile_MeasuringUpload") : Loc.Format("Profile_Measuring", step == QualityPreset.Source ? Loc.Get("Quality_PresetSource") : step));
+        try
+        {
+            var choice = await _broadcast.CalibrateAsync(profile, progress, cts.Token);
+            if (choice is null)
+            {
+                ProfileStatus.Text = Loc.Get("Profile_Failed");
+                return;
+            }
+            _applyingProfile = true;
+            PresetBox.SelectedIndex = Array.IndexOf(QualityPreset.All, _broadcast.Preset);
+            FpsBox.SelectedIndex = Array.IndexOf(QualityPreset.FpsOptions, _broadcast.Fps);
+            EncoderBox.SelectedIndex = Math.Max(0, Array.IndexOf(EncoderPreference.All, _broadcast.EncoderPreferenceValue));
+            BitrateBox.Value = _broadcast.BitrateKbps;
+            _applyingProfile = false;
+            var uplink = choice.UplinkKbps > 0 ? Loc.Format("Profile_UplinkPart", (choice.UplinkKbps / 1000.0).ToString("F0")) : string.Empty;
+            var encoderName = choice.Encoder == EncoderPreference.Hevc ? "HEVC" : choice.Encoder == EncoderPreference.Vp8 ? "VP8" : "H.264";
+            var tierName = Loc.Get(choice.Tier switch { BroadcastProfile.Performance => "Profile_TierPerformance", BroadcastProfile.Balanced => "Profile_TierBalanced", _ => "Profile_TierQuality" });
+            var label = profile == BroadcastProfile.Recommended ? Loc.Format("Profile_RecommendedTier", tierName) : tierName;
+            ProfileStatus.Text = Loc.Format("Profile_Result", label, choice.Height, choice.Fps, choice.BitrateKbps, encoderName, choice.EncodeMs.ToString("F1"), uplink);
+        }
+        catch (OperationCanceledException)
+        {
+            ProfileStatus.Text = string.Empty;
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "live")
+        {
+            ProfileStatus.Text = Loc.Get("Profile_WhileLive");
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "no-source")
+        {
+            ProfileStatus.Text = Loc.Get("Profile_NoSource");
+        }
+        catch (Exception ex)
+        {
+            Diag.Log("profile: calibration failed: " + ex);
+            ProfileStatus.Text = Loc.Format("Error_Generic", ex.Message);
+        }
+        finally
+        {
+            if (ReferenceEquals(_calibrateCts, cts))
+            {
+                CalibrateSpinner.IsActive = false;
+                ProfileBox.IsEnabled = true;
+                CalibrateButton.IsEnabled = ProfileBox.SelectedIndex > 0;
+            }
+            PersistInputs();
+        }
+    }
+
     private void OnEncoderChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loading || EncoderBox.SelectedIndex < 0)
             return;
+        DropToManual();
         _broadcast.EncoderPreferenceValue = EncoderPreference.All[EncoderBox.SelectedIndex];
         BitrateBox.Value = QualityPreset.SuggestedBitrate(_broadcast.Preset, _broadcast.Fps, ResolvedCodecName());
     }
@@ -791,6 +906,7 @@ public sealed partial class RoomPage : Page
     {
         if (_loading)
             return;
+        DropToManual();
         if (PresetBox.SelectedIndex >= 0)
             _broadcast.Preset = QualityPreset.All[PresetBox.SelectedIndex];
         if (FpsBox.SelectedIndex >= 0)
@@ -802,6 +918,7 @@ public sealed partial class RoomPage : Page
     {
         if (_loading || double.IsNaN(sender.Value))
             return;
+        DropToManual();
         _broadcast.BitrateKbps = (int)sender.Value;
     }
 

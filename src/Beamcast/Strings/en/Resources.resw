@@ -25,6 +25,24 @@
   <data name="Quality_Fps.Header" xml:space="preserve"><value>Frames per second</value></data>
   <data name="Quality_Bitrate.Header" xml:space="preserve"><value>Bitrate (kbps)</value></data>
   <data name="Quality_Cursor.Header" xml:space="preserve"><value>Show the cursor</value></data>
+  <data name="Quality_Profile.Header" xml:space="preserve"><value>Profile</value></data>
+  <data name="Profile_Manual" xml:space="preserve"><value>Manual (I set it)</value></data>
+  <data name="Profile_Recommended" xml:space="preserve"><value>Recommended (evaluates your PC and connection)</value></data>
+  <data name="Profile_RecommendedTier" xml:space="preserve"><value>Recommended → {0}</value></data>
+  <data name="Profile_TierPerformance" xml:space="preserve"><value>Performance</value></data>
+  <data name="Profile_TierBalanced" xml:space="preserve"><value>Balanced</value></data>
+  <data name="Profile_TierQuality" xml:space="preserve"><value>Quality</value></data>
+  <data name="Profile_Performance" xml:space="preserve"><value>Performance (easy on the GPU and the connection)</value></data>
+  <data name="Profile_Balanced" xml:space="preserve"><value>Balanced (1080p, what the machine sustains)</value></data>
+  <data name="Profile_Quality" xml:space="preserve"><value>Quality (the most the machine and the connection allow)</value></data>
+  <data name="Quality_Calibrate.Content" xml:space="preserve"><value>Measure and apply</value></data>
+  <data name="Profile_Measuring" xml:space="preserve"><value>Measuring the encoder at {0}…</value></data>
+  <data name="Profile_MeasuringUpload" xml:space="preserve"><value>Measuring the upload to the host…</value></data>
+  <data name="Profile_Result" xml:space="preserve"><value>{0}: {1}p at {2} fps, {3} kbps, {4}. Encoder {5} ms per frame{6}.</value></data>
+  <data name="Profile_UplinkPart" xml:space="preserve"><value>, upload {0} Mbps</value></data>
+  <data name="Profile_NoSource" xml:space="preserve"><value>Pick a monitor or a window before measuring.</value></data>
+  <data name="Profile_WhileLive" xml:space="preserve"><value>Stop the broadcast to measure; the measurement uses the encoder.</value></data>
+  <data name="Profile_Failed" xml:space="preserve"><value>Could not measure on this machine.</value></data>
 
   <data name="Session_Heading.Text" xml:space="preserve"><value>Session</value></data>
   <data name="Session_Name.Header" xml:space="preserve"><value>Stream name</value></data>

@@ -25,6 +25,24 @@
   <data name="Quality_Fps.Header" xml:space="preserve"><value>Quadros por segundo</value></data>
   <data name="Quality_Bitrate.Header" xml:space="preserve"><value>Bitrate (kbps)</value></data>
   <data name="Quality_Cursor.Header" xml:space="preserve"><value>Mostrar o cursor</value></data>
+  <data name="Quality_Profile.Header" xml:space="preserve"><value>Perfil</value></data>
+  <data name="Profile_Manual" xml:space="preserve"><value>Manual (eu ajusto)</value></data>
+  <data name="Profile_Recommended" xml:space="preserve"><value>Recomendado (avalia o seu PC e a conexão)</value></data>
+  <data name="Profile_RecommendedTier" xml:space="preserve"><value>Recomendado → {0}</value></data>
+  <data name="Profile_TierPerformance" xml:space="preserve"><value>Desempenho</value></data>
+  <data name="Profile_TierBalanced" xml:space="preserve"><value>Equilibrado</value></data>
+  <data name="Profile_TierQuality" xml:space="preserve"><value>Qualidade</value></data>
+  <data name="Profile_Performance" xml:space="preserve"><value>Desempenho (leve para a GPU e a internet)</value></data>
+  <data name="Profile_Balanced" xml:space="preserve"><value>Equilibrado (1080p, o que a máquina aguenta)</value></data>
+  <data name="Profile_Quality" xml:space="preserve"><value>Qualidade (o máximo que a máquina e a conexão dão)</value></data>
+  <data name="Quality_Calibrate.Content" xml:space="preserve"><value>Medir e aplicar</value></data>
+  <data name="Profile_Measuring" xml:space="preserve"><value>Medindo o encoder em {0}…</value></data>
+  <data name="Profile_MeasuringUpload" xml:space="preserve"><value>Medindo o upload até o host…</value></data>
+  <data name="Profile_Result" xml:space="preserve"><value>{0}: {1}p a {2} fps, {3} kbps, {4}. Encoder {5} ms por quadro{6}.</value></data>
+  <data name="Profile_UplinkPart" xml:space="preserve"><value>, upload {0} Mbps</value></data>
+  <data name="Profile_NoSource" xml:space="preserve"><value>Escolha um monitor ou uma janela antes de medir.</value></data>
+  <data name="Profile_WhileLive" xml:space="preserve"><value>Pare a transmissão para medir; a medição usa o encoder.</value></data>
+  <data name="Profile_Failed" xml:space="preserve"><value>Não deu para medir nesta máquina.</value></data>
 
   <data name="Session_Heading.Text" xml:space="preserve"><value>Sessão</value></data>
   <data name="Session_Name.Header" xml:space="preserve"><value>Nome da transmissão</value></data>

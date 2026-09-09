@@ -1,3 +1,11 @@
+## 2.9.0
+
+### Novidades
+
+- **Perfil de transmissão** na aba Transmitir: Manual, Recomendado, Desempenho, Equilibrado e Qualidade. Ao escolher um perfil o app **mede** antes de ajustar: codifica a sua tela por um instante em cada resolução candidata para saber quanto o encoder da sua GPU leva por quadro e quantos quadros ele sustenta, e cronometra um upload até o host. Com esses números escolhe resolução, fps, bitrate e codec, mostra o resultado com as medidas e preenche os controles. Mexer em qualquer controle à mão volta para Manual.
+- **Recomendado** escolhe entre os três perfis sozinho, pelo que a placa e a conexão aguentam: Qualidade se a máquina segura 1080p60 (ou 1440p) e o upload carrega o bitrate; Equilibrado se segura 1080p; Desempenho no resto, e sempre sem encoder de hardware.
+- A medição do upload precisa do host na versão 2.6.0; em hosts antigos o perfil usa só as medidas do encoder.
+
 ## 2.8.0
 
 ### Novidades
