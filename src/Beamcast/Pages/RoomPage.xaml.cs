@@ -461,6 +461,12 @@ public sealed partial class RoomPage : Page
         {
             var gone = Tiles[id];
             Tiles.Remove(id);
+            // A tile that vanishes while it fills the fullscreen layer (stopped, ended, or "stop
+            // all") must leave fullscreen with it; otherwise the layer keeps the dead tile and only
+            // Escape gets the user out. OnWatchStopped can't do this: it runs after this removal, so
+            // its Tiles lookup already fails.
+            if (App.Main?.IsFullscreen == true && ReferenceEquals(App.Main.FullscreenContent, gone.Root))
+                App.Main.ExitFullscreen();
             gone.Detach();
             gone.Video.Unbind();
         }
