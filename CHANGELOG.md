@@ -2,6 +2,15 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.9.7
+
+- Tela cheia presa ao parar de assistir pelo X: `StopWatching` posta `WatchingChanged` antes de
+  `Stopped`; `OnWatchingChanged` roda primeiro e `SyncTiles` já remove o tile do dicionário, então o
+  `OnWatchStopped` (que dependia de `Tiles.TryGetValue`) não achava mais o tile e nunca chamava
+  `ExitFullscreen` — o usuário ficava preso na tela cheia e só saía com Esc. Agora o próprio
+  `SyncTiles`, ao descartar um tile que ocupa a camada de tela cheia (`FullscreenContent`), chama
+  `ExitFullscreen`; cobre X, "parar tudo" e stream encerrada pelo host.
+
 ## 2.9.6
 
 - Travamento ao parar (bug 20 do vault, diag do amigo com AMD): `StopLive` agora só marca

@@ -1,3 +1,9 @@
+## 2.9.7
+
+### Fixes
+
+- **Leaving fullscreen when a stream stops.** In fullscreen, clicking a stream's X ended the view but left you stuck in fullscreen — only Esc got you out. Now stopping a stream (with the X, with "stop all", or when the broadcaster ends it) leaves fullscreen with it.
+
 ## 2.9.6
 
 ### Fixes

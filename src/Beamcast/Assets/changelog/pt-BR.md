@@ -1,3 +1,9 @@
+## 2.9.7
+
+### Correções
+
+- **Sair da tela cheia ao parar de assistir.** Em tela cheia, clicar no X da transmissão encerrava a exibição mas deixava você preso na tela cheia — só o Esc tirava você de lá. Agora, parar de assistir (pelo X, por "parar tudo" ou quando quem transmite encerra) já sai da tela cheia junto.
+
 ## 2.9.6
 
 ### Correções
