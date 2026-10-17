@@ -69,7 +69,7 @@ public static class BugReport
                 using (adapter)
                 {
                     var d = adapter.Description1;
-                    sb.AppendLine($"  [{i}] {d.Description} (vendor 0x{d.VendorId:X4}, {d.DedicatedVideoMemory / 1024 / 1024} MB{((d.Flags & AdapterFlags.Software) != 0 ? ", software" : "")})");
+                    sb.AppendLine($"  [{i}] {d.Description} (vendor 0x{d.VendorId:X4}, driver {HealthMonitor.DriverVersion(adapter)}, {d.DedicatedVideoMemory / 1024 / 1024} MB{((d.Flags & AdapterFlags.Software) != 0 ? ", software" : "")})");
                 }
             }
         }
@@ -80,6 +80,13 @@ public static class BugReport
         sb.AppendLine("Monitors:");
         foreach (var monitor in SafeTry.Run(Capture.CaptureSourceEnumerator.Monitors) ?? [])
             sb.AppendLine($"  {monitor.Subtitle} {monitor.Width}x{monitor.Height}{(monitor.IsPrimary ? " (primary)" : "")}");
+        sb.AppendLine($"power: {HealthMonitor.PowerText()}");
+        sb.AppendLine("Windows events (last 7 days: Beamcast errors/hangs, display driver resets):");
+        var events = SafeTry.Run(() => HealthMonitor.RecentWindowsEvents(TimeSpan.FromDays(7))) ?? [];
+        if (events.Count == 0)
+            sb.AppendLine("  (none)");
+        foreach (var line in events)
+            sb.AppendLine("  " + line);
         sb.AppendLine($"hardware H.264 encoder: {SafeTry.Run(() => Codec.Gpu.MfCodecs.HasHardwareEncoder(Codec.VideoCodec.H264))}, HEVC: {SafeTry.Run(() => Codec.Gpu.MfCodecs.HasHardwareEncoder(Codec.VideoCodec.Hevc))}");
         return sb.ToString();
     }

@@ -36,6 +36,8 @@ public sealed class ScreenCapture : IDisposable
 {
     private static readonly TimeSpan IdleRepeatInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan RecreateBudget = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan BlackCheckInterval = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan BlackCheckWindow = TimeSpan.FromSeconds(2.5);
 
     private readonly GpuDevice _gpu;
     private readonly object _sync = new();
@@ -53,6 +55,16 @@ public sealed class ScreenCapture : IDisposable
     private CancellationTokenSource? _duplicationCts;
     private RawRect _outputRect;
     private long _lastDeliveredTicks;
+
+    // Black-frame check at the start of a duplication session (see CheckForBlack).
+    private CaptureSource? _source;
+    private int _generation;
+    private bool _blackCheckDone;
+    private bool _lastPictureBlack;
+    private long _blackCheckStart;
+    private long _blackCheckLast;
+    private int _blackFrames;
+    private volatile bool _abandonDuplication;
 
     private ID3D11Texture2D? _frameTexture;
     private ID3D11Texture2D? _staging;
@@ -88,6 +100,8 @@ public sealed class ScreenCapture : IDisposable
         {
             StopCore();
             MaxFps = maxFps;
+            _source = source;
+            _generation++;
 
             if (source.Kind == CaptureSourceKind.Monitor && TryStartDuplication(source))
             {
@@ -168,6 +182,11 @@ public sealed class ScreenCapture : IDisposable
             _output = found;
             _duplication = _output.DuplicateOutput(_gpu.Device);
             _lastDeliveredTicks = 0;
+            _blackCheckDone = false;
+            _blackCheckStart = 0;
+            _blackCheckLast = 0;
+            _blackFrames = 0;
+            _abandonDuplication = false;
             _duplicationCts = new CancellationTokenSource();
             var token = _duplicationCts.Token;
             _duplicationThread = new Thread(() => DuplicationLoop(token))
@@ -197,6 +216,11 @@ public sealed class ScreenCapture : IDisposable
         {
             while (!ct.IsCancellationRequested)
             {
+                if (_abandonDuplication)
+                {
+                    SwitchToGraphicsCaptureLater();
+                    return;
+                }
                 var duplication = _duplication;
                 if (duplication is null)
                 {
@@ -243,7 +267,7 @@ public sealed class ScreenCapture : IDisposable
                 try
                 {
                     if (resource is not null && IsDue(Stopwatch.GetTimestamp()))
-                        DeliverDuplicatedFrame(resource);
+                        DeliverDuplicatedFrame(resource, info);
                 }
                 finally
                 {
@@ -291,7 +315,7 @@ public sealed class ScreenCapture : IDisposable
         SafeTry.Run(() => duplication?.Dispose());
     }
 
-    private void DeliverDuplicatedFrame(IDXGIResource resource)
+    private void DeliverDuplicatedFrame(IDXGIResource resource, OutduplFrameInfo info)
     {
         var handler = TextureArrived;
         if (handler is null)
@@ -306,14 +330,151 @@ public sealed class ScreenCapture : IDisposable
             if (width <= 0 || height <= 0)
                 return;
 
+            if (_lastDeliveredTicks == 0)
+                Diag.Log($"capture: first duplicated frame {description.Width}x{description.Height} {description.Format}, last present {info.LastPresentTime}, accumulated {info.AccumulatedFrames}");
             EnsureFrameTexture(width, height, gdiCompatible: true);
             var box = new Box(0, 0, 0, width, height, 1);
             _gpu.Context.CopySubresourceRegion(_frameTexture, 0, 0, 0, 0, source, 0, box);
+            // Before the cursor goes on: a black desktop with a cursor on it is still a black desktop.
+            CheckForBlack(_frameTexture!, width, height, repeat: false);
             if (ShowCursor)
                 DrawCursor(_frameTexture!);
             _lastDeliveredTicks = Stopwatch.GetTimestamp();
             handler(new GpuFrame(_frameTexture!, width, height, Environment.TickCount64));
         }
+    }
+
+    /// <summary>
+    /// Some machines hand out duplicated frames that are entirely black (Intel UHD laptop on
+    /// Windows 11 26300, 2.9.7 field report: preview black, viewers black). For the first couple of
+    /// seconds a frame is read back every 250 ms; if every one of them is black, duplication is
+    /// abandoned for Windows.Graphics.Capture. One picture with anything on it ends the check.
+    /// Context lock held.
+    /// </summary>
+    /// <remarks>
+    /// On a still desktop duplication may hand out that one black first frame (last present 0, also
+    /// seen on AMD) and nothing after it; the idle repeats of it then count too, without a readback,
+    /// since they are the same picture (plus the cursor, which must not pass for content).
+    /// </remarks>
+    private void CheckForBlack(ID3D11Texture2D texture, int width, int height, bool repeat)
+    {
+        if (_blackCheckDone)
+            return;
+        var now = Stopwatch.GetTimestamp();
+        if (_blackCheckStart == 0)
+            _blackCheckStart = now;
+        else if (Stopwatch.GetElapsedTime(_blackCheckLast, now) < BlackCheckInterval)
+            return;
+        _blackCheckLast = now;
+
+        bool black;
+        try
+        {
+            black = repeat ? _lastPictureBlack : IsBlack(texture, width, height);
+            _lastPictureBlack = black;
+        }
+        catch (Exception ex)
+        {
+            Diag.Log("capture: black check failed: " + ex.Message);
+            _blackCheckDone = true;
+            return;
+        }
+
+        if (!black)
+        {
+            _blackCheckDone = true;
+            Diag.Log(_blackFrames > 0 ? $"capture: picture after {_blackFrames} black frame(s)" : "capture: picture ok");
+            return;
+        }
+        _blackFrames++;
+        if (_blackFrames >= 4 && Stopwatch.GetElapsedTime(_blackCheckStart, now) >= BlackCheckWindow - BlackCheckInterval)
+        {
+            _blackCheckDone = true;
+            if (IsSupported)
+            {
+                Diag.Log($"capture: desktop duplication gave {_blackFrames} black frames in {Stopwatch.GetElapsedTime(_blackCheckStart, now).TotalSeconds:F1} s, switching to Windows.Graphics.Capture");
+                _abandonDuplication = true;
+            }
+            else
+            {
+                Diag.Log("capture: desktop duplication gives black frames and Windows.Graphics.Capture is not available");
+            }
+        }
+    }
+
+    /// <summary>True when a 48x27 grid of samples over the frame has nothing brighter than near-black.</summary>
+    private unsafe bool IsBlack(ID3D11Texture2D texture, int width, int height)
+    {
+        if (_staging is null || _staging.Description.Width != width || _staging.Description.Height != height)
+        {
+            _staging?.Dispose();
+            _staging = _gpu.Device.CreateTexture2D(
+                new Texture2DDescription
+                {
+                    Width = (uint)width,
+                    Height = (uint)height,
+                    MipLevels = 1,
+                    ArraySize = 1,
+                    Format = Format.B8G8R8A8_UNorm,
+                    SampleDescription = new SampleDescription(1, 0),
+                    Usage = ResourceUsage.Staging,
+                    CPUAccessFlags = CpuAccessFlags.Read,
+                    BindFlags = BindFlags.None,
+                    MiscFlags = ResourceOptionFlags.None,
+                }
+            );
+        }
+        var context = _gpu.Context;
+        context.CopySubresourceRegion(_staging, 0, 0, 0, 0, texture, 0, new Box(0, 0, 0, width, height, 1));
+        var mapped = context.Map(_staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+        try
+        {
+            var data = (byte*)mapped.DataPointer;
+            for (var gy = 0; gy < 27; gy++)
+            {
+                var y = (gy * 2 + 1) * height / 54;
+                for (var gx = 0; gx < 48; gx++)
+                {
+                    var x = (gx * 2 + 1) * width / 96;
+                    var pixel = data + y * mapped.RowPitch + x * 4;
+                    if (pixel[0] > 8 || pixel[1] > 8 || pixel[2] > 8)
+                        return false;
+                }
+            }
+            return true;
+        }
+        finally
+        {
+            context.Unmap(_staging, 0);
+        }
+    }
+
+    /// <summary>Capture thread, on its way out: the switch itself needs the start lock, so it runs elsewhere.</summary>
+    private void SwitchToGraphicsCaptureLater()
+    {
+        var source = _source;
+        var generation = _generation;
+        if (source is null)
+            return;
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            lock (_sync)
+            {
+                if (_disposed || generation != _generation || Method != "duplication")
+                    return;
+                try
+                {
+                    StopCore();
+                    RunOnMtaThread(() => StartGraphicsCapture(source));
+                    Method = "wgc";
+                }
+                catch (Exception ex)
+                {
+                    Diag.Log("capture: switch to Windows.Graphics.Capture failed: " + ex.Message);
+                    Faulted?.Invoke(ex);
+                }
+            }
+        });
     }
 
     /// <summary>
@@ -333,6 +494,7 @@ public sealed class ScreenCapture : IDisposable
                 return;
             _lastDeliveredTicks = Stopwatch.GetTimestamp();
             _lastFrameTicks = _lastDeliveredTicks;
+            CheckForBlack(texture, (int)texture.Description.Width, (int)texture.Description.Height, repeat: true);
             handler(new GpuFrame(texture, (int)texture.Description.Width, (int)texture.Description.Height, Environment.TickCount64));
         }
     }
@@ -557,6 +719,8 @@ public sealed class ScreenCapture : IDisposable
             if (width <= 0 || height <= 0)
                 return;
 
+            if (_frameTexture is null)
+                Diag.Log($"capture: first Windows.Graphics.Capture frame {width}x{height} {description.Format}");
             EnsureFrameTexture(width, height, gdiCompatible: false);
             var box = new Box(0, 0, 0, width, height, 1);
             _gpu.Context.CopySubresourceRegion(_frameTexture, 0, 0, 0, 0, source, 0, box);

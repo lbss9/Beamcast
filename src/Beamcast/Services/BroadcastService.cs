@@ -84,6 +84,7 @@ public sealed class BroadcastService
     private System.Threading.Timer? _watchdog;
     private long _lastFrameTicks;
     private bool _framesStalled;
+    private int _fallingBack;
     private long _statsWindowStart;
     private long _lastStatsLogTicks;
     private int _statsFrames;
@@ -441,7 +442,9 @@ public sealed class BroadcastService
         if (!_lounge.IsConnected)
             throw new InvalidOperationException("Not in a lounge.");
 
-        var codec = MfCodecs.Resolve(_encoderPreference);
+        // Off the UI thread: the first go-live in a run test-encodes on the hardware encoder.
+        var preference = _encoderPreference;
+        var codec = await Task.Run(() => MfCodecs.Resolve(preference, Gpu), ct);
         var audioMode = AudioBroadcaster.Resolve(_audioMode, Source);
         var meta = new StreamMetaMessage
         {
@@ -661,6 +664,13 @@ public sealed class BroadcastService
             _framesStalled = false;
             return;
         }
+        if (_gpuEncoder is { LooksDead: true } dead && Interlocked.Exchange(ref _fallingBack, 1) == 0)
+        {
+            Diag.Log($"broadcast: hardware encoder never produced a frame ({dead.Describe()}), switching to VP8");
+            MfCodecs.MarkBroken(dead.Codec, "silent while live");
+            Post(() => _ = SwitchToVp8Async());
+            return;
+        }
         var quiet = Environment.TickCount64 - Volatile.Read(ref _lastFrameTicks);
         if (quiet < 5000)
         {
@@ -675,6 +685,97 @@ public sealed class BroadcastService
             return;
         _framesStalled = true;
         Diag.Log($"broadcast: no encoded frame for {quiet} ms (codec {ActiveCodec}, {Source?.Kind} {Source?.Width}x{Source?.Height}, viewers {ViewerCount}, capture {(_capture?.Method is { Length: > 0 } m ? m : "?")})");
+    }
+
+    /// <summary>
+    /// The hardware encoder took frames and never gave any back. Carry on with VP8 on the CPU: the
+    /// capture keeps running, the stream is announced again with the new codec under the same title,
+    /// and viewers follow it like they follow a publisher that reconnected.
+    /// </summary>
+    private async Task SwitchToVp8Async()
+    {
+        try
+        {
+            if (!_live || ActiveCodec == VideoCodec.Vp8)
+                return;
+            var old = _meta;
+            var meta = new StreamMetaMessage
+            {
+                Title = old.Title,
+                Codec = VideoCodec.Vp8.ToWireName(),
+                Width = old.Width,
+                Height = old.Height,
+                Fps = old.Fps,
+                Audio = old.Audio,
+                State = old.State,
+            };
+            uint streamId;
+            try
+            {
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                streamId = await _lounge.PublishAsync(meta, timeout.Token);
+            }
+            catch (Exception ex)
+            {
+                Diag.Log("broadcast: VP8 fallback could not publish: " + ex.Message);
+                Error?.Invoke(ex.Message);
+                StopLive();
+                return;
+            }
+
+            MfVideoEncoder? encoder;
+            lock (_sync)
+            {
+                if (!_live)
+                {
+                    _lounge.Unpublish(streamId);
+                    return;
+                }
+                // The capture thread reads ActiveCodec on every frame, holding the context lock:
+                // swapped under it, no frame can rebuild the hardware encoder halfway through.
+                lock (Gpu.ContextLock)
+                {
+                    ActiveCodec = VideoCodec.Vp8;
+                    encoder = _gpuEncoder;
+                    _gpuEncoder = null;
+                }
+                EncoderName = "libvpx (CPU)";
+
+                if (_streamId != 0)
+                {
+                    _lounge.Unpublish(_streamId);
+                    _lounge.ForgetOwnStream(_streamId);
+                }
+                _streamId = streamId;
+                _meta = meta;
+                ClearViewers();
+                lock (_upstreamGate)
+                    _upstreamGate.RequestKeyframe();
+                _lounge.RegisterOwnStream(streamId, meta);
+                Interlocked.Exchange(ref _keyframeRequested, 1);
+                Volatile.Write(ref _lastFrameTicks, Environment.TickCount64);
+                _framesStalled = false;
+
+                _vp8Cts = new CancellationTokenSource();
+                var token = _vp8Cts.Token;
+                _vp8Thread = new Thread(() => Vp8Loop(token))
+                {
+                    Name = "Beamcast VP8 encoder",
+                    IsBackground = true,
+                    Priority = ThreadPriority.AboveNormal,
+                };
+                _vp8Thread.Start();
+            }
+            // A driver that never produced a frame may also hang on close; never on this thread.
+            if (encoder is not null)
+                _ = Task.Run(encoder.Dispose);
+            Diag.Log($"broadcast: now on VP8 as stream #{streamId}");
+            StateChanged?.Invoke(State);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _fallingBack, 0);
+        }
     }
 
     private void StopLiveCore()

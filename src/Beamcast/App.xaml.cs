@@ -32,9 +32,11 @@ public partial class App : Application
         ApplyCulture(settings.Language);
         Diag.Log($"startup: Beamcast {AppInfo.Version} on {Environment.OSVersion.VersionString}, {Environment.ProcessorCount} cores, {(Environment.Is64BitProcess ? "x64" : "x86")}");
         Diag.NoteCrashLogAtStartup();
+        HealthMonitor.LogMachine();
         // Ask Windows early for capture without the coloured border, so the first capture is clean.
         _ = Capture.CaptureAccess.EnsureBorderlessAsync();
         Main = new MainWindow();
+        HealthMonitor.Start(Main.DispatcherQueue, MainWindow.StateSummary);
         Main.ApplyTheme(settings.Theme);
         Main.Activate();
 
