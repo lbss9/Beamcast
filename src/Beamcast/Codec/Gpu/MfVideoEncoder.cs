@@ -32,6 +32,11 @@ public sealed class MfVideoEncoder : IDisposable
     private int _framesSinceKeyframeRequest = -1;
     private uint _sequence;
     private long _submittedTicks;
+    private readonly long _createdTicks = Stopwatch.GetTimestamp();
+    private long _firstSubmitTicks;
+    private int _submitted;
+    private int _produced;
+    private int _needInputEvents;
     private volatile bool _disposed;
 
     public MfVideoEncoder(GpuDevice gpu, VideoCodec codec, int width, int height, int fps, int bitrateKbps)
@@ -134,6 +139,31 @@ public sealed class MfVideoEncoder : IDisposable
     /// </summary>
     public bool KeyframeOverdue => Volatile.Read(ref _framesSinceKeyframeRequest) > 10;
 
+    public int SubmittedCount => Volatile.Read(ref _submitted);
+
+    public int ProducedCount => Volatile.Read(ref _produced);
+
+    /// <summary>
+    /// True when the driver has never produced a frame although it had every chance: it took
+    /// frames for over 3 s, or it never asked for one in 4 s. Seen on Intel Quick Sync (2.9.7 field
+    /// report): the transform builds fine, then stays silent for ever.
+    /// </summary>
+    public bool LooksDead
+    {
+        get
+        {
+            if (Volatile.Read(ref _produced) > 0)
+                return false;
+            var firstSubmit = Interlocked.Read(ref _firstSubmitTicks);
+            if (firstSubmit != 0)
+                return Volatile.Read(ref _submitted) >= 5 && Stopwatch.GetElapsedTime(firstSubmit).TotalSeconds > 3;
+            return Volatile.Read(ref _needInputEvents) == 0 && Stopwatch.GetElapsedTime(_createdTicks).TotalSeconds > 4;
+        }
+    }
+
+    public string Describe() =>
+        $"{Name} {Width}x{Height}@{Fps}: submitted {SubmittedCount}, produced {ProducedCount}, need-input events {Volatile.Read(ref _needInputEvents)}, age {Stopwatch.GetElapsedTime(_createdTicks).TotalSeconds:F1} s";
+
     public void SetBitrate(int kbps)
     {
         _codecApi.SetUInt32(CodecApiGuids.AVEncCommonMeanBitRate, (uint)(kbps * 1000L));
@@ -171,8 +201,10 @@ public sealed class MfVideoEncoder : IDisposable
             sample.SampleTime = timestampMs * 10_000;
             sample.SampleDuration = _frameDuration;
             _submittedTicks = Stopwatch.GetTimestamp();
+            Interlocked.CompareExchange(ref _firstSubmitTicks, _submittedTicks, 0);
             _transform.ProcessInput(0, sample, 0);
             Interlocked.Decrement(ref _needInput);
+            Interlocked.Increment(ref _submitted);
             return true;
         }
     }
@@ -210,10 +242,16 @@ public sealed class MfVideoEncoder : IDisposable
                 if (type == EventNeedInput)
                 {
                     Interlocked.Increment(ref _needInput);
+                    Interlocked.Increment(ref _needInputEvents);
                 }
                 else if (type == EventHaveOutput)
                 {
                     DrainOutput();
+                }
+                else
+                {
+                    // Errors (MEError and friends) used to vanish here; a silent encoder needs them in the log.
+                    Diag.Log($"encoder: {Name} event {type}, status 0x{mediaEvent.Status.Code:X8}");
                 }
             }
         }
@@ -239,7 +277,11 @@ public sealed class MfVideoEncoder : IDisposable
         {
             var result = _transform.ProcessOutput(ProcessOutputFlags.None, 1, ref buffer, out _);
             if (result.Failure)
+            {
+                if (Volatile.Read(ref _produced) == 0)
+                    Diag.Log($"encoder: {Name} ProcessOutput failed 0x{result.Code:X8} before the first frame");
                 return;
+            }
 
             var sample = buffer.Sample;
             if (sample is null)
@@ -257,6 +299,7 @@ public sealed class MfVideoEncoder : IDisposable
                 else if (Volatile.Read(ref _framesSinceKeyframeRequest) >= 0)
                     Interlocked.Increment(ref _framesSinceKeyframeRequest);
                 var timestampMs = sample.SampleTime / 10_000;
+                Interlocked.Increment(ref _produced);
                 var frame = new EncodedFrame(data, keyframe, Width, Height, timestampMs, ++_sequence);
                 if (_sequence <= 3 || keyframe)
                     Diag.Log($"encoder: out #{_sequence} key={keyframe} {data.Length} B sinceReq={Volatile.Read(ref _framesSinceKeyframeRequest)}");

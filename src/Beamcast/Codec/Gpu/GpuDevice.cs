@@ -32,6 +32,9 @@ public sealed class GpuDevice : IDisposable
 
         Device = device!;
         Context = Device.ImmediateContext;
+        using (var dxgiDevice = Device.QueryInterface<IDXGIDevice>())
+        using (var adapter = dxgiDevice.GetAdapter())
+            AdapterName = adapter.Description.Description;
         Device.QueryInterfaceOrNull<ID3D11Multithread>()?.SetMultithreadProtected(true);
 
         using (var dxgi = Device.QueryInterface<IDXGIDevice>())
@@ -51,7 +54,10 @@ public sealed class GpuDevice : IDisposable
         DeviceManager.ResetDevice(Device);
         VideoDevice = Device.QueryInterface<ID3D11VideoDevice>();
         VideoContext = Context.QueryInterface<ID3D11VideoContext>();
+        HealthMonitor.Track(this);
     }
+
+    public string AdapterName { get; }
 
     public ID3D11Device Device { get; }
     public ID3D11DeviceContext Context { get; }

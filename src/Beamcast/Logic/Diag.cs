@@ -71,6 +71,24 @@ public static class Diag
         catch { }
     }
 
+    /// <summary>
+    /// Something that is not an exception but belongs next to the crashes (a UI hang, a GPU reset, a
+    /// run that ended without closing): crash.log always, diag.log when enabled.
+    /// </summary>
+    public static void RecordIncident(string source, string note)
+    {
+        Log("INCIDENT " + source + ": " + note);
+        try
+        {
+            System.IO.Directory.CreateDirectory(Directory);
+            var previous = File.Exists(CrashLogPath) ? File.ReadAllText(CrashLogPath) : string.Empty;
+            if (previous.Length > 64 * 1024)
+                previous = previous[..(64 * 1024)];
+            File.WriteAllText(CrashLogPath, $"==== {DateTime.UtcNow:O}  Beamcast {AppInfo.Version}  incident {source}\n{note}\nuptime {Clock.Elapsed.TotalSeconds:F1} s\n\n" + previous);
+        }
+        catch { }
+    }
+
     /// <summary>At startup: if the previous run left a crash report, mention it in the diag so the two files line up.</summary>
     public static void NoteCrashLogAtStartup()
     {

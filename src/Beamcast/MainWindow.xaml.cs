@@ -265,10 +265,16 @@ public sealed partial class MainWindow : Window
         {
             if (!Diag.IsEnabled)
                 return;
-            var broadcast = BroadcastService.Instance;
-            Diag.Log($"ui: alive (broadcast {broadcast.State}{(broadcast.IsStandby ? ", standby" : string.Empty)}, watching {WatchService.Instance.Watching.Count}, lounge {LoungeService.Instance.State})");
+            Diag.Log($"ui: alive ({StateSummary()})");
         };
         _uiHeartbeat.Start();
+    }
+
+    /// <summary>What the app is doing, in one line. Also read off the UI thread by the hang monitor.</summary>
+    public static string StateSummary()
+    {
+        var broadcast = BroadcastService.Instance;
+        return $"broadcast {broadcast.State}{(broadcast.IsStandby ? ", standby" : string.Empty)}, watching {WatchService.Instance.Watching.Count}, lounge {LoungeService.Instance.State}";
     }
 
     private void StartUpdateTimer()
