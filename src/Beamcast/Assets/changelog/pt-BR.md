@@ -1,3 +1,16 @@
+## 2.9.8
+
+### Correções
+
+- **Transmitir em notebooks com vídeo Intel.** Em algumas máquinas com placa Intel integrada a transmissão ficava preta, com 0 FPS, embora assistir funcionasse. Agora o app testa o encoder da placa antes de transmitir e, se ele não responder, transmite pelo processador (VP8) sem você precisar mexer em nada. Se o encoder parar de responder no meio da transmissão, o app troca sozinho e quem está assistindo continua vendo, sem sair e entrar de novo.
+- **Prévia preta ao compartilhar a tela.** Quando o método de captura de tela padrão só entrega imagem preta, o app percebe em poucos segundos e passa a usar o outro método de captura do Windows.
+
+### Diagnóstico
+
+- O registro agora anota quando a janela trava (início, fim e quanto durou), quando o driver de vídeo reinicia ou cai, e quando a execução anterior terminou sem fechar normalmente, junto com os erros que o próprio Windows registrou. Travamentos longos e quedas da placa vão também para o crash.log, mesmo com o registro desligado.
+- Com o registro ligado, a cada 10 segundos entram o uso de processador do app e do PC, a frequência atual do processador (para ver se o notebook está reduzindo a velocidade), a memória, o uso da placa (3D, codificação e decodificação), a memória de vídeo e se o PC está na bateria ou no modo de economia.
+- O relatório de bug passa a incluir a versão do driver de vídeo e os erros e reinícios do driver registrados pelo Windows nos últimos 7 dias.
+
 ## 2.9.7
 
 ### Correções
