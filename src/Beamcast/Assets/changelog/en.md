@@ -1,3 +1,16 @@
+## 2.9.8
+
+### Fixes
+
+- **Broadcasting from laptops with Intel graphics.** On some machines with integrated Intel graphics the broadcast stayed black at 0 FPS, while watching worked. The app now tests the card's encoder before going live and, if it does not answer, broadcasts on the processor (VP8) with nothing for you to change. If the encoder stops answering mid-broadcast, the app switches by itself and viewers keep watching without leaving and coming back.
+- **Black preview when sharing a screen.** When the default screen capture method only delivers black pictures, the app notices within a few seconds and moves to Windows' other capture method.
+
+### Diagnostics
+
+- The log now records when the window freezes (start, end and how long), when the graphics driver resets or fails, and when the previous run ended without closing normally, along with the errors Windows itself recorded. Long freezes and graphics failures also go to crash.log, even with the log off.
+- With the log on, every 10 seconds it adds the app's and the PC's processor use, the current processor clock (to spot a throttling laptop), memory, graphics use (3D, encode, decode), video memory, and whether the PC is on battery or in battery saver.
+- The bug report now includes the graphics driver version and the driver resets and app errors Windows recorded in the last 7 days.
+
 ## 2.9.7
 
 ### Fixes

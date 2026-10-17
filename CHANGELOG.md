@@ -2,6 +2,37 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.9.8
+
+- Tela preta / 0 FPS ao transmitir (diag de uma amiga: i5-1235U, Intel UHD, Windows 11 26300):
+  o encoder "Intel Quick Sync Video H.264 Encoder MFT" foi criado mas nunca soltou um quadro
+  (nenhum `encoder: out`, "no encoded frame for 15000 ms"). Não reproduz na 6750 XT daqui, então a
+  correção é defensiva:
+  - `MfCodecs.Probe` codifica quadros NV12 em branco a 1280x720 numa thread própria (3 s para o
+    primeiro quadro, 6 s de teto para driver travado), uma vez por codec por execução.
+    `GoLiveAsync` resolve o codec com `Resolve(pref, Gpu)` fora da UI; reprovado cai para VP8.
+  - `MfVideoEncoder.LooksDead` (recebeu ≥ 5 quadros por mais de 3 s sem produzir nada, ou nunca pediu
+    entrada em 4 s). O watchdog `CheckFrames` chama `SwitchToVp8Async`: publica o stream de novo com
+    codec vp8 e o mesmo título, troca `ActiveCodec`/`_gpuEncoder` sob o `ContextLock` (o thread de
+    captura nunca recria o encoder de hardware no meio), despublica o antigo e sobe a thread VP8;
+    espectadores seguem pelo dono e título (lógica da 2.9.3). O codec fica `MarkBroken` na execução.
+  - O laço de eventos do MFT passou a logar eventos que não são NeedInput/HaveOutput (MEError etc.)
+    e `ProcessOutput` com falha antes do primeiro quadro.
+- Prévia preta: a Desktop Duplication entrega um primeiro quadro preto (`last present 0`, visto
+  também na AMD daqui) e, numa tela parada, pode não entregar outro; o app repetia esse preto.
+  `ScreenCapture.CheckForBlack` lê de volta uma grade 48x27 a cada 250 ms nos primeiros 2,5 s (as
+  repetições ociosas contam sem leitura, para o cursor não passar por conteúdo); só preto → sai do
+  laço e `SwitchToGraphicsCaptureLater` reinicia com Windows.Graphics.Capture fora da thread de
+  captura. Log do primeiro quadro (formato, LastPresentTime, AccumulatedFrames) nos dois caminhos.
+- `HealthMonitor` (thread própria): ping da UI a cada 500 ms (hang ≥ 2 s no diag, ≥ 5 s também no
+  crash.log via `Diag.RecordIncident`, com estado e threads); `DeviceRemovedReason` de todo
+  `GpuDevice` (registrado em `Track`), com nome do HRESULT; `running.marker` apagado no
+  `ProcessExit` para detectar término sem fechar; eventos 1000/1002 do Beamcast e 4101 (TDR) via
+  `wevtutil` no início (3 dias) e no relatório (7 dias); a cada 10 s com diag: CPU do app/sistema,
+  clock médio/máximo (`CallNtPowerInformation`), memória, contadores PDH "GPU Engine" (app/total),
+  VRAM local/compartilhada contra o budget (`IDXGIAdapter3`) e energia. `startup:` loga GPUs com
+  versão do driver (UMD via `CheckInterfaceSupport`), RAM e energia.
+
 ## 2.9.7
 
 - Tela cheia presa ao parar de assistir pelo X: `StopWatching` posta `WatchingChanged` antes de
