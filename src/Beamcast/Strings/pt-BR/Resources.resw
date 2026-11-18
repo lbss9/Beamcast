@@ -11,7 +11,7 @@
   <data name="News_Title.Text" xml:space="preserve"><value>Novidades</value></data>
   <data name="News_Subtitle" xml:space="preserve"><value>Você está na versão {0}. Abaixo, o que mudou em cada versão.</value></data>
 
-  <data name="Sources_Heading.Text" xml:space="preserve"><value>O que compartilhar</value></data>
+  <data name="Sources_Heading.Text" xml:space="preserve"><value>1 · O que compartilhar</value></data>
   <data name="Sources_Refresh.ToolTipService.ToolTip" xml:space="preserve"><value>Atualizar lista</value></data>
   <data name="Sources_Monitors.Text" xml:space="preserve"><value>Telas</value></data>
   <data name="Sources_Windows.Text" xml:space="preserve"><value>Janelas</value></data>
@@ -25,7 +25,7 @@
   <data name="Quality_Fps.Header" xml:space="preserve"><value>Quadros por segundo</value></data>
   <data name="Quality_Bitrate.Header" xml:space="preserve"><value>Bitrate (kbps)</value></data>
   <data name="Quality_Cursor.Header" xml:space="preserve"><value>Mostrar o cursor</value></data>
-  <data name="Quality_Profile.Header" xml:space="preserve"><value>Perfil</value></data>
+  <data name="Quality_Profile.Header" xml:space="preserve"><value>Qualidade</value></data>
   <data name="Profile_Manual" xml:space="preserve"><value>Manual (eu ajusto)</value></data>
   <data name="Profile_Recommended" xml:space="preserve"><value>Recomendado (avalia o seu PC e a conexão)</value></data>
   <data name="Profile_RecommendedTier" xml:space="preserve"><value>Recomendado → {0}</value></data>
@@ -222,7 +222,7 @@
   <data name="Lounge_Code.PlaceholderText" xml:space="preserve"><value>ABC234 ou BC-…</value></data>
   <data name="Lounge_JoinPassword.Header" xml:space="preserve"><value>Senha (se a sala tiver)</value></data>
   <data name="Lounge_JoinButton.Content" xml:space="preserve"><value>Entrar</value></data>
-  <data name="Lounge_SecurityNote.Text" xml:space="preserve"><value>Nomes, títulos, vídeo e áudio vão cifrados de ponta a ponta (AES-256-GCM). Em salas com senha a chave nasce da senha; sem senha, quem já está dentro entrega a chave a quem entra (ECDH). O host só vê tráfego cifrado, provas de senha e convites; ele não consegue assistir nem ouvir.</value></data>
+  <data name="Lounge_SecurityNote.Text" xml:space="preserve"><value>Criptografado de ponta a ponta. O host só repassa dados cifrados: não vê nem ouve nada.</value></data>
   <data name="Lounge_WrongPassword" xml:space="preserve"><value>Senha da sala incorreta.</value></data>
   <data name="Lounge_NotFound" xml:space="preserve"><value>Essa sala não existe neste host.</value></data>
   <data name="Lounge_Unreachable" xml:space="preserve"><value>Não foi possível conectar ao host. Confira o endereço e se ele está no ar.</value></data>
@@ -231,12 +231,12 @@
   <data name="Lounge_MemberPlaceholder" xml:space="preserve"><value>Membro {0}</value></data>
   <data name="Room_CopyInvite.Content" xml:space="preserve"><value>Copiar convite</value></data>
   <data name="Room_Leave.Content" xml:space="preserve"><value>Sair da sala</value></data>
-  <data name="Room_StreamsHeading.Text" xml:space="preserve"><value>Transmissões</value></data>
-  <data name="Room_StreamsEmpty.Text" xml:space="preserve"><value>Ninguém está transmitindo. Use a aba Transmitir para começar.</value></data>
-  <data name="Room_MembersHeading.Text" xml:space="preserve"><value>Quem está aqui</value></data>
+  <data name="Room_StreamsHeading.Text" xml:space="preserve"><value>Ao vivo agora</value></data>
+  <data name="Room_StreamsEmpty.Text" xml:space="preserve"><value>Ninguém está transmitindo agora.</value></data>
+  <data name="Room_MembersHeading.Text" xml:space="preserve"><value>Pessoas</value></data>
   <data name="Room_WatchTab.Header" xml:space="preserve"><value>Assistir</value></data>
   <data name="Room_BroadcastTab.Header" xml:space="preserve"><value>Transmitir</value></data>
-  <data name="Room_WatchHint.Text" xml:space="preserve"><value>Escolha uma transmissão na lista à esquerda.</value></data>
+  <data name="Room_WatchHint.Text" xml:space="preserve"><value>As transmissões desta sala estão na lista à direita.</value></data>
   <data name="Room_Watch" xml:space="preserve"><value>Assistir</value></data>
   <data name="Room_StopWatching.Content" xml:space="preserve"><value>Parar</value></data>
   <data name="Room_Mine" xml:space="preserve"><value>Sua</value></data>
@@ -266,11 +266,11 @@
   <data name="Stream_StandbyHint.Text" xml:space="preserve"><value>Sem ninguém assistindo, a captura e a prévia continuam, mas o encoder e o envio descansam. Quando alguém entra, a transmissão volta na hora. Precisa do host na versão 2.3.0 ou mais nova.</value></data>
   <data name="Preview_Standby.Text" xml:space="preserve"><value>AGUARDANDO ESPECTADOR</value></data>
   <data name="Stream_StandbyStats" xml:space="preserve"><value>Em espera: ninguém assistindo. Encoder e rede parados.</value></data>
-  <data name="Stream_Heading.Text" xml:space="preserve"><value>Sua transmissão</value></data>
+  <data name="Stream_Heading.Text" xml:space="preserve"><value>2 · Como vai aparecer</value></data>
   <data name="Stream_Title.Header" xml:space="preserve"><value>Título</value></data>
   <data name="Stream_Title.PlaceholderText" xml:space="preserve"><value>Ex.: Jogatina de sexta</value></data>
   <data name="Stream_DefaultTitle" xml:space="preserve"><value>Tela de {0}</value></data>
-  <data name="Audio_Mode.Header" xml:space="preserve"><value>Áudio</value></data>
+  <data name="Audio_Mode.Header" xml:space="preserve"><value>Som</value></data>
   <data name="Audio_Auto" xml:space="preserve"><value>Automático (app compartilhado ou sistema)</value></data>
   <data name="Audio_System" xml:space="preserve"><value>Sistema, exceto apps de voz</value></data>
   <data name="Audio_App" xml:space="preserve"><value>Só o app compartilhado</value></data>
@@ -298,7 +298,7 @@
   <data name="Lounge_HostKeyButtonText.Text" xml:space="preserve"><value>Informar chave do app</value></data>
   <data name="Lounge_SelectHost.Text" xml:space="preserve"><value>Escolha um host à esquerda para ver as salas dele.</value></data>
   <data name="Lounge_Refresh.ToolTipService.ToolTip" xml:space="preserve"><value>Atualizar</value></data>
-  <data name="Lounge_HostStatus" xml:space="preserve"><value>{0} · v{1} · {2} online</value></data>
+  <data name="Lounge_HostStatus" xml:space="preserve"><value>{0}  ·  {2} online  ·  v{1}</value></data>
   <data name="Lounge_HostNeedsKey" xml:space="preserve"><value>Este host exige a chave do app (BEAMCAST_APP_KEY no servidor). Informe a chave para ver as salas.</value></data>
   <data name="Lounge_PublicRooms.Text" xml:space="preserve"><value>Salas do host</value></data>
   <data name="Lounge_PublicRoomsEmpty.Text" xml:space="preserve"><value>Nenhuma sala neste host ainda. Crie a primeira.</value></data>
@@ -311,7 +311,7 @@
   <data name="Lounge_NotOwner" xml:space="preserve"><value>O host não reconhece mais você como dono desta sala. Ela foi tirada de Suas salas.</value></data>
   <data name="Lounge_RoomCopyInvite" xml:space="preserve"><value>Copiar convite</value></data>
   <data name="Lounge_InviteCopied" xml:space="preserve"><value>Convite copiado.</value></data>
-  <data name="Room_SettingsTab.Header" xml:space="preserve"><value>Configurações</value></data>
+  <data name="Room_SettingsTab.Header" xml:space="preserve"><value>Sala</value></data>
   <data name="Room_SettingsRoomCard.Text" xml:space="preserve"><value>Sala</value></data>
   <data name="Room_SettingsOwnerOnly.Text" xml:space="preserve"><value>Só o dono altera as configurações desta sala. O que vale hoje:</value></data>
   <data name="Room_SettingsSave.Content" xml:space="preserve"><value>Salvar alterações</value></data>
@@ -319,12 +319,12 @@
   <data name="Room_SettingsSaved" xml:space="preserve"><value>Alterações salvas.</value></data>
   <data name="Room_SettingsInvitesCard.Text" xml:space="preserve"><value>Convites</value></data>
   <data name="Room_SettingsInvitesHint.Text" xml:space="preserve"><value>O convite leva o endereço, o código e, se a sala tiver senha, a chave; quem recebe entra sem digitar nada. Dá para limitar validade e usos. Revogar cancela todos os convites já criados (o código da sala continua valendo).</value></data>
-  <data name="Room_SettingsInviteButtonText.Text" xml:space="preserve"><value>Criar convite…</value></data>
+  <data name="Room_SettingsInviteButtonText.Text" xml:space="preserve"><value>Criar convite</value></data>
   <data name="Room_SettingsRevokeButtonText.Text" xml:space="preserve"><value>Revogar todos os convites</value></data>
   <data name="Room_SettingsInviteCopied" xml:space="preserve"><value>Convite copiado para a área de transferência.</value></data>
   <data name="Room_SettingsRevoked" xml:space="preserve"><value>Convites revogados.</value></data>
-  <data name="Room_SettingsDangerCard.Text" xml:space="preserve"><value>Zona de perigo</value></data>
-  <data name="Room_SettingsDangerHint.Text" xml:space="preserve"><value>Apagar a sala tira todo mundo e não dá para desfazer.</value></data>
+  <data name="Room_SettingsDangerCard.Text" xml:space="preserve"><value>Apagar esta sala</value></data>
+  <data name="Room_SettingsDangerHint.Text" xml:space="preserve"><value>Tira todo mundo e some do host. Não dá para desfazer.</value></data>
   <data name="Room_SettingsDeleteButtonText.Text" xml:space="preserve"><value>Apagar sala</value></data>
   <data name="Room_SummaryPassword" xml:space="preserve"><value>Com senha</value></data>
   <data name="Room_SummaryNoPassword" xml:space="preserve"><value>Sem senha</value></data>
@@ -364,7 +364,7 @@
   <data name="Create_Broadcast" xml:space="preserve"><value>Quem pode transmitir</value></data>
   <data name="Broadcast_Everyone" xml:space="preserve"><value>Todo mundo</value></data>
   <data name="Broadcast_Owner" xml:space="preserve"><value>Só o dono</value></data>
-  <data name="Create_MaxMembers" xml:space="preserve"><value>Máximo de pessoas (0 = sem limite)</value></data>
+  <data name="Create_MaxMembers" xml:space="preserve"><value>Limite de pessoas (0 = sem limite)</value></data>
   <data name="Edit_Title" xml:space="preserve"><value>Editar sala</value></data>
   <data name="Edit_Save" xml:space="preserve"><value>Salvar</value></data>
   <data name="Edit_Password" xml:space="preserve"><value>Nova senha (vazio = manter a atual)</value></data>
@@ -383,8 +383,8 @@
   <data name="Uses_Unlimited" xml:space="preserve"><value>Ilimitado</value></data>
   <data name="Invite_Generate" xml:space="preserve"><value>Gerar e copiar</value></data>
   <data name="Invite_Failed" xml:space="preserve"><value>Não foi possível gerar o convite.</value></data>
-  <data name="Delete_Title" xml:space="preserve"><value>Apagar a sala?</value></data>
-  <data name="Delete_Body" xml:space="preserve"><value>"{0}" some do host e todo mundo sai. Não dá para desfazer.</value></data>
+  <data name="Delete_Title" xml:space="preserve"><value>Apagar "{0}"?</value></data>
+  <data name="Delete_Body" xml:space="preserve"><value>A sala some do host e quem estiver nela sai. Não dá para desfazer.</value></data>
   <data name="Delete_Confirm" xml:space="preserve"><value>Apagar</value></data>
   <data name="Room_ReconnectBar.Title" xml:space="preserve"><value>Conexão perdida</value></data>
   <data name="Room_ReconnectBar.Message" xml:space="preserve"><value>Reconectando à sala… sua transmissão e o que você assistia voltam sozinhos.</value></data>
@@ -409,4 +409,78 @@
   <data name="Update_SizeDelta" xml:space="preserve"><value>Download de {0} (só o que mudou).</value></data>
   <data name="Update_SizeFull" xml:space="preserve"><value>Download de {0}.</value></data>
   <data name="Update_Applying" xml:space="preserve"><value>Instalando e reiniciando…</value></data>
+  <data name="Badge_Live" xml:space="preserve"><value>AO VIVO</value></data>
+  <data name="Title_LiveBadge.Text" xml:space="preserve"><value>AO VIVO</value></data>
+  <data name="Side_Hosts.Text" xml:space="preserve"><value>HOSTS</value></data>
+  <data name="Side_AddHost.ToolTipService.ToolTip" xml:space="preserve"><value>Adicionar host</value></data>
+  <data name="Side_Profile.ToolTipService.ToolTip" xml:space="preserve"><value>Trocar o seu nome</value></data>
+  <data name="Side_NoHosts" xml:space="preserve"><value>Nenhum host ainda.</value></data>
+  <data name="Side_NoName" xml:space="preserve"><value>Sem nome</value></data>
+  <data name="Side_NameHint" xml:space="preserve"><value>Seu nome nas salas</value></data>
+  <data name="Side_HostUnfavorite" xml:space="preserve"><value>Tirar dos favoritos</value></data>
+  <data name="Nav_Settings" xml:space="preserve"><value>Configurações</value></data>
+  <data name="Settings_Title.Text" xml:space="preserve"><value>Configurações</value></data>
+  <data name="AddHost_Title" xml:space="preserve"><value>Adicionar host</value></data>
+  <data name="AddHost_Body" xml:space="preserve"><value>Digite o endereço do servidor de quem hospeda as salas.</value></data>
+  <data name="AddHost_Field" xml:space="preserve"><value>Endereço</value></data>
+  <data name="AddHost_Placeholder" xml:space="preserve"><value>beamcast.exemplo.com ou 192.168.1.20</value></data>
+  <data name="AddHost_Hint" xml:space="preserve"><value>Se o host pedir chave, você informa em seguida.</value></data>
+  <data name="AddHost_Confirm" xml:space="preserve"><value>Adicionar</value></data>
+  <data name="Name_Title" xml:space="preserve"><value>Seu nome</value></data>
+  <data name="Name_Body" xml:space="preserve"><value>É como você aparece para quem está na mesma sala.</value></data>
+  <data name="Name_Placeholder" xml:space="preserve"><value>Ex.: Luan</value></data>
+  <data name="Join_Title" xml:space="preserve"><value>Entrar com código</value></data>
+  <data name="Join_Body" xml:space="preserve"><value>Cole o código da sala ou o convite BC-… que te mandaram.</value></data>
+  <data name="Join_Hint" xml:space="preserve"><value>Se a sala tiver senha, ela é pedida no próximo passo.</value></data>
+  <data name="Create_PasswordPlaceholder" xml:space="preserve"><value>Deixe vazio para sala aberta</value></data>
+  <data name="Create_PasswordHint" xml:space="preserve"><value>Sem senha, entra quem tiver o código ou o convite.</value></data>
+  <data name="Create_More" xml:space="preserve"><value>Mais opções</value></data>
+  <data name="Create_MoreHint" xml:space="preserve"><value>Quem transmite, duração e limite de pessoas</value></data>
+  <data name="Kind_TemporaryShort" xml:space="preserve"><value>Temporária</value></data>
+  <data name="Lounge_JoinCodeText.Text" xml:space="preserve"><value>Entrar com código</value></data>
+  <data name="Lounge_CreateText.Text" xml:space="preserve"><value>Criar sala</value></data>
+  <data name="Lounge_Search.PlaceholderText" xml:space="preserve"><value>Procurar sala</value></data>
+  <data name="Lounge_FilterAll" xml:space="preserve"><value>Todas</value></data>
+  <data name="Lounge_FilterMine" xml:space="preserve"><value>Minhas</value></data>
+  <data name="Lounge_FilterFavorites" xml:space="preserve"><value>Favoritas</value></data>
+  <data name="Lounge_StateOnline" xml:space="preserve"><value>Online</value></data>
+  <data name="Lounge_StateOffline" xml:space="preserve"><value>Fora do ar</value></data>
+  <data name="Lounge_StateConnecting" xml:space="preserve"><value>Conectando…</value></data>
+  <data name="Lounge_StateNeedsKey" xml:space="preserve"><value>Pede chave</value></data>
+  <data name="Lounge_RoomEmpty" xml:space="preserve"><value>vazia</value></data>
+  <data name="Lounge_RoomOnline" xml:space="preserve"><value>{0} online</value></data>
+  <data name="Lounge_RoomUnlisted" xml:space="preserve"><value>fora da lista do host</value></data>
+  <data name="Lounge_EnterRoom" xml:space="preserve"><value>Entrar em {0}</value></data>
+  <data name="Welcome_Title" xml:space="preserve"><value>Para começar, adicione um host</value></data>
+  <data name="Welcome_Body" xml:space="preserve"><value>O host é o servidor de quem hospeda as salas. Peça o endereço para a pessoa ou use o seu.</value></data>
+  <data name="Welcome_Note" xml:space="preserve"><value>Recebeu um convite BC-…? Cole no campo acima: ele já traz o host e a sala.</value></data>
+  <data name="NeedsKey_Title" xml:space="preserve"><value>Este host pede uma chave</value></data>
+  <data name="NeedsKey_Body" xml:space="preserve"><value>Quem cuida do host define a chave. Ela fica salva só neste PC.</value></data>
+  <data name="NeedsKey_Note" xml:space="preserve"><value>Não tem a chave? Peça para quem te passou o endereço.</value></data>
+  <data name="NeedsKey_Wrong" xml:space="preserve"><value>A chave salva não foi aceita. Confira e tente de novo.</value></data>
+  <data name="Offline_Title" xml:space="preserve"><value>Não deu para falar com este host</value></data>
+  <data name="Offline_Body" xml:space="preserve"><value>Ele pode estar desligado ou o endereço mudou. Suas salas e favoritos continuam salvos e voltam quando ele responder.</value></data>
+  <data name="Action_Retry" xml:space="preserve"><value>Tentar de novo</value></data>
+  <data name="EmptyHost_Title" xml:space="preserve"><value>Nenhuma sala aqui ainda</value></data>
+  <data name="EmptyHost_Body" xml:space="preserve"><value>Crie a primeira e chame alguém com um convite.</value></data>
+  <data name="NoMatch_Title" xml:space="preserve"><value>Nenhuma sala encontrada</value></data>
+  <data name="NoMatch_Body" xml:space="preserve"><value>Nada bate com o filtro ou com a busca.</value></data>
+  <data name="NoMatch_Clear" xml:space="preserve"><value>Mostrar todas</value></data>
+  <data name="Room_CopyCode.ToolTipService.ToolTip" xml:space="preserve"><value>Copiar o código da sala</value></data>
+  <data name="Room_InviteText.Text" xml:space="preserve"><value>Convidar</value></data>
+  <data name="Room_LeaveText.Text" xml:space="preserve"><value>Sair</value></data>
+  <data name="Room_ShareMyScreenText.Text" xml:space="preserve"><value>Compartilhar minha tela</value></data>
+  <data name="Room_StopWatchingText.Text" xml:space="preserve"><value>Parar de assistir</value></data>
+  <data name="Room_You" xml:space="preserve"><value>{0} (você)</value></data>
+  <data name="Room_MemberLive" xml:space="preserve"><value>ao vivo</value></data>
+  <data name="Room_PeopleOne" xml:space="preserve"><value>{0} pessoa</value></data>
+  <data name="Room_PeopleMany" xml:space="preserve"><value>{0} pessoas</value></data>
+  <data name="Room_LiveCount" xml:space="preserve"><value>{0} ao vivo</value></data>
+  <data name="Room_WatchPickTitle" xml:space="preserve"><value>Escolha o que assistir</value></data>
+  <data name="Room_WatchEmptyTitle" xml:space="preserve"><value>Ninguém está transmitindo</value></data>
+  <data name="Room_WatchEmptyBody" xml:space="preserve"><value>Compartilhe a sua tela ou chame alguém com um convite.</value></data>
+  <data name="Stream_More.Text" xml:space="preserve"><value>Mais opções</value></data>
+  <data name="Stream_MoreHint.Text" xml:space="preserve"><value>Encoder, resolução, bitrate, cursor, pausar sem espectadores</value></data>
+  <data name="Action_GoLiveText.Text" xml:space="preserve"><value>Iniciar transmissão</value></data>
+  <data name="Side_ProfileName" xml:space="preserve"><value>Seu nome: {0}. Trocar</value></data>
 </root>

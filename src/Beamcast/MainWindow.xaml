@@ -5,124 +5,72 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Beamcast"
 >
-    <Grid x:Name="RootGrid" Background="Transparent">
+    <Grid x:Name="RootGrid" Background="{ThemeResource BeamBgBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="48">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="48" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Grid
-                Grid.Column="0"
-                Width="18"
-                Height="18"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-            >
-                <Ellipse Width="18" Height="18" Fill="{StaticResource BeamAccentSoftBrush}" />
-                <Ellipse
-                    Width="8"
-                    Height="8"
-                    Fill="{StaticResource BeamAccentBrush}"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                />
-            </Grid>
-            <StackPanel
-                Grid.Column="1"
-                Orientation="Horizontal"
-                Spacing="10"
-                Margin="8,0,0,0"
-                VerticalAlignment="Center"
-            >
-                <TextBlock Text="Beamcast" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                <Border
-                    CornerRadius="6"
-                    Padding="7,1"
-                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                >
-                    <TextBlock
-                        x:Uid="Title_StudyBadge"
-                        FontSize="10"
-                        FontWeight="SemiBold"
-                        Opacity="0.8"
-                    />
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="44">
+            <StackPanel Orientation="Horizontal" Spacing="10" Margin="16,0,0,0" VerticalAlignment="Center">
+                <Grid Width="18" Height="18" VerticalAlignment="Center">
+                    <Ellipse Width="18" Height="18" Fill="{ThemeResource BeamAccentSoftBrush}" />
+                    <Ellipse Width="8" Height="8" Fill="{ThemeResource BeamAccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Text="Beamcast" FontSize="13.5" FontWeight="SemiBold" Foreground="{ThemeResource BeamTextBrush}" VerticalAlignment="Center" />
+                <Border CornerRadius="6" Padding="7,0" Height="20" Background="{ThemeResource BeamSurface2Brush}" VerticalAlignment="Center">
+                    <TextBlock x:Uid="Title_StudyBadge" FontSize="10" FontWeight="SemiBold" CharacterSpacing="60" Foreground="{ThemeResource BeamText2Brush}" VerticalAlignment="Center" />
                 </Border>
-                <Border
-                    x:Name="TitleLiveBadge"
-                    Visibility="Collapsed"
-                    CornerRadius="6"
-                    Padding="7,1"
-                    Background="{StaticResource BeamLiveBrush}"
-                >
-                    <TextBlock
-                        Text="LIVE"
-                        FontSize="10"
-                        FontWeight="Bold"
-                        Foreground="White"
-                    />
+                <Border x:Name="TitleLiveBadge" Visibility="Collapsed" CornerRadius="6" Padding="7,0" Height="20" Background="{ThemeResource BeamLiveBrush}" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                        <Ellipse Width="6" Height="6" Fill="White" VerticalAlignment="Center" />
+                        <TextBlock x:Uid="Title_LiveBadge" FontSize="10" FontWeight="Bold" CharacterSpacing="40" Foreground="White" VerticalAlignment="Center" />
+                    </StackPanel>
                 </Border>
             </StackPanel>
         </Grid>
 
-        <InfoBar
-            x:Name="UpdateBar"
-            Grid.Row="1"
-            Margin="60,0,20,4"
-            IsOpen="False"
-            Severity="Informational"
-        >
+        <InfoBar x:Name="UpdateBar" Grid.Row="1" Margin="16,0,16,6" IsOpen="False" Severity="Informational">
             <InfoBar.ActionButton>
                 <Button x:Name="UpdateBarButton" Click="OnUpdateBarAction" />
             </InfoBar.ActionButton>
         </InfoBar>
 
-        <NavigationView
-            x:Name="NavView"
-            Grid.Row="2"
-            PaneDisplayMode="LeftCompact"
-            IsSettingsVisible="True"
-            IsBackButtonVisible="Collapsed"
-            IsPaneToggleButtonVisible="False"
-            IsTitleBarAutoPaddingEnabled="False"
-            OpenPaneLength="196"
-            CompactPaneLength="48"
-            Background="Transparent"
-            SelectionChanged="OnNavSelectionChanged"
-        >
-            <NavigationView.Resources>
-                <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
-                <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
-                <Thickness x:Key="NavigationViewContentGridBorderThickness">0</Thickness>
-            </NavigationView.Resources>
-            <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="LoungeNav" x:Uid="Nav_Lounge" Tag="lounge">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE716;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-            </NavigationView.MenuItems>
-            <NavigationView.FooterMenuItems>
-                <NavigationViewItem x:Name="AboutNav" x:Uid="Nav_About" Tag="about">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE789;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-            </NavigationView.FooterMenuItems>
-            <Frame x:Name="ContentFrame" />
-        </NavigationView>
+        <Grid x:Name="ShellGrid" Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-        <Grid
-            x:Name="FullscreenHost"
-            Grid.Row="0"
-            Grid.RowSpan="3"
-            Visibility="Collapsed"
-            Background="Black"
-        />
+            <!-- Side bar: the hosts, then What's new / Settings, then who you are. Shrinks to a rail inside a room. -->
+            <Border x:Name="SideBar" Grid.Column="0" Width="248" Background="{ThemeResource BeamSideBrush}" BorderBrush="{ThemeResource BeamStrokeBrush}" BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid x:Name="HostsHeader" Grid.Row="0" Margin="20,12,10,4">
+                        <TextBlock x:Uid="Side_Hosts" Style="{StaticResource SectionHeaderStyle}" Margin="0" VerticalAlignment="Center" />
+                        <Button x:Name="AddHostButton" x:Uid="Side_AddHost" Style="{StaticResource GhostButtonStyle}" HorizontalAlignment="Right" Click="OnAddHost">
+                            <FontIcon Glyph="&#xE710;" FontSize="14" />
+                        </Button>
+                    </Grid>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="HostsPanel" Spacing="4" Margin="8,4,8,8" />
+                    </ScrollViewer>
+                    <StackPanel x:Name="NavPanel" Grid.Row="2" Spacing="2" Margin="8,0,8,8" />
+                    <Border Grid.Row="3" BorderBrush="{ThemeResource BeamStrokeBrush}" BorderThickness="0,1,0,0" Margin="8,0,8,0" Padding="0,8,0,10">
+                        <Button x:Name="ProfileButton" x:Uid="Side_Profile" Background="Transparent" BorderThickness="0" Padding="8,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CornerRadius="10" Click="OnEditName" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <Frame x:Name="ContentFrame" Grid.Column="1" Navigated="OnFrameNavigated" />
+        </Grid>
+
+        <Grid x:Name="FullscreenHost" Grid.Row="0" Grid.RowSpan="3" Visibility="Collapsed" Background="Black" />
     </Grid>
 </Window>

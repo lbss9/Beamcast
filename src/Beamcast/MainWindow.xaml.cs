@@ -1,5 +1,7 @@
+using Beamcast.Net;
 using Beamcast.Pages;
 using Beamcast.Services;
+using Beamcast.Ui;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Dispatching;
@@ -25,6 +27,8 @@ public sealed partial class MainWindow : Window
     private bool _barRestarts;
     private DispatcherQueueTimer? _uiHeartbeat;
     private bool _disclaimerShown;
+    private string _page = "lounge";
+    private readonly Dictionary<string, HostState> _hostStates = new(StringComparer.OrdinalIgnoreCase);
 
     public MainWindow()
     {
@@ -38,7 +42,6 @@ public sealed partial class MainWindow : Window
             AppWindow.SetIcon(IconPath);
 
         AppWindow.Resize(new SizeInt32(1180, 820));
-        SystemBackdrop = MicaController.IsSupported() ? new MicaBackdrop() : new DesktopAcrylicBackdrop();
 
         LoungeService.Instance.Initialize(DispatcherQueue);
         BroadcastService.Instance.Initialize(DispatcherQueue);
@@ -61,10 +64,15 @@ public sealed partial class MainWindow : Window
 
         VisibilityChanged += (_, e) => Diag.Log($"ui: window {(e.Visible ? "visible" : "hidden/minimized")}");
         AppWindow.Closing += OnClosing;
-        NavView.Loaded += (_, _) =>
+        SelectedHost = SettingsStore.Load().RelayUrl;
+        RootGrid.ActualThemeChanged += (_, _) => RefreshSideBar();
+        RootGrid.Loaded += (_, _) =>
         {
-            NavView.SelectedItem = LoungeNav;
+            RefreshSideBar();
+            Beam.LabelButtons(SideBar);
+            NavigateTo("lounge");
             _ = ShowDisclaimerIfNeededAsync();
+            _ = ProbeHostsAsync();
         };
         StartUpdateTimer();
         StartUiHeartbeat();
@@ -93,8 +101,7 @@ public sealed partial class MainWindow : Window
         Diag.Log($"ui: language {language}");
         App.ApplyCulture(language);
         Loc.Reset();
-        LoungeNav.Content = Loc.Get("Nav_Lounge/Content");
-        AboutNav.Content = Loc.Get("Nav_About/Content");
+        RefreshSideBar();
         var current = ContentFrame.CurrentSourcePageType;
         if (current is not null)
         {
@@ -105,11 +112,17 @@ public sealed partial class MainWindow : Window
 
     public void NavigateTo(string tag)
     {
-        NavView.SelectedItem = tag switch
+        Diag.Log($"ui: nav -> {tag}");
+        _page = tag is "about" or "settings" ? tag : "lounge";
+        var page = _page switch
         {
-            "about" => AboutNav,
-            _ => LoungeNav,
+            "about" => typeof(AboutPage),
+            "settings" => typeof(SettingsPage),
+            _ => LoungePageType,
         };
+        if (ContentFrame.CurrentSourcePageType != page)
+            ContentFrame.Navigate(page);
+        RefreshSideBar();
     }
 
     /// <summary>
@@ -301,7 +314,7 @@ public sealed partial class MainWindow : Window
         _fullscreenContent = content;
         FullscreenHost.Children.Add(content);
         FullscreenHost.Visibility = Visibility.Visible;
-        NavView.Visibility = Visibility.Collapsed;
+        ShellGrid.Visibility = Visibility.Collapsed;
         AppTitleBar.Visibility = Visibility.Collapsed;
         UpdateBar.Visibility = Visibility.Collapsed;
         AppWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
@@ -316,7 +329,7 @@ public sealed partial class MainWindow : Window
         _fullscreenContent = null;
         FullscreenHost.Children.Remove(content);
         FullscreenHost.Visibility = Visibility.Collapsed;
-        NavView.Visibility = Visibility.Visible;
+        ShellGrid.Visibility = Visibility.Visible;
         AppTitleBar.Visibility = Visibility.Visible;
         UpdateBar.Visibility = Visibility.Visible;
         AppWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
@@ -333,23 +346,6 @@ public sealed partial class MainWindow : Window
             : Visibility.Collapsed;
     }
 
-    private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
-    {
-        Diag.Log($"ui: nav -> {(args.IsSettingsSelected ? "settings" : (args.SelectedItem as NavigationViewItem)?.Tag?.ToString() ?? "?")}");
-        Type page = LoungePageType;
-        if (args.IsSettingsSelected)
-            page = typeof(SettingsPage);
-        else if (args.SelectedItem is NavigationViewItem item && item.Tag is string tag)
-            page = tag switch
-            {
-                "about" => typeof(AboutPage),
-                _ => LoungePageType,
-            };
-
-        if (ContentFrame.CurrentSourcePageType != page)
-            ContentFrame.Navigate(page);
-    }
-
     /// <summary>Outside a lounge the tab shows the entry screen; inside, the room.</summary>
     private static Type LoungePageType =>
         LoungeService.Instance.InRoom ? typeof(RoomPage) : typeof(LoungePage);
@@ -364,6 +360,7 @@ public sealed partial class MainWindow : Window
             if (ContentFrame.CurrentSourcePageType != page)
                 ContentFrame.Navigate(page);
         }
+        RefreshSideBar();
         if (state == LoungeState.Disconnected && _fullscreenContent is not null)
             ExitFullscreen();
     }

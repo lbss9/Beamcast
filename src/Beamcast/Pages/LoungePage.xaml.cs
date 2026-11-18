@@ -1,24 +1,43 @@
 using Beamcast.Net;
 using Beamcast.Services;
+using Beamcast.Ui;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace Beamcast.Pages;
 
 /// <summary>
-/// Entry screen: the hosts this person uses, and for the selected host its public rooms, the
-/// rooms starred there, a code/invite box and a "create room" dialog.
+/// Entry screen: the rooms of the host picked in the side bar, in one grid (every room, the ones
+/// this person owns, the starred ones), plus "join with a code" and "create room". When there is
+/// nothing to list it says why and offers the way out: add a host, retry, type the key.
 /// </summary>
 public sealed partial class LoungePage : Page
 {
+    private enum View
+    {
+        NoHost,
+        Loading,
+        Rooms,
+        Offline,
+        NeedsKey,
+        Empty,
+        NoMatch,
+    }
+
+    /// <summary>A room as the grid shows it, merged from the host's list, owned rooms and favorites.</summary>
+    private sealed record RoomEntry(string Name, string Code, bool HasPassword, bool Temporary, int? Members, int? Streams, bool Owned, bool Favorite);
+
     private readonly LoungeService _lounge = LoungeService.Instance;
     private string _server = string.Empty;
     private HostInfo? _hostInfo;
+    private string? _hostError;
+    private bool _loadedOnce;
     private bool _busy;
-    private bool _askKeyForNewHost;
+    private View _view = View.NoHost;
+    private Action? _noticeAction;
     private CancellationTokenSource? _listCts;
 
     public LoungePage()
@@ -28,19 +47,24 @@ public sealed partial class LoungePage : Page
         Unloaded += OnUnloaded;
     }
 
+    private static string DisplayName => SettingsStore.Load().DisplayName;
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        var settings = SettingsStore.Load();
-        NameBox.Text = settings.DisplayName;
+        FilterTabs.SetItems([(Loc.Get("Lounge_FilterAll"), null), (Loc.Get("Lounge_FilterMine"), null), (Loc.Get("Lounge_FilterFavorites"), null)]);
+        SkeletonRepeater.ItemsSource = Enumerable.Range(0, 6).Select(BuildSkeleton).ToList();
         _lounge.Closed += OnClosed;
-        RefreshHosts();
-        if (settings.RelayUrl.Length > 0)
-            SelectHost(settings.RelayUrl);
+        if (App.Main is not null)
+            App.Main.HostSelected += SelectHost;
+        SelectHost(App.Main?.SelectedHost ?? string.Empty);
+        Beam.LabelButtons(this);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         _lounge.Closed -= OnClosed;
+        if (App.Main is not null)
+            App.Main.HostSelected -= SelectHost;
         _listCts?.Cancel();
     }
 
@@ -74,179 +98,80 @@ public sealed partial class LoungePage : Page
         _ => Loc.Format("Error_Generic", reason),
     };
 
-    // ----- hosts -----
+    // ----- notices -----
 
-    private void RefreshHosts()
-    {
-        var hosts = SettingsStore.Load().Hosts;
-        HostsList.Items.Clear();
-        foreach (var host in hosts)
-            HostsList.Items.Add(BuildHostRow(host));
-        HostsEmptyText.Visibility = hosts.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private UIElement BuildHostRow(SavedHost host)
-    {
-        var selected = string.Equals(host.Url, _server, StringComparison.OrdinalIgnoreCase);
-        var grid = new Grid
-        {
-            ColumnSpacing = 6,
-            Padding = new Thickness(8, 6, 4, 6),
-            CornerRadius = new CornerRadius(8),
-            Background = selected ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BeamAccentSoftBrush"] : null,
-        };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var text = new StackPanel { Spacing = 0, VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = host.Name, TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
-        var caption = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
-        caption.Children.Add(new TextBlock { Text = LoungeProtocol.DisplayHost(host.Url), Opacity = 0.65, TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
-        if (host.HasAppKey)
-        {
-            var keyIcon = new FontIcon { Glyph = "", FontSize = 10, Opacity = 0.65, VerticalAlignment = VerticalAlignment.Center };
-            ToolTipService.SetToolTip(keyIcon, Loc.Get("Lounge_HostHasKey"));
-            caption.Children.Add(keyIcon);
-        }
-        text.Children.Add(caption);
-        grid.Children.Add(text);
-
-        var star = new ToggleButton
-        {
-            IsChecked = host.Favorite,
-            Content = new FontIcon { Glyph = host.Favorite ? "" : "", FontSize = 13 },
-            Style = (Style)Application.Current.Resources["GhostToggleStyle"],
-        };
-        ToolTipService.SetToolTip(star, Loc.Get("Lounge_HostFavorite"));
-        star.Click += (_, _) =>
-        {
-            LoungeService.RememberHost(host.Url, favorite: star.IsChecked == true);
-            RefreshHosts();
-        };
-        // Clicks on the buttons must not reach the row's Tapped handler: selecting the host rebuilds
-        // the list, which would tear down the button (and any flyout anchored to it) mid-click.
-        star.Tapped += (_, e) => e.Handled = true;
-        Grid.SetColumn(star, 1);
-        grid.Children.Add(star);
-
-        var keyItem = new MenuFlyoutItem { Text = Loc.Get("Lounge_HostKeyMenu"), Icon = new FontIcon { Glyph = "\uE192" } };
-        keyItem.Click += async (_, _) => await EditHostKeyAsync(host.Url);
-        var removeItem = new MenuFlyoutItem { Text = Loc.Get("Lounge_HostRemove"), Icon = new FontIcon { Glyph = "\uE74D" } };
-        removeItem.Click += (_, _) =>
-        {
-            LoungeService.ForgetHost(host.Url);
-            if (selected)
-            {
-                _server = string.Empty;
-                HostPanel.Visibility = Visibility.Collapsed;
-                NoHostPanel.Visibility = Visibility.Visible;
-            }
-            RefreshHosts();
-        };
-        var menu = new MenuFlyout();
-        menu.Items.Add(keyItem);
-        menu.Items.Add(new MenuFlyoutSeparator());
-        menu.Items.Add(removeItem);
-
-        var more = new Button { Content = new FontIcon { Glyph = "\uE712", FontSize = 12 }, Style = (Style)Application.Current.Resources["GhostButtonStyle"] };
-        ToolTipService.SetToolTip(more, Loc.Get("Lounge_HostMore"));
-        more.Tapped += (_, e) => e.Handled = true;
-        more.Click += (_, _) => menu.ShowAt(more);
-        Grid.SetColumn(more, 2);
-        grid.Children.Add(more);
-
-        grid.ContextFlyout = menu;
-        grid.Tapped += (_, _) => SelectHost(host.Url);
-        return grid;
-    }
-
-    /// <summary>Lets the person type the key this host demands (BEAMCAST_APP_KEY on that server).</summary>
-    private async Task EditHostKeyAsync(string url)
-    {
-        var host = SettingsStore.Load().Hosts.FirstOrDefault(h => string.Equals(h.Url, url, StringComparison.OrdinalIgnoreCase));
-        var box = new PasswordBox
-        {
-            PasswordRevealMode = PasswordRevealMode.Peek,
-            MaxLength = 256,
-            Header = Loc.Get("Lounge_HostKeyField"),
-            Password = LoungeService.AppKeyFor(url),
-        };
-        var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(new TextBlock { Text = LoungeProtocol.DisplayHost(url), Opacity = 0.65, TextTrimming = TextTrimming.CharacterEllipsis });
-        panel.Children.Add(new TextBlock { Text = Loc.Get("Lounge_HostKeyHint"), TextWrapping = TextWrapping.Wrap, Style = (Style)Application.Current.Resources["HintTextStyle"] });
-        panel.Children.Add(box);
-        var dialog = new ContentDialog
-        {
-            Title = host?.Name is { Length: > 0 } name ? name : LoungeProtocol.DisplayHost(url),
-            Content = panel,
-            PrimaryButtonText = Loc.Get("Edit_Save"),
-            CloseButtonText = Loc.Get("Dialog_Cancel"),
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot,
-        };
-        box.Loaded += (_, _) => box.Focus(FocusState.Programmatic);
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-            return;
-        LoungeService.RememberHost(url, appKey: box.Password);
-        RefreshHosts();
-        if (string.Equals(url, _server, StringComparison.OrdinalIgnoreCase))
-            RefreshRooms();
-    }
-
-    private async void OnHostKey(object sender, RoutedEventArgs e)
-    {
-        if (_server.Length > 0)
-            await EditHostKeyAsync(_server);
-    }
-
-    /// <summary>Shows the failure text; when the host wants an app key, offers the shortcut to type it.</summary>
+    /// <summary>Shows the failure text; a retry button comes with it when trying again can help.</summary>
     private void ShowError(string? reason)
     {
-        var needsKey = reason == LoungeProtocol.ReasonBadKey;
-        ShowErrorText(reason is null ? string.Empty : needsKey ? Loc.Get("Lounge_HostNeedsKey") : DescribeReason(reason), needsKey);
-    }
-
-    private void ShowErrorText(string text, bool needsKey = false)
-    {
-        ErrorText.Text = text;
-        HostKeyButton.Visibility = needsKey && _server.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        // An empty TextBlock still reserves a line, so hide the whole block when there is nothing to say.
-        ErrorPanel.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private void OnAddHostChanged(object sender, TextChangedEventArgs e) =>
-        AddHostButton.IsEnabled = LoungeProtocol.TryNormalizeServer(AddHostBox.Text, out _);
-
-    private void OnAddHostKeyDown(object sender, KeyRoutedEventArgs e)
-    {
-        if (e.Key == Windows.System.VirtualKey.Enter && AddHostButton.IsEnabled)
-            OnAddHost(sender, e);
-    }
-
-    private void OnAddHost(object sender, RoutedEventArgs e)
-    {
-        if (!LoungeProtocol.TryNormalizeServer(AddHostBox.Text, out var url))
+        if (reason is null)
+        {
+            NoticeBar.IsOpen = false;
             return;
-        LoungeService.RememberHost(url);
-        AddHostBox.Text = string.Empty;
-        _askKeyForNewHost = true;
-        SelectHost(url);
+        }
+        if (reason == LoungeProtocol.ReasonBadKey)
+        {
+            NoticeBar.IsOpen = false;
+            RefreshRooms();
+            return;
+        }
+        ShowErrorText(DescribeReason(reason));
     }
+
+    private void ShowErrorText(string text) => ShowNotice(text, InfoBarSeverity.Error);
+
+    private void ShowNotice(string text, InfoBarSeverity severity, string? actionText = null, Action? action = null)
+    {
+        if (text.Length == 0)
+        {
+            NoticeBar.IsOpen = false;
+            return;
+        }
+        NoticeBar.Severity = severity;
+        NoticeBar.Message = text;
+        _noticeAction = action;
+        NoticeAction.Content = actionText;
+        NoticeAction.Visibility = action is null ? Visibility.Collapsed : Visibility.Visible;
+        NoticeBar.IsOpen = true;
+        if (severity == InfoBarSeverity.Success)
+            _ = CloseNoticeLaterAsync(text);
+    }
+
+    private async Task CloseNoticeLaterAsync(string text)
+    {
+        await Task.Delay(2500);
+        if (NoticeBar.Message == text)
+            NoticeBar.IsOpen = false;
+    }
+
+    private void OnNoticeAction(object sender, RoutedEventArgs e)
+    {
+        NoticeBar.IsOpen = false;
+        _noticeAction?.Invoke();
+    }
+
+    // ----- host -----
 
     private void SelectHost(string url)
     {
-        Diag.Log($"ui: host {LoungeProtocol.DisplayHost(url)} selected");
         _server = url;
-        NoHostPanel.Visibility = Visibility.Collapsed;
-        HostPanel.Visibility = Visibility.Visible;
-        HostTitleText.Text = SettingsStore.Load().Hosts.FirstOrDefault(h => string.Equals(h.Url, url, StringComparison.OrdinalIgnoreCase))?.Name ?? LoungeProtocol.DisplayHost(url);
-        HostStatusText.Text = LoungeProtocol.DisplayHost(url);
-        ShowError(null);
-        CodeBox.Text = string.Empty;
-        RefreshHosts();
+        _hostInfo = null;
+        _hostError = null;
+        _loadedOnce = false;
+        NoticeBar.IsOpen = false;
+        SearchBox.Text = string.Empty;
+        if (url.Length == 0)
+        {
+            _listCts?.Cancel();
+            Render();
+            return;
+        }
         RefreshRooms();
     }
+
+    private string HostName =>
+        _hostInfo?.Name is { Length: > 0 } live
+            ? live
+            : SettingsStore.Load().Hosts.FirstOrDefault(h => string.Equals(h.Url, _server, StringComparison.OrdinalIgnoreCase))?.Name ?? LoungeProtocol.DisplayHost(_server);
 
     private void OnRefreshHost(object sender, RoutedEventArgs e) => RefreshRooms();
 
@@ -254,166 +179,495 @@ public sealed partial class LoungePage : Page
     {
         if (_server.Length == 0)
             return;
+        var server = _server;
         _listCts?.Cancel();
         var cts = _listCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         HostProgress.IsActive = true;
+        if (!_loadedOnce)
+        {
+            App.Main?.SetHostState(server, HostState.Loading);
+            Render();
+        }
         try
         {
-            _hostInfo = await _lounge.ListRoomsAsync(_server, cts.Token);
-            if (cts.IsCancellationRequested)
+            var info = await _lounge.ListRoomsAsync(server, cts.Token);
+            if (cts.IsCancellationRequested || server != _server)
                 return;
-            HostTitleText.Text = _hostInfo.Name.Length > 0 ? _hostInfo.Name : LoungeProtocol.DisplayHost(_server);
-            HostStatusText.Text = Loc.Format("Lounge_HostStatus", LoungeProtocol.DisplayHost(_server), _hostInfo.Version, _hostInfo.MembersOnline);
-            LoungeService.RememberHost(_server, name: _hostInfo.Name);
-            RefreshHosts();
-            ShowError(null);
-            FillPublicRooms(_hostInfo.Rooms);
+            _hostInfo = info;
+            _hostError = null;
+            LoungeService.RememberHost(server, name: info.Name);
+            App.Main?.SetHostState(server, HostState.Online);
+            App.Main?.RefreshSideBar();
         }
         catch (LoungeException ex) when (!cts.IsCancellationRequested)
         {
+            if (server != _server)
+                return;
             _hostInfo = null;
-            HostStatusText.Text = LoungeProtocol.DisplayHost(_server);
-            ShowError(ex.Reason);
-            FillPublicRooms([]);
-            if (ex.Reason == LoungeProtocol.ReasonBadKey && _askKeyForNewHost)
-            {
-                _askKeyForNewHost = false;
-                await EditHostKeyAsync(_server);
-            }
+            _hostError = ex.Reason;
+            App.Main?.SetHostState(server, ex.Reason == LoungeProtocol.ReasonBadKey ? HostState.NeedsKey : HostState.Offline);
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
         finally
         {
             if (ReferenceEquals(_listCts, cts))
                 HostProgress.IsActive = false;
         }
-        FillOwned();
-        FillFavorites();
+        _loadedOnce = true;
+        Render();
     }
 
-    private void FillPublicRooms(List<RoomInfo> rooms)
-    {
-        PublicRoomsList.Items.Clear();
-        foreach (var room in rooms)
-            PublicRoomsList.Items.Add(BuildRoomRow(room.Name, room.Code, room.HasPassword, room.IsTemporary, room.Members, room.Streams));
-        PublicEmptyText.Visibility = rooms.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
+    // ----- what the page shows -----
 
-    /// <summary>Rooms this person created on the host: the only place private ones show up.</summary>
-    private void FillOwned()
+    /// <summary>Every room this person can reach on the host: listed ones, plus owned and starred ones the list lacks.</summary>
+    private List<RoomEntry> CollectRooms()
     {
-        var owned = SettingsStore.Load().OwnedRooms.Where(r => string.Equals(r.ServerUrl, _server, StringComparison.OrdinalIgnoreCase)).ToList();
-        OwnedRoomsList.Items.Clear();
-        foreach (var room in owned)
-        {
-            var live = _hostInfo?.Rooms.FirstOrDefault(r => r.Code == room.Code);
-            var saved = SettingsStore.Load().FavoriteRooms.FirstOrDefault(r => r.Code == room.Code && string.Equals(r.ServerUrl, _server, StringComparison.OrdinalIgnoreCase));
-            OwnedRoomsList.Items.Add(BuildRoomRow(room.Name, room.Code, live?.HasPassword ?? saved?.HasPassword ?? false, live?.IsTemporary ?? false, live?.Members, live?.Streams));
-        }
-        OwnedEmptyText.Visibility = owned.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private void FillFavorites()
-    {
-        var favorites = SettingsStore.Load().FavoriteRooms.Where(r => string.Equals(r.ServerUrl, _server, StringComparison.OrdinalIgnoreCase)).ToList();
-        FavoriteRoomsList.Items.Clear();
+        var settings = SettingsStore.Load();
+        bool Here(string url) => string.Equals(url, _server, StringComparison.OrdinalIgnoreCase);
+        var owned = settings.OwnedRooms.Where(r => Here(r.ServerUrl)).ToList();
+        var favorites = settings.FavoriteRooms.Where(r => Here(r.ServerUrl)).ToList();
+        var rooms = new Dictionary<string, RoomEntry>(StringComparer.Ordinal);
+        foreach (var room in _hostInfo?.Rooms ?? [])
+            rooms[room.Code] = new RoomEntry(room.Name, room.Code, room.HasPassword, room.IsTemporary, room.Members, room.Streams, false, false);
         foreach (var room in favorites)
-        {
-            var live = _hostInfo?.Rooms.FirstOrDefault(r => r.Code == room.Code);
-            FavoriteRoomsList.Items.Add(BuildRoomRow(room.Name, room.Code, live?.HasPassword ?? room.HasPassword, live?.IsTemporary ?? false, live?.Members, live?.Streams));
-        }
-        FavoritesEmptyText.Visibility = favorites.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            rooms.TryAdd(room.Code, new RoomEntry(room.Name, room.Code, room.HasPassword, false, null, null, false, true));
+        foreach (var room in owned)
+            rooms.TryAdd(room.Code, new RoomEntry(room.Name, room.Code, favorites.FirstOrDefault(f => f.Code == room.Code)?.HasPassword ?? false, false, null, null, true, false));
+        return rooms.Values
+            .Select(r => r with
+            {
+                Owned = LoungeService.OwnerTokenFor(_server, r.Code) is not null,
+                Favorite = favorites.Any(f => f.Code == r.Code),
+            })
+            .OrderByDescending(r => r.Streams ?? 0)
+            .ThenByDescending(r => r.Members ?? -1)
+            .ThenBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
     }
 
-    private UIElement BuildRoomRow(string name, string code, bool hasPassword, bool temporary, int? members, int? streams)
+    private void Render()
     {
-        var grid = new Grid { ColumnSpacing = 8, Padding = new Thickness(0, 4, 0, 4) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var owned = LoungeService.OwnerTokenFor(_server, code) is not null;
-        var text = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
-        var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        title.Children.Add(new TextBlock { Text = name.Length == 0 ? code : name, TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
-        if (owned)
+        var hasHost = _server.Length > 0;
+        HeaderPanel.Visibility = hasHost ? Visibility.Visible : Visibility.Collapsed;
+        if (!hasHost)
         {
-            var crown = new FontIcon { Glyph = "\uE735", FontSize = 11, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
-            ToolTipService.SetToolTip(crown, Loc.Get("Lounge_RoomOwned"));
-            title.Children.Add(crown);
+            ShowState(View.NoHost);
+            return;
         }
-        if (hasPassword)
-            title.Children.Add(new FontIcon { Glyph = "", FontSize = 12, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center });
-        if (temporary)
-            title.Children.Add(new TextBlock { Text = Loc.Get("Lounge_Temporary"), Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
-        text.Children.Add(title);
-        var detail = members is { } m
-            ? Loc.Format("Lounge_RoomMeta", m, streams ?? 0) + " · " + code
-            : code;
-        text.Children.Add(new TextBlock { Text = detail, Opacity = 0.65, TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
-        grid.Children.Add(text);
 
-        var favorite = LoungeService.IsFavorite(_server, code);
-        var star = new ToggleButton
+        HostTitleText.Text = HostName;
+        var address = LoungeProtocol.DisplayHost(_server);
+        var online = _hostInfo is not null;
+        JoinCodeButton.IsEnabled = !_busy;
+        CreateButton.IsEnabled = online && !_busy;
+
+        if (!_loadedOnce)
         {
-            IsChecked = favorite,
-            Content = new FontIcon { Glyph = favorite ? "" : "", FontSize = 13 },
-            Style = (Style)Application.Current.Resources["GhostToggleStyle"],
-            VerticalAlignment = VerticalAlignment.Center,
+            HostChip.Content = Beam.Chip(Loc.Get("Lounge_StateConnecting"), "Warn", "WarnSoft", dot: true);
+            HostStatusText.Text = address;
+            ShowState(View.Loading);
+            return;
+        }
+        if (_hostError == LoungeProtocol.ReasonBadKey)
+        {
+            HostChip.Content = Beam.Chip(Loc.Get("Lounge_StateNeedsKey"), "Warn", "WarnSoft", glyph: "\uE192");
+            HostStatusText.Text = address;
+            ShowState(View.NeedsKey);
+            return;
+        }
+        if (!online)
+        {
+            HostChip.Content = Beam.Chip(Loc.Get("Lounge_StateOffline"), "Text2", "Surface2", dot: true);
+            HostStatusText.Text = address;
+            ShowState(View.Offline);
+            return;
+        }
+
+        HostChip.Content = Beam.Chip(Loc.Get("Lounge_StateOnline"), "Ok", "OkSoft", dot: true);
+        HostStatusText.Text = Loc.Format("Lounge_HostStatus", address, _hostInfo!.Version, _hostInfo.MembersOnline);
+
+        var all = CollectRooms();
+        FilterTabs.SetCounts(all.Count, all.Count(r => r.Owned), all.Count(r => r.Favorite));
+        if (all.Count == 0)
+        {
+            ShowState(View.Empty);
+            return;
+        }
+        var query = SearchBox.Text.Trim();
+        var shown = all
+            .Where(r => FilterTabs.SelectedIndex switch { 1 => r.Owned, 2 => r.Favorite, _ => true })
+            .Where(r => query.Length == 0 || r.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase) || r.Code.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        RoomsRepeater.ItemsSource = shown.Select(BuildRoomTile).ToList();
+        ShowState(shown.Count == 0 ? View.NoMatch : View.Rooms);
+    }
+
+    private void ShowState(View view)
+    {
+        _view = view;
+        var lists = view is View.Rooms or View.NoMatch or View.Loading;
+        ToolsPanel.Visibility = lists ? Visibility.Visible : Visibility.Collapsed;
+        ToolsPanel.Opacity = view == View.Loading ? 0.5 : 1;
+        ToolsPanel.IsHitTestVisible = view != View.Loading;
+        RoomsScroll.Visibility = view == View.Rooms ? Visibility.Visible : Visibility.Collapsed;
+        SkeletonRepeater.Visibility = view == View.Loading ? Visibility.Visible : Visibility.Collapsed;
+        StatePanel.Visibility = view is View.Rooms or View.Loading ? Visibility.Collapsed : Visibility.Visible;
+        if (StatePanel.Visibility == Visibility.Collapsed)
+            return;
+
+        StateFieldRow.Visibility = Visibility.Collapsed;
+        StateTextBox.Visibility = Visibility.Collapsed;
+        StatePasswordBox.Visibility = Visibility.Collapsed;
+        StateActions.Visibility = Visibility.Collapsed;
+        StateSecondary.Visibility = Visibility.Collapsed;
+        StateNote.Text = string.Empty;
+        StateNote.Visibility = Visibility.Collapsed;
+
+        void Lead(string glyph, string tone, string soft, string title, string body)
+        {
+            StateRing.Background = Beam.Brush(soft);
+            StateIcon.Glyph = glyph;
+            StateIcon.Foreground = Beam.Brush(tone);
+            StateTitle.Text = Loc.Get(title);
+            StateBody.Text = Loc.Get(body);
+        }
+        void Note(string key)
+        {
+            StateNote.Text = Loc.Get(key);
+            StateNote.Visibility = Visibility.Visible;
+        }
+        void Actions(string primary, string? secondary = null)
+        {
+            StateActions.Visibility = Visibility.Visible;
+            StatePrimary.Content = Loc.Get(primary);
+            if (secondary is not null)
+            {
+                StateSecondary.Content = Loc.Get(secondary);
+                StateSecondary.Visibility = Visibility.Visible;
+            }
+        }
+
+        switch (view)
+        {
+            case View.NoHost:
+                Lead("\uE968", "Accent", "AccentSoft", "Welcome_Title", "Welcome_Body");
+                StateFieldRow.Visibility = Visibility.Visible;
+                StateTextBox.Visibility = Visibility.Visible;
+                StateTextBox.PlaceholderText = Loc.Get("AddHost_Placeholder");
+                StateFieldButton.Content = Loc.Get("AddHost_Confirm");
+                OnStateTextChanged(this, null!);
+                Note("Welcome_Note");
+                break;
+            case View.NeedsKey:
+                Lead("\uE192", "Warn", "WarnSoft", "NeedsKey_Title", "NeedsKey_Body");
+                StateFieldRow.Visibility = Visibility.Visible;
+                StatePasswordBox.Visibility = Visibility.Visible;
+                StatePasswordBox.PlaceholderText = Loc.Get("Lounge_HostKeyField");
+                StatePasswordBox.Password = string.Empty;
+                StateFieldButton.Content = Loc.Get("Edit_Save");
+                StateFieldButton.IsEnabled = false;
+                Note(LoungeService.AppKeyFor(_server).Length > 0 ? "NeedsKey_Wrong" : "NeedsKey_Note");
+                break;
+            case View.Offline:
+                Lead("\uEB5E", "Text2", "Surface2", "Offline_Title", "Offline_Body");
+                Actions("Action_Retry");
+                if (_hostError is { } reason && reason is not ("unreachable" or "timeout"))
+                {
+                    StateNote.Text = DescribeReason(reason);
+                    StateNote.Visibility = Visibility.Visible;
+                }
+                break;
+            case View.Empty:
+                Lead("\uEC15", "Accent", "AccentSoft", "EmptyHost_Title", "EmptyHost_Body");
+                Actions("Lounge_CreateButton/Content", "Lounge_JoinCodeText/Text");
+                break;
+            case View.NoMatch:
+                Lead("\uE721", "Text2", "Surface2", "NoMatch_Title", "NoMatch_Body");
+                Actions("NoMatch_Clear");
+                break;
+        }
+    }
+
+    private void OnFilterChanged(object? sender, EventArgs e)
+    {
+        if (_loadedOnce)
+            Render();
+    }
+
+    private void OnSearchChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (_loadedOnce && _hostInfo is not null)
+            Render();
+    }
+
+    private void OnStatePrimary(object sender, RoutedEventArgs e)
+    {
+        switch (_view)
+        {
+            case View.Offline:
+                _loadedOnce = false;
+                RefreshRooms();
+                break;
+            case View.Empty:
+                OnCreate(sender, e);
+                break;
+            case View.NoMatch:
+                SearchBox.Text = string.Empty;
+                FilterTabs.SelectedIndex = 0;
+                Render();
+                break;
+        }
+    }
+
+    private void OnStateSecondary(object sender, RoutedEventArgs e)
+    {
+        if (_view == View.Empty)
+            OnJoinCode(sender, e);
+    }
+
+    private void OnStateTextChanged(object sender, TextChangedEventArgs e) =>
+        StateFieldButton.IsEnabled = LoungeProtocol.TryNormalizeServer(StateTextBox.Text, out _) || LoungeInvite.TryDecode(StateTextBox.Text, string.Empty, out _);
+
+    private void OnStatePasswordChanged(object sender, RoutedEventArgs e) =>
+        StateFieldButton.IsEnabled = StatePasswordBox.Password.Length > 0;
+
+    private void OnStateFieldKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter && StateFieldButton.IsEnabled)
+            OnStateFieldAction(sender, e);
+    }
+
+    /// <summary>The field of the state panel: a host address (or an invite) on first use, the host key when asked.</summary>
+    private async void OnStateFieldAction(object sender, RoutedEventArgs e)
+    {
+        if (_view == View.NeedsKey)
+        {
+            LoungeService.RememberHost(_server, appKey: StatePasswordBox.Password);
+            _loadedOnce = false;
+            RefreshRooms();
+            return;
+        }
+        if (_view != View.NoHost)
+            return;
+        var text = StateTextBox.Text;
+        // An invite carries its host: save it and go straight into the room.
+        if (LoungeInvite.TryDecode(text, string.Empty, out var invite))
+        {
+            StateTextBox.Text = string.Empty;
+            LoungeService.RememberHost(invite.ServerUrl);
+            App.Main?.SelectHost(invite.ServerUrl);
+            await JoinRoomAsync(invite, hasPassword: null, roomName: string.Empty);
+            return;
+        }
+        if (!LoungeProtocol.TryNormalizeServer(text, out var url))
+            return;
+        StateTextBox.Text = string.Empty;
+        LoungeService.RememberHost(url);
+        App.Main?.SelectHost(url);
+    }
+
+    // ----- room tiles -----
+
+    private static Border BuildSkeleton(int index)
+    {
+        var grid = new Grid();
+        void Bar(double x, double y, double width, double height, string brush, double radius = 5) =>
+            grid.Children.Add(new Border
+            {
+                Width = width,
+                Height = height,
+                CornerRadius = new CornerRadius(radius),
+                Background = Beam.Brush(brush),
+                Margin = new Thickness(x, y, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            });
+        Bar(0, 0, 40, 40, "Surface3", 11);
+        Bar(52, 3, 130, 14, "Surface3");
+        Bar(52, 26, 70, 10, "Surface2");
+        Bar(0, 78, 96, 12, "Surface2");
+        return new Border
+        {
+            Height = 128,
+            Padding = new Thickness(16),
+            CornerRadius = new CornerRadius(14),
+            Background = Beam.Brush("Surface"),
+            BorderBrush = Beam.Brush("Stroke"),
+            BorderThickness = new Thickness(1),
+            Opacity = Math.Max(0.3, 1 - index * 0.13),
+            Child = grid,
         };
-        ToolTipService.SetToolTip(star, Loc.Get(favorite ? "Lounge_Unfavorite" : "Lounge_Favorite"));
+    }
+
+    private void RefreshLists() => Render();
+
+    private Border BuildRoomTile(RoomEntry room)
+    {
+        var title = room.Name.Length == 0 ? room.Code : room.Name;
+        var target = new LoungeTarget(_server, room.Code);
+
+        var top = new Grid { ColumnSpacing = 12 };
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        top.Children.Add(Beam.Avatar(title, 40, square: true));
+
+        var text = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(Beam.Text(title, 15, strong: true));
+        var meta = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        meta.Children.Add(Beam.Text(room.Code, 12, "Text3", mono: true));
+        if (room.HasPassword)
+        {
+            var lockIcon = Beam.Icon("\uE72E", 11, "Text3");
+            ToolTipService.SetToolTip(lockIcon, Loc.Get("Lounge_Locked"));
+            meta.Children.Add(lockIcon);
+        }
+        if (room.Owned)
+        {
+            var crown = Beam.Icon("\uE735", 11, "Warn");
+            ToolTipService.SetToolTip(crown, Loc.Get("Lounge_RoomOwned"));
+            meta.Children.Add(crown);
+        }
+        if (room.Temporary)
+            meta.Children.Add(Beam.Chip(Loc.Get("Lounge_Temporary"), strong: false));
+        text.Children.Add(meta);
+        Grid.SetColumn(text, 1);
+        top.Children.Add(text);
+
+        var star = new Button
+        {
+            Style = Beam.Style("GhostButtonStyle"),
+            Width = 30,
+            Height = 30,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, -4, -6, 0),
+            Content = new FontIcon { Glyph = room.Favorite ? "\uE735" : "\uE734", FontSize = 14, Foreground = Beam.Brush(room.Favorite ? "Warn" : "Text3") },
+        };
+        var starLabel = Loc.Get(room.Favorite ? "Lounge_Unfavorite" : "Lounge_Favorite");
+        ToolTipService.SetToolTip(star, starLabel);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(star, starLabel);
         star.Click += (_, _) =>
         {
-            LoungeService.SetFavorite(_server, code, name, hasPassword, star.IsChecked == true);
-            FillPublicRooms(_hostInfo?.Rooms ?? []);
-            FillOwned();
-            FillFavorites();
+            LoungeService.SetFavorite(_server, room.Code, room.Name, room.HasPassword, !room.Favorite);
+            RefreshLists();
         };
-        Grid.SetColumn(star, 1);
-        grid.Children.Add(star);
+        star.Tapped += (_, e) => e.Handled = true;
+        Grid.SetColumn(star, 2);
+        top.Children.Add(star);
 
-        var enter = new Button { Content = Loc.Get("Lounge_Enter"), Style = (Style)Application.Current.Resources["AccentButtonStyle"], VerticalAlignment = VerticalAlignment.Center, IsEnabled = !_busy };
-        enter.Click += async (_, _) => await JoinRoomAsync(new LoungeTarget(_server, code), hasPassword, name);
-        Grid.SetColumn(enter, 2);
-        grid.Children.Add(enter);
+        var status = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, VerticalAlignment = VerticalAlignment.Center };
+        if (room.Streams > 0)
+            status.Children.Add(Beam.LiveChip());
+        if (room.Members is { } members)
+        {
+            var people = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            people.Children.Add(Beam.Icon("\uE716", 13));
+            people.Children.Add(Beam.Text(members == 0 ? Loc.Get("Lounge_RoomEmpty") : Loc.Format("Lounge_RoomOnline", members), 12.5, "Text2"));
+            status.Children.Add(people);
+        }
+        else
+        {
+            status.Children.Add(Beam.Text(Loc.Get("Lounge_RoomUnlisted"), 12.5, "Text3"));
+        }
 
+        var menu = BuildRoomMenu(room, target);
+        var enter = new Button { Content = Loc.Get("Lounge_Enter"), Style = Beam.Style("BeamPrimaryButtonStyle"), Height = 30, MinWidth = 76, Padding = new Thickness(12, 0, 12, 0), FontSize = 13, Visibility = Visibility.Collapsed, IsEnabled = !_busy };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(enter, Loc.Format("Lounge_EnterRoom", title));
+        enter.Click += async (_, _) => await JoinRoomAsync(target, room.HasPassword, room.Name);
+        enter.Tapped += (_, e) => e.Handled = true;
+        var more = new Button { Style = Beam.Style("GhostButtonStyle"), Width = 30, Height = 30, Content = new FontIcon { Glyph = "\uE712", FontSize = 13 }, IsEnabled = !_busy };
+        ToolTipService.SetToolTip(more, Loc.Get("Lounge_RoomMore"));
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(more, Loc.Get("Lounge_RoomMore"));
+        more.Click += (_, _) => menu.ShowAt(more);
+        more.Tapped += (_, e) => e.Handled = true;
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, -6, 0) };
+        actions.Children.Add(enter);
+        actions.Children.Add(more);
+
+        var bottom = new Grid();
+        bottom.Children.Add(status);
+        bottom.Children.Add(actions);
+
+        var layout = new Grid();
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
+        layout.Children.Add(top);
+        var line = new Border { Height = 1, Background = Beam.Brush("Stroke"), VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 9), Opacity = 0.7 };
+        Grid.SetRow(line, 1);
+        layout.Children.Add(line);
+        Grid.SetRow(bottom, 2);
+        layout.Children.Add(bottom);
+
+        var tile = new Border
+        {
+            Height = 128,
+            Padding = new Thickness(16, 16, 16, 9),
+            CornerRadius = new CornerRadius(14),
+            Background = Beam.Brush("Surface"),
+            BorderBrush = Beam.Brush("Stroke"),
+            BorderThickness = new Thickness(1),
+            Child = layout,
+            ContextFlyout = menu,
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(tile, title);
+        // The whole tile is the way in; the button only shows up to say so while the mouse is over it.
+        tile.PointerEntered += (_, _) =>
+        {
+            tile.Background = Beam.Brush("Surface2");
+            tile.BorderBrush = Beam.Brush("AccentLine");
+            enter.Visibility = Visibility.Visible;
+        };
+        tile.PointerExited += (_, _) =>
+        {
+            tile.Background = Beam.Brush("Surface");
+            tile.BorderBrush = Beam.Brush("Stroke");
+            enter.Visibility = Visibility.Collapsed;
+        };
+        tile.Tapped += async (_, _) =>
+        {
+            if (!_busy)
+                await JoinRoomAsync(target, room.HasPassword, room.Name);
+        };
+        return tile;
+    }
+
+    private MenuFlyout BuildRoomMenu(RoomEntry room, LoungeTarget target)
+    {
         var menu = new MenuFlyout();
+        var enterItem = new MenuFlyoutItem { Text = Loc.Get("Lounge_Enter"), Icon = new FontIcon { Glyph = "\uE8AD" } };
+        enterItem.Click += async (_, _) => await JoinRoomAsync(target, room.HasPassword, room.Name);
+        menu.Items.Add(enterItem);
         var copyItem = new MenuFlyoutItem { Text = Loc.Get("Lounge_RoomCopyInvite"), Icon = new FontIcon { Glyph = "\uE8C8" } };
         copyItem.Click += (_, _) =>
         {
             var package = new DataPackage();
-            package.SetText(LoungeInvite.Encode(new LoungeTarget(_server, code)));
+            package.SetText(LoungeInvite.Encode(target));
             Clipboard.SetContent(package);
-            ShowErrorText(Loc.Get("Lounge_InviteCopied"));
+            ShowNotice(Loc.Get("Lounge_InviteCopied"), InfoBarSeverity.Success);
         };
         menu.Items.Add(copyItem);
-        var favoriteItem = new MenuFlyoutItem { Text = Loc.Get(favorite ? "Lounge_Unfavorite" : "Lounge_Favorite"), Icon = new FontIcon { Glyph = favorite ? "\uE8D9" : "\uE734" } };
+        var favoriteItem = new MenuFlyoutItem { Text = Loc.Get(room.Favorite ? "Lounge_Unfavorite" : "Lounge_Favorite"), Icon = new FontIcon { Glyph = room.Favorite ? "\uE8D9" : "\uE734" } };
         favoriteItem.Click += (_, _) =>
         {
-            LoungeService.SetFavorite(_server, code, name, hasPassword, !favorite);
-            FillPublicRooms(_hostInfo?.Rooms ?? []);
-            FillOwned();
-            FillFavorites();
+            LoungeService.SetFavorite(_server, room.Code, room.Name, room.HasPassword, !room.Favorite);
+            RefreshLists();
         };
         menu.Items.Add(favoriteItem);
-        if (owned)
+        if (room.Owned)
         {
             var editItem = new MenuFlyoutItem { Text = Loc.Get("Room_MenuEdit"), Icon = new FontIcon { Glyph = "\uE70F" } };
-            editItem.Click += async (_, _) => await EditRoomAsync(code, name, hasPassword);
-            var deleteItem = new MenuFlyoutItem { Text = Loc.Get("Room_MenuDelete"), Icon = new FontIcon { Glyph = "\uE74D" } };
-            deleteItem.Click += async (_, _) => await DeleteRoomAsync(code, name, hasPassword);
+            editItem.Click += async (_, _) => await EditRoomAsync(room.Code, room.Name, room.HasPassword);
+            var deleteItem = new MenuFlyoutItem { Text = Loc.Get("Room_MenuDelete"), Icon = new FontIcon { Glyph = "\uE74D" }, Foreground = Beam.Brush("Danger") };
+            deleteItem.Click += async (_, _) => await DeleteRoomAsync(room.Code, room.Name, room.HasPassword);
             menu.Items.Add(new MenuFlyoutSeparator());
             menu.Items.Add(editItem);
             menu.Items.Add(deleteItem);
         }
-        var more = new Button { Content = new FontIcon { Glyph = "\uE712", FontSize = 12 }, Style = (Style)Application.Current.Resources["GhostButtonStyle"], VerticalAlignment = VerticalAlignment.Center, IsEnabled = !_busy };
-        ToolTipService.SetToolTip(more, Loc.Get("Lounge_RoomMore"));
-        more.Click += (_, _) => menu.ShowAt(more);
-        Grid.SetColumn(more, 3);
-        grid.Children.Add(more);
-        grid.ContextFlyout = menu;
-        return grid;
+        return menu;
     }
 
     // ----- managing rooms we own, without entering them -----
@@ -427,7 +681,7 @@ public sealed partial class LoungePage : Page
         var password = LoungeService.RememberedPassword(_server, code);
         if (password.Length == 0 && hasPassword)
         {
-            var asked = await AskPasswordAsync(roomName);
+            var asked = await RoomDialogs.PasswordAsync(XamlRoot, roomName);
             if (asked is null)
                 return null;
             password = asked.Value.Password;
@@ -440,7 +694,7 @@ public sealed partial class LoungePage : Page
             }
             catch (LoungeException ex) when (ex.Reason is LoungeException.PasswordRequired or LoungeProtocol.ReasonBadPassword)
             {
-                var asked = await AskPasswordAsync(roomName, wrong: ex.Reason == LoungeProtocol.ReasonBadPassword);
+                var asked = await RoomDialogs.PasswordAsync(XamlRoot, roomName, wrong: ex.Reason == LoungeProtocol.ReasonBadPassword);
                 if (asked is null)
                     return null;
                 password = asked.Value.Password;
@@ -530,17 +784,18 @@ public sealed partial class LoungePage : Page
 
     // ----- joining -----
 
-    private void OnJoinInputChanged(object sender, TextChangedEventArgs e) =>
-        JoinButton.IsEnabled = !_busy && LoungeInvite.TryDecode(CodeBox.Text, _server, out _);
-
-    private async void OnJoin(object sender, RoutedEventArgs e)
+    private async void OnJoinCode(object sender, RoutedEventArgs e)
     {
-        if (!LoungeInvite.TryDecode(CodeBox.Text, _server, out var target))
+        Diag.Log("ui: join with code clicked");
+        var text = await RoomDialogs.JoinCodeAsync(XamlRoot, _server);
+        if (text is null)
+            return;
+        if (!LoungeInvite.TryDecode(text, _server, out var target))
         {
             ShowErrorText(Loc.Get("Lounge_BadCode"));
             return;
         }
-        await JoinRoomAsync(target, hasPassword: null, roomName: string.Empty, JoinPasswordBox.Password);
+        await JoinRoomAsync(target, hasPassword: null, roomName: string.Empty);
     }
 
     private async Task JoinRoomAsync(LoungeTarget target, bool? hasPassword, string roomName, string typedPassword = "")
@@ -552,7 +807,7 @@ public sealed partial class LoungePage : Page
             password = LoungeService.RememberedPassword(target.ServerUrl, target.Code);
         if (password.Length == 0 && hasPassword == true && target.InviteToken is null)
         {
-            var asked = await AskPasswordAsync(roomName);
+            var asked = await RoomDialogs.PasswordAsync(XamlRoot, roomName);
             if (asked is null)
                 return;
             (password, remember) = asked.Value;
@@ -567,7 +822,7 @@ public sealed partial class LoungePage : Page
                 InviteToken = target.InviteToken,
                 InviteKey = target.ContentKey,
             };
-            var outcome = await RunAsync(ct => _lounge.JoinAsync(target.ServerUrl, options, NameBox.Text, ct));
+            var outcome = await RunAsync(ct => _lounge.JoinAsync(target.ServerUrl, options, DisplayName, ct));
             if (outcome is null)
             {
                 if (remember && password.Length > 0)
@@ -576,7 +831,7 @@ public sealed partial class LoungePage : Page
             }
             if (outcome is LoungeException.PasswordRequired or LoungeProtocol.ReasonBadPassword)
             {
-                var asked = await AskPasswordAsync(roomName, wrong: outcome == LoungeProtocol.ReasonBadPassword);
+                var asked = await RoomDialogs.PasswordAsync(XamlRoot, roomName, wrong: outcome == LoungeProtocol.ReasonBadPassword);
                 if (asked is null)
                     return;
                 (password, remember) = asked.Value;
@@ -584,30 +839,6 @@ public sealed partial class LoungePage : Page
             }
             return;
         }
-    }
-
-    private async Task<(string Password, bool Remember)?> AskPasswordAsync(string roomName, bool wrong = false)
-    {
-        var box = new PasswordBox { PasswordRevealMode = PasswordRevealMode.Peek, MaxLength = 128 };
-        var remember = new CheckBox { Content = Loc.Get("Lounge_RememberPassword") };
-        var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(new TextBlock { Text = wrong ? Loc.Get("Lounge_WrongPassword") : Loc.Get("Lounge_PasswordHint"), TextWrapping = TextWrapping.Wrap });
-        panel.Children.Add(box);
-        panel.Children.Add(remember);
-        var dialog = new ContentDialog
-        {
-            Title = roomName.Length > 0 ? roomName : Loc.Get("Lounge_PasswordTitle"),
-            Content = panel,
-            PrimaryButtonText = Loc.Get("Dialog_Ok"),
-            CloseButtonText = Loc.Get("Dialog_Cancel"),
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot,
-        };
-        box.Loaded += (_, _) => box.Focus(FocusState.Programmatic);
-        var result = await dialog.ShowAsync();
-        if (result != ContentDialogResult.Primary || box.Password.Length == 0)
-            return null;
-        return (box.Password, remember.IsChecked == true);
     }
 
     // ----- creating -----
@@ -618,19 +849,15 @@ public sealed partial class LoungePage : Page
         var options = await RoomDialogs.CreateAsync(XamlRoot);
         if (options is null)
             return;
-        await RunAsync(ct => _lounge.CreateAsync(_server, options, NameBox.Text, ct));
+        await RunAsync(ct => _lounge.CreateAsync(_server, options, DisplayName, ct));
     }
 
     /// <summary>Runs a connect attempt; returns null on success or the failure reason.</summary>
     private async Task<string?> RunAsync(Func<CancellationToken, Task> action)
     {
         ShowError(null);
-        var name = NameBox.Text.Trim();
-        if (name.Length > 0)
-            SettingsStore.Update(s => s.DisplayName = name);
-
         _busy = true;
-        JoinButton.IsEnabled = false;
+        JoinCodeButton.IsEnabled = false;
         CreateButton.IsEnabled = false;
         HostProgress.IsActive = true;
         try
@@ -653,8 +880,8 @@ public sealed partial class LoungePage : Page
         {
             HostProgress.IsActive = false;
             _busy = false;
-            CreateButton.IsEnabled = true;
-            OnJoinInputChanged(this, null!);
+            JoinCodeButton.IsEnabled = true;
+            CreateButton.IsEnabled = _hostInfo is not null;
         }
     }
 }

@@ -6,6 +6,7 @@ using Beamcast.Codec.Gpu;
 using Beamcast.Controls;
 using Beamcast.Net;
 using Beamcast.Services;
+using Beamcast.Ui;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -35,6 +36,7 @@ public sealed partial class RoomPage : Page
     private bool _applyingProfile;
     private CancellationTokenSource? _calibrateCts;
     private RoomDialogs.RoomForm? _settingsForm;
+    private bool _favorite;
 
     public RoomPage()
     {
@@ -50,6 +52,7 @@ public sealed partial class RoomPage : Page
     {
         _loading = true;
         var settings = SettingsStore.Load();
+        Tabs.SetItems(Loc.Get("Room_WatchTab/Header"), Loc.Get("Room_BroadcastTab/Header"), Loc.Get("Room_SettingsTab/Header"));
 
         EncoderBox.Items.Clear();
         EncoderBox.Items.Add(Loc.Get("Encoder_Auto"));
@@ -129,6 +132,8 @@ public sealed partial class RoomPage : Page
         OnBroadcastStats(_broadcast.LastStats);
         UpdateAudioHint();
         Tabs.SelectedIndex = _watch.IsWatching || _broadcast.State != BroadcastState.Live ? 0 : 1;
+        ApplyTab();
+        Beam.LabelButtons(this);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -185,61 +190,122 @@ public sealed partial class RoomPage : Page
         foreach (var member in members)
             MembersList.Items.Add(BuildMemberRow(member));
         MembersCountText.Text = members.Count.ToString();
+        UpdateRoomLine();
     }
 
     private UIElement BuildMemberRow(LoungeMember member)
     {
-        var grid = new Grid { ColumnSpacing = 8, Padding = new Thickness(0, 3, 0, 3) };
+        var grid = new Grid { ColumnSpacing = 10, Padding = new Thickness(8, 6, 4, 6) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.Children.Add(new FontIcon { Glyph = member.IsOwner ? "\uE735" : "\uE77B", FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 });
-        var name = new TextBlock { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-        name.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = member.Name });
+        grid.Children.Add(Beam.Avatar(member.Name, 30, accent: member.IsMe));
+
+        var name = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        name.Children.Add(Beam.Text(member.IsMe ? Loc.Format("Room_You", member.Name) : member.Name, 13.5));
         if (member.IsOwner)
-            name.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "  " + Loc.Get("Room_OwnerBadge"), FontSize = 11 });
+        {
+            var crown = Beam.Icon("\uE735", 11, "Warn");
+            ToolTipService.SetToolTip(crown, Loc.Get("Room_OwnerBadge"));
+            name.Children.Add(crown);
+        }
         Grid.SetColumn(name, 1);
         grid.Children.Add(name);
-        if (_lounge.IsOwner && !member.IsMe)
+
+        if (_lounge.Streams.Any(s => s.OwnerId == member.Id))
         {
-            var kick = new Button { Content = new FontIcon { Glyph = "\uE8BB", FontSize = 11 }, Style = (Style)Application.Current.Resources["GhostButtonStyle"] };
+            var live = Beam.Chip(Loc.Get("Room_MemberLive"), "Text2", "Surface2", strong: false);
+            ((StackPanel)live.Child).Children.Insert(0, new Microsoft.UI.Xaml.Shapes.Ellipse { Width = 6, Height = 6, Fill = Beam.Brush("Live"), VerticalAlignment = VerticalAlignment.Center });
+            Grid.SetColumn(live, 2);
+            grid.Children.Add(live);
+        }
+        else if (_lounge.IsOwner && !member.IsMe)
+        {
+            var kick = new Button { Content = new FontIcon { Glyph = "\uE8BB", FontSize = 11 }, Style = Beam.Style("GhostButtonStyle"), Width = 28, Height = 28 };
             ToolTipService.SetToolTip(kick, Loc.Get("Room_Kick"));
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(kick, Loc.Get("Room_Kick"));
             var id = member.Id;
             kick.Click += (_, _) => _lounge.Kick(id);
             Grid.SetColumn(kick, 2);
             grid.Children.Add(kick);
+        }
+        if (_lounge.IsOwner && !member.IsMe)
+        {
+            var menu = new MenuFlyout();
+            var kickItem = new MenuFlyoutItem { Text = Loc.Get("Room_Kick"), Icon = new FontIcon { Glyph = "\uE8BB" } };
+            var kickId = member.Id;
+            kickItem.Click += (_, _) => _lounge.Kick(kickId);
+            menu.Items.Add(kickItem);
+            grid.ContextFlyout = menu;
+            grid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
         }
         return grid;
     }
 
     private void ApplyRoomInfo(RoomInfo room)
     {
-        LoungeNameText.Text = room.Name;
+        var title = room.Name.Length > 0 ? room.Name : room.Code;
+        LoungeNameText.Text = title;
         CodeText.Text = room.Code;
-        var badges = new List<string> { LoungeProtocol.DisplayHost(_lounge.ServerUrl) };
-        if (room.IsTemporary)
-            badges.Add(Loc.Get("Room_TemporaryBadge"));
+        RoomAvatar.Content = Beam.Avatar(title, 40, square: true);
+
+        RoomBadges.Children.Clear();
+        if (_lounge.IsOwner)
+            RoomBadges.Children.Add(Beam.Chip(Loc.Get("Room_OwnerBadge"), "Warn", "WarnSoft", glyph: "\uE735"));
         if (room.HasPassword)
-            badges.Add(Loc.Get("Lounge_Locked"));
+        {
+            var locked = Beam.Chip(null, glyph: "\uE72E");
+            ToolTipService.SetToolTip(locked, Loc.Get("Lounge_Locked"));
+            RoomBadges.Children.Add(locked);
+        }
+        if (room.IsTemporary)
+            RoomBadges.Children.Add(Beam.Chip(Loc.Get("Room_TemporaryBadge"), strong: false));
         if (room.Broadcast == BroadcastPolicy.Owner)
-            badges.Add(Loc.Get("Broadcast_Owner"));
-        LoungeInfoText.Text = string.Join(" · ", badges);
+            RoomBadges.Children.Add(Beam.Chip(Loc.Get("Broadcast_Owner"), strong: false));
+
+        UpdateRoomLine();
         RebuildSettingsTab(room);
         var canBroadcast = _lounge.CanBroadcast;
         BroadcastBlockedText.Visibility = canBroadcast ? Visibility.Collapsed : Visibility.Visible;
         GoLiveButton.IsEnabled = canBroadcast && _broadcast.State == BroadcastState.Preview;
+        UpdateWatchHint();
         OnMembersChanged();
     }
 
+    /// <summary>The line under the room name: which host, how many people, how many live.</summary>
+    private void UpdateRoomLine()
+    {
+        var parts = new List<string>
+        {
+            LoungeProtocol.DisplayHost(_lounge.ServerUrl),
+            Loc.Format(_lounge.Members.Count == 1 ? "Room_PeopleOne" : "Room_PeopleMany", _lounge.Members.Count),
+        };
+        if (_lounge.Streams.Count > 0)
+            parts.Add(Loc.Format("Room_LiveCount", _lounge.Streams.Count));
+        LoungeInfoText.Text = string.Join("  ·  ", parts);
+    }
+
+    /// <summary>What the empty stage says: pick one of the live streams, or nobody is live yet.</summary>
+    private void UpdateWatchHint()
+    {
+        var others = _lounge.Streams.Count(s => !s.IsMine);
+        WatchHintTitle.Text = Loc.Get(others > 0 ? "Room_WatchPickTitle" : "Room_WatchEmptyTitle");
+        WatchHintBody.Text = Loc.Get(others > 0 ? "Room_WatchHint/Text" : "Room_WatchEmptyBody");
+        WatchHintShare.Visibility = _lounge.CanBroadcast && _broadcast.State != BroadcastState.Live ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnShareMyScreen(object sender, RoutedEventArgs e) => Tabs.SelectedIndex = 1;
+
     private void ApplyFavorite(bool favorite)
     {
-        FavoriteButton.IsChecked = favorite;
+        _favorite = favorite;
         FavoriteIcon.Glyph = favorite ? "\uE735" : "\uE734";
+        FavoriteIcon.Foreground = Beam.Brush(favorite ? "Warn" : "Text2");
     }
 
     private void OnFavoriteToggled(object sender, RoutedEventArgs e)
     {
-        var favorite = FavoriteButton.IsChecked == true;
+        var favorite = !_favorite;
         LoungeService.SetFavorite(_lounge.ServerUrl, _lounge.Code, _lounge.Name, _lounge.Room.HasPassword, favorite);
         ApplyFavorite(favorite);
     }
@@ -289,7 +355,7 @@ public sealed partial class RoomPage : Page
             room.MaxMembers > 0 ? Loc.Format("Room_SummaryMaxMembers", room.MaxMembers) : Loc.Get("Room_SummaryNoLimit"),
         ];
         foreach (var line in lines)
-            SettingsSummary.Children.Add(new TextBlock { Text = "\u2022  " + line, TextWrapping = TextWrapping.Wrap });
+            SettingsSummary.Children.Add(new TextBlock { Text = "\u2022  " + line, TextWrapping = TextWrapping.Wrap, Foreground = Beam.Brush("Text") });
     }
 
     private async void OnSaveRoom(object sender, RoutedEventArgs e)
@@ -365,53 +431,82 @@ public sealed partial class RoomPage : Page
         foreach (var stream in streams)
             StreamsList.Items.Add(BuildStreamCard(stream));
         StreamsEmptyText.Visibility = streams.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        StreamsCountText.Text = streams.Count == 0 ? string.Empty : streams.Count.ToString();
         UpdateTileTitles();
+        UpdateWatchHint();
+        OnMembersChanged();
     }
 
     private UIElement BuildStreamCard(LoungeStream stream)
     {
         var watching = _watch.IsWatchingStream(stream.Id);
         var paused = stream.Meta.State == StreamStates.Paused;
-        var grid = new Grid { ColumnSpacing = 8, Padding = new Thickness(0, 4, 0, 4) };
+        var grid = new Grid { ColumnSpacing = 10, Padding = new Thickness(8, 8, 6, 8), CornerRadius = new CornerRadius(10) };
+        if (watching)
+            grid.Background = Beam.Brush("AccentSoft");
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(Beam.Avatar(stream.OwnerName, 34, square: true));
 
         var text = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = stream.Meta.Title, TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
-        var detail = $"{stream.OwnerName} · {stream.Meta.Codec.ToUpperInvariant()} {stream.Meta.Width}×{stream.Meta.Height}";
+        text.Children.Add(Beam.Text(stream.Meta.Title, 13, strong: true));
+        var detail = $"{stream.OwnerName} · {stream.Meta.Width}×{stream.Meta.Height}";
         if (stream.Meta.Audio is not null)
             detail += " · ♪";
         if (paused)
             detail += " · " + Loc.Get("Room_Paused");
-        text.Children.Add(new TextBlock { Text = detail, Opacity = 0.65, TextTrimming = TextTrimming.CharacterEllipsis, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
+        var caption = Beam.Text(detail, 11.5, "Text2");
+        ToolTipService.SetToolTip(caption, $"{stream.Meta.Codec.ToUpperInvariant()} {stream.Meta.Width}×{stream.Meta.Height}");
+        text.Children.Add(caption);
+        Grid.SetColumn(text, 1);
         grid.Children.Add(text);
 
-        Button button;
+        FrameworkElement action;
         if (stream.IsMine)
         {
-            button = new Button { Content = Loc.Get("Room_Mine"), IsEnabled = false };
+            action = Beam.Chip(Loc.Get("Room_Mine"), "Accent", "AccentSoft");
         }
         else if (watching)
         {
-            button = new Button { Content = Loc.Get("Room_StopWatching/Content") };
+            var stop = new Button { Content = new FontIcon { Glyph = "\uE71A", FontSize = 12 }, Style = Beam.Style("GhostButtonStyle"), Width = 30, Height = 30 };
+            ToolTipService.SetToolTip(stop, Loc.Get("Room_StopWatching/Content"));
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(stop, Loc.Get("Room_StopWatching/Content"));
             var stopId = stream.Id;
-            button.Click += (_, _) => { Diag.Log($"ui: stop watching #{stopId} clicked"); _watch.StopWatching(stopId); };
+            stop.Click += (_, _) => { Diag.Log($"ui: stop watching #{stopId} clicked"); _watch.StopWatching(stopId); };
+            action = stop;
         }
         else
         {
-            button = new Button { Content = Loc.Get("Room_Watch"), Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
+            var watch = new Button { Content = Loc.Get("Room_Watch"), Style = Beam.Style("BeamPrimaryButtonStyle"), Height = 30, Padding = new Thickness(12, 0, 12, 0), FontSize = 13 };
             var id = stream.Id;
-            button.Click += (_, _) =>
+            watch.Click += (_, _) =>
             {
                 Diag.Log($"ui: watch #{id} clicked");
                 _watch.Watch(id);
                 Tabs.SelectedIndex = 0;
             };
+            action = watch;
         }
-        button.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(button, 1);
-        grid.Children.Add(button);
+        action.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(action, 2);
+        grid.Children.Add(action);
         return grid;
+    }
+
+    private void OnCopyCode(object sender, RoutedEventArgs e)
+    {
+        var package = new DataPackage();
+        package.SetText(_lounge.Code);
+        Clipboard.SetContent(package);
+        CodeIcon.Glyph = "\uE73E";
+        _ = ResetCodeIconAsync();
+    }
+
+    private async Task ResetCodeIconAsync()
+    {
+        await Task.Delay(1500);
+        CodeIcon.Glyph = "\uE8C8";
     }
 
     private void OnCopyInvite(object sender, RoutedEventArgs e)
@@ -419,14 +514,14 @@ public sealed partial class RoomPage : Page
         var package = new DataPackage();
         package.SetText(_lounge.InviteCode);
         Clipboard.SetContent(package);
-        CopyInviteButton.Content = Loc.Get("Invite_Copied");
+        CopyInviteText.Text = Loc.Get("Invite_Copied");
         _ = ResetCopyLabelAsync();
     }
 
     private async Task ResetCopyLabelAsync()
     {
         await Task.Delay(1500);
-        CopyInviteButton.Content = Loc.Get("Room_CopyInvite/Content");
+        CopyInviteText.Text = Loc.Get("Room_InviteText/Text");
     }
 
     private async void OnLeave(object sender, RoutedEventArgs e)
@@ -439,16 +534,28 @@ public sealed partial class RoomPage : Page
         await _lounge.LeaveAsync();
     }
 
-    private void OnTabChanged(object sender, SelectionChangedEventArgs e)
+    private void OnTabChanged(object? sender, EventArgs e)
     {
         if (_loading)
             return;
         Diag.Log($"ui: room tab {Tabs.SelectedIndex}");
-        // The SwapChainPanels live in different tabs; re-attach whichever became visible.
-        if (Tabs.SelectedIndex == 0)
+        ApplyTab();
+    }
+
+    /// <summary>Shows the panel of the chosen tab and re-attaches its video surface.</summary>
+    private void ApplyTab()
+    {
+        var tab = Tabs.SelectedIndex;
+        WatchPanel.Visibility = tab == 0 ? Visibility.Visible : Visibility.Collapsed;
+        BroadcastPanel.Visibility = tab == 1 ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPanel.Visibility = tab == 2 ? Visibility.Visible : Visibility.Collapsed;
+        // The SwapChainPanels live in different panels; re-attach whichever became visible.
+        if (tab == 0)
             BindTiles();
-        else if (Tabs.SelectedIndex == 1)
+        else if (tab == 1)
             Preview.Bind(_broadcast.Preview);
+        // A panel that was collapsed had no visual tree yet, so its buttons are named when it shows.
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Beam.LabelButtons(this));
     }
 
     // ----- watching -----
@@ -1073,6 +1180,7 @@ public sealed partial class RoomPage : Page
         }
         OnBroadcastStats(_broadcast.LastStats);
         UpdateAudioHint();
+        UpdateWatchHint();
     }
 
     private void OnPreviewStarted()

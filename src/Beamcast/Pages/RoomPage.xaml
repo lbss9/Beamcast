@@ -18,7 +18,7 @@
                     Width="30"
                     Height="30"
                     CornerRadius="8"
-                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    Background="{ThemeResource BeamSurface2Brush}"
                     VerticalAlignment="Center"
                 >
                     <FontIcon
@@ -51,298 +51,334 @@
         </DataTemplate>
     </Page.Resources>
 
-    <Grid Padding="12,0,20,12" RowSpacing="8">
+    <Grid Padding="24,14,24,20" RowSpacing="14">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Spacing="8">
-            <InfoBar x:Name="ReconnectBar" x:Uid="Room_ReconnectBar" IsOpen="False" IsClosable="False" Severity="Warning" />
-            <Grid ColumnSpacing="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Spacing="0" VerticalAlignment="Center">
-                    <TextBlock x:Name="LoungeNameText" Style="{ThemeResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock x:Name="LoungeInfoText" Style="{StaticResource HintTextStyle}" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-                <Border
-                    Grid.Column="1"
-                    CornerRadius="8"
-                    Padding="10,4"
-                    VerticalAlignment="Center"
-                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                >
-                    <TextBlock
-                        x:Name="CodeText"
-                        FontFamily="Cascadia Mono, Consolas, Courier New"
-                        FontSize="16"
-                        FontWeight="SemiBold"
-                        VerticalAlignment="Center"
-                    />
-                </Border>
-                <ToggleButton x:Name="FavoriteButton" x:Uid="Room_Favorite" Grid.Column="2" VerticalAlignment="Center" Click="OnFavoriteToggled">
-                    <FontIcon x:Name="FavoriteIcon" Glyph="&#xE734;" FontSize="14" />
-                </ToggleButton>
-                <Button x:Name="CopyInviteButton" x:Uid="Room_CopyInvite" Grid.Column="4" VerticalAlignment="Center" Click="OnCopyInvite" />
-                <Button x:Uid="Room_Leave" Grid.Column="5" VerticalAlignment="Center" Click="OnLeave" />
-            </Grid>
-        </StackPanel>
-
-        <Grid Grid.Row="1" ColumnSpacing="14">
+        <!-- the room: what it is, its code, invite, leave -->
+        <Grid Grid.Row="0" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ContentPresenter x:Name="RoomAvatar" Grid.Column="0" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock x:Name="LoungeNameText" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource BeamTextBrush}" TextTrimming="CharacterEllipsis" MaxWidth="360" VerticalAlignment="Center" />
+                    <StackPanel x:Name="RoomBadges" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock x:Name="LoungeInfoText" FontSize="12.5" Foreground="{ThemeResource BeamText2Brush}" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button x:Name="CodeButton" x:Uid="Room_CopyCode" Style="{StaticResource BeamButtonStyle}" Padding="12,0" Click="OnCopyCode">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock x:Name="CodeText" FontFamily="{StaticResource BeamMonoFont}" FontSize="14" CharacterSpacing="40" VerticalAlignment="Center" />
+                        <FontIcon x:Name="CodeIcon" Glyph="&#xE8C8;" FontSize="12" Foreground="{ThemeResource BeamText3Brush}" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="CopyInviteButton" Style="{StaticResource BeamPrimaryButtonStyle}" Click="OnCopyInvite">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE71B;" FontSize="14" />
+                        <TextBlock x:Name="CopyInviteText" x:Uid="Room_InviteText" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="FavoriteButton" x:Uid="Room_Favorite" Style="{StaticResource GhostButtonStyle}" Click="OnFavoriteToggled">
+                    <FontIcon x:Name="FavoriteIcon" Glyph="&#xE734;" FontSize="15" />
+                </Button>
+                <Button Style="{StaticResource BeamButtonStyle}" Click="OnLeave">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xF3B1;" FontSize="14" />
+                        <TextBlock x:Uid="Room_LeaveText" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <InfoBar x:Name="ReconnectBar" x:Uid="Room_ReconnectBar" Grid.Row="1" IsOpen="False" IsClosable="False" Severity="Warning" />
+
+        <ctrl:Segmented x:Name="Tabs" Grid.Row="2" SelectionChanged="OnTabChanged" />
+
+        <Grid Grid.Row="3" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="272" />
             </Grid.ColumnDefinitions>
 
-            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
-                <StackPanel Spacing="10">
-                    <Border Style="{StaticResource CardStyle}" Padding="12,10">
-                        <StackPanel Spacing="6">
-                            <TextBlock x:Uid="Room_StreamsHeading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                            <TextBlock x:Name="StreamsEmptyText" x:Uid="Room_StreamsEmpty" Style="{StaticResource HintTextStyle}" />
+            <!-- ===== watch ===== -->
+            <Border x:Name="WatchPanel" Grid.Column="0" CornerRadius="14" BorderThickness="1" BorderBrush="{ThemeResource BeamStrokeBrush}" Background="{ThemeResource BeamStageBrush}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid x:Name="VideoHost" Grid.Row="0">
+                        <StackPanel x:Name="WatchHint" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
+                            <Border Width="72" Height="72" CornerRadius="36" Background="{ThemeResource BeamAccentSoftBrush}" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xEC15;" FontSize="28" Foreground="{ThemeResource BeamAccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock x:Name="WatchHintTitle" FontSize="20" FontWeight="Bold" Foreground="White" TextAlignment="Center" TextWrapping="Wrap" Margin="0,22,0,0" />
+                            <TextBlock x:Name="WatchHintBody" FontSize="14" Foreground="#A7AEBB" TextAlignment="Center" TextWrapping="Wrap" Margin="0,10,0,0" />
+                            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="0,22,0,0" RequestedTheme="Dark">
+                                <Button x:Name="WatchHintShare" Style="{StaticResource BeamPrimaryButtonStyle}" Click="OnShareMyScreen">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xEC15;" FontSize="14" />
+                                        <TextBlock x:Uid="Room_ShareMyScreenText" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="WatchHintInvite" Style="{StaticResource BeamButtonStyle}" Click="OnCopyInvite">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE71B;" FontSize="14" />
+                                        <TextBlock x:Uid="Room_InviteText" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                    <Border Grid.Row="1" CornerRadius="0,0,13,13" Padding="16,10" Background="{ThemeResource BeamSurfaceBrush}" BorderBrush="{ThemeResource BeamStrokeBrush}" BorderThickness="0,1,0,0">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                <TextBlock x:Name="WatchTitleText" FontSize="13.5" FontWeight="SemiBold" Foreground="{ThemeResource BeamTextBrush}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="WatchStatsText" FontSize="11.5" Foreground="{ThemeResource BeamText2Brush}" FontFamily="{StaticResource BeamMonoFont}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <ToggleButton x:Name="MuteButton" x:Uid="Room_Mute" Grid.Column="1" Style="{StaticResource GhostToggleStyle}" Click="OnMuteToggled">
+                                <FontIcon Glyph="&#xE767;" FontSize="15" />
+                            </ToggleButton>
+                            <Slider x:Name="VolumeSlider" Grid.Column="2" Width="110" Minimum="0" Maximum="100" VerticalAlignment="Center" ValueChanged="OnVolumeChanged" />
+                            <Button x:Name="StopWatchButton" Grid.Column="3" Style="{StaticResource BeamButtonStyle}" IsEnabled="False" Click="OnStopWatching">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE71A;" FontSize="13" />
+                                    <TextBlock x:Uid="Room_StopWatchingText" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- ===== broadcast: 1 pick what to share, 2 say how it shows up ===== -->
+            <Grid x:Name="BroadcastPanel" Grid.Column="0" ColumnSpacing="16" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="280" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="8,12,8,8">
+                    <Grid RowSpacing="6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" Margin="8,0,2,0">
+                            <TextBlock x:Uid="Sources_Heading" FontSize="13.5" FontWeight="SemiBold" Foreground="{ThemeResource BeamTextBrush}" VerticalAlignment="Center" />
+                            <Button x:Uid="Sources_Refresh" Style="{StaticResource GhostButtonStyle}" Width="30" Height="30" HorizontalAlignment="Right" Click="OnRefreshSources">
+                                <FontIcon Glyph="&#xE72C;" FontSize="13" />
+                            </Button>
+                        </Grid>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Spacing="4">
+                                <TextBlock x:Uid="Sources_Monitors" Style="{StaticResource SectionHeaderStyle}" Margin="8,6,0,2" />
+                                <ListView x:Name="MonitorsList" SelectionMode="Single" ItemTemplate="{StaticResource SourceTemplate}" SelectionChanged="OnMonitorSelected" />
+                                <TextBlock x:Uid="Sources_Windows" Style="{StaticResource SectionHeaderStyle}" Margin="8,12,0,2" />
+                                <ListView x:Name="WindowsList" SelectionMode="Single" ItemTemplate="{StaticResource SourceTemplate}" SelectionChanged="OnWindowSelected" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+
+                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="16">
+                        <Border CornerRadius="14" BorderThickness="1" BorderBrush="{ThemeResource BeamStrokeBrush}" Background="{ThemeResource BeamStageBrush}">
+                            <Grid Height="270">
+                                <ctrl:GpuVideoView x:Name="Preview" />
+                                <StackPanel x:Name="PreviewHint" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+                                    <FontIcon Glyph="&#xE7F4;" FontSize="30" Foreground="#6F7786" HorizontalAlignment="Center" />
+                                    <TextBlock x:Uid="Preview_Hint" Foreground="#A7AEBB" FontSize="13.5" HorizontalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="14" HorizontalAlignment="Left" VerticalAlignment="Top">
+                                    <Border x:Name="LiveBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,0" Height="22" Background="{ThemeResource BeamLiveBrush}">
+                                        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                            <Ellipse Width="6" Height="6" Fill="White" VerticalAlignment="Center" />
+                                            <TextBlock x:Uid="Title_LiveBadge" FontSize="10.5" FontWeight="Bold" CharacterSpacing="40" Foreground="White" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border x:Name="PausedBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,0" Height="22" Background="#CC333B48">
+                                        <TextBlock x:Uid="Preview_Paused" FontSize="10.5" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="StandbyBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,0" Height="22" Background="#CC6B5B00">
+                                        <TextBlock x:Uid="Preview_Standby" FontSize="10.5" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border x:Name="ViewersBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,0" Height="22" Background="#8C000000">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <FontIcon Glyph="&#xE7B3;" FontSize="11" Foreground="White" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="ViewersText" FontSize="11" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                                <Border x:Name="StatsBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,3" Margin="14" Background="#8C000000" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                    <TextBlock x:Name="StatsText" Foreground="White" FontSize="11" FontFamily="{StaticResource BeamMonoFont}" />
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource CardStyle}" Padding="16,14,16,16">
+                            <StackPanel Spacing="12">
+                                <TextBlock x:Uid="Stream_Heading" FontSize="13.5" FontWeight="SemiBold" Foreground="{ThemeResource BeamTextBrush}" />
+                                <TextBox x:Name="TitleBox" x:Uid="Stream_Title" MaxLength="48" />
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="ProfileBox" x:Uid="Quality_Profile" Grid.Column="0" HorizontalAlignment="Stretch" SelectionChanged="OnProfileChanged" />
+                                    <ComboBox x:Name="AudioBox" x:Uid="Audio_Mode" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="OnAudioChanged" />
+                                </Grid>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button x:Name="CalibrateButton" x:Uid="Quality_Calibrate" Click="OnCalibrate" />
+                                    <ProgressRing x:Name="CalibrateSpinner" Width="16" Height="16" IsActive="False" Foreground="{ThemeResource BeamAccentBrush}" />
+                                    <TextBlock x:Name="ProfileStatus" VerticalAlignment="Center" Style="{StaticResource HintTextStyle}" MaxWidth="320" />
+                                </StackPanel>
+                                <TextBlock x:Name="AudioHintText" Style="{StaticResource FaintTextStyle}" />
+
+                                <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="14,12,14,14">
+                                    <Expander.Header>
+                                        <StackPanel Margin="0,6">
+                                            <TextBlock x:Uid="Stream_More" FontSize="13" FontWeight="SemiBold" />
+                                            <TextBlock x:Uid="Stream_MoreHint" Style="{StaticResource FaintTextStyle}" FontSize="11.5" />
+                                        </StackPanel>
+                                    </Expander.Header>
+                                    <StackPanel Spacing="10">
+                                        <ComboBox x:Name="EncoderBox" x:Uid="Quality_Encoder" HorizontalAlignment="Stretch" SelectionChanged="OnEncoderChanged" />
+                                        <Grid ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox x:Name="PresetBox" x:Uid="Quality_Preset" Grid.Column="0" HorizontalAlignment="Stretch" SelectionChanged="OnQualityChanged" />
+                                            <ComboBox x:Name="FpsBox" x:Uid="Quality_Fps" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="OnQualityChanged" />
+                                        </Grid>
+                                        <NumberBox x:Name="BitrateBox" x:Uid="Quality_Bitrate" Minimum="300" Maximum="150000" SmallChange="250" LargeChange="1000" SpinButtonPlacementMode="Compact" ValueChanged="OnBitrateChanged" />
+                                        <ToggleSwitch x:Name="CursorSwitch" x:Uid="Quality_Cursor" Toggled="OnCursorToggled" />
+                                        <ToggleSwitch x:Name="AdaptiveSwitch" x:Uid="Quality_Adaptive" Toggled="OnAdaptiveToggled" />
+                                        <TextBlock x:Uid="Quality_AdaptiveHint" Style="{StaticResource FaintTextStyle}" />
+                                        <ToggleSwitch x:Name="ViewerSoundsSwitch" x:Uid="Stream_ViewerSounds" Toggled="OnViewerSoundsToggled" />
+                                        <ToggleSwitch x:Name="StandbySwitch" x:Uid="Stream_Standby" Toggled="OnStandbyToggled" />
+                                        <TextBlock x:Uid="Stream_StandbyHint" Style="{StaticResource FaintTextStyle}" />
+                                    </StackPanel>
+                                </Expander>
+
+                                <Button x:Name="GoLiveButton" Style="{StaticResource BeamPrimaryButtonStyle}" Height="40" HorizontalAlignment="Stretch" Click="OnGoLive">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xEC15;" FontSize="15" />
+                                        <TextBlock x:Uid="Action_GoLiveText" />
+                                    </StackPanel>
+                                </Button>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Button x:Name="PauseButton" x:Uid="Action_Pause" Style="{StaticResource BeamButtonStyle}" Visibility="Collapsed" Click="OnPause" />
+                                    <Button x:Name="StopButton" x:Uid="Action_Stop" Style="{StaticResource BeamDangerButtonStyle}" Visibility="Collapsed" Click="OnStop" />
+                                </StackPanel>
+                                <TextBlock x:Name="ErrorText" Foreground="{ThemeResource BeamDangerBrush}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="BroadcastBlockedText" x:Uid="Room_OnlyOwnerBroadcasts" Visibility="Collapsed" Style="{StaticResource HintTextStyle}" />
+                                <TextBlock x:Name="ViewerNoteText" Style="{StaticResource FaintTextStyle}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <!-- ===== the room's own settings ===== -->
+            <ScrollViewer x:Name="SettingsPanel" Grid.Column="0" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                <StackPanel Spacing="16">
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel Spacing="12">
+                            <TextBlock x:Uid="Room_SettingsRoomCard" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock x:Name="SettingsOwnerOnlyText" x:Uid="Room_SettingsOwnerOnly" Style="{StaticResource HintTextStyle}" Visibility="Collapsed" />
+                            <StackPanel x:Name="SettingsSummary" Spacing="6" Visibility="Collapsed" />
+                            <ContentPresenter x:Name="SettingsFormHost" MaxWidth="460" HorizontalAlignment="Left" />
+                            <StackPanel x:Name="SettingsActions" Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+                                <Button x:Name="SaveRoomButton" x:Uid="Room_SettingsSave" Style="{StaticResource BeamPrimaryButtonStyle}" Click="OnSaveRoom" />
+                                <TextBlock x:Name="SettingsStatusText" VerticalAlignment="Center" Style="{StaticResource FaintTextStyle}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="InvitesCard" Style="{StaticResource CardStyle}">
+                        <StackPanel Spacing="10">
+                            <TextBlock x:Uid="Room_SettingsInvitesCard" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock x:Uid="Room_SettingsInvitesHint" Style="{StaticResource HintTextStyle}" FontSize="13" />
+                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0">
+                                <Button Style="{StaticResource BeamButtonStyle}" Click="OnCreateInvite">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE71B;" FontSize="14" />
+                                        <TextBlock x:Uid="Room_SettingsInviteButtonText" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource BeamButtonStyle}" Background="Transparent" BorderThickness="0" Click="OnRevokeInvites">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE711;" FontSize="13" />
+                                        <TextBlock x:Uid="Room_SettingsRevokeButtonText" />
+                                    </StackPanel>
+                                </Button>
+                                <TextBlock x:Name="InviteStatusText" VerticalAlignment="Center" Style="{StaticResource FaintTextStyle}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="DangerCard" Style="{StaticResource DangerCardStyle}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="4" VerticalAlignment="Center">
+                                <TextBlock x:Uid="Room_SettingsDangerCard" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock x:Uid="Room_SettingsDangerHint" Style="{StaticResource HintTextStyle}" FontSize="13" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource BeamDangerButtonStyle}" VerticalAlignment="Center" Click="OnDeleteRoom">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                    <TextBlock x:Uid="Room_SettingsDeleteButtonText" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ===== always there: who is live, who is here ===== -->
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="16">
+                    <Border Style="{StaticResource CardStyle}" Padding="8,12,8,8">
+                        <StackPanel Spacing="4">
+                            <Grid Margin="8,0,8,4">
+                                <TextBlock x:Uid="Room_StreamsHeading" FontSize="13.5" FontWeight="SemiBold" Foreground="{ThemeResource BeamTextBrush}" />
+                                <TextBlock x:Name="StreamsCountText" HorizontalAlignment="Right" FontSize="12.5" Foreground="{ThemeResource BeamText3Brush}" />
+                            </Grid>
+                            <TextBlock x:Name="StreamsEmptyText" x:Uid="Room_StreamsEmpty" Style="{StaticResource FaintTextStyle}" Margin="8,0,8,8" />
                             <ItemsControl x:Name="StreamsList" />
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource CardStyle}" Padding="12,10">
-                        <StackPanel Spacing="6">
-                            <Grid>
-                                <TextBlock x:Uid="Room_MembersHeading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                                <TextBlock x:Name="MembersCountText" HorizontalAlignment="Right" Opacity="0.7" Style="{ThemeResource CaptionTextBlockStyle}" />
+                    <Border Style="{StaticResource CardStyle}" Padding="8,12,8,8">
+                        <StackPanel Spacing="4">
+                            <Grid Margin="8,0,8,4">
+                                <TextBlock x:Uid="Room_MembersHeading" FontSize="13.5" FontWeight="SemiBold" Foreground="{ThemeResource BeamTextBrush}" />
+                                <TextBlock x:Name="MembersCountText" HorizontalAlignment="Right" FontSize="12.5" Foreground="{ThemeResource BeamText3Brush}" />
                             </Grid>
                             <ItemsControl x:Name="MembersList" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
-
-            <Pivot x:Name="Tabs" Grid.Column="1" SelectionChanged="OnTabChanged">
-                <PivotItem x:Name="WatchTab" x:Uid="Room_WatchTab">
-                    <Grid RowSpacing="10">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Border
-                            Grid.Row="0"
-                            CornerRadius="12"
-                            BorderThickness="1"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            Background="#0A0D12"
-                        >
-                            <Grid x:Name="VideoHost">
-                                <StackPanel
-                                    x:Name="WatchHint"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Spacing="8"
-                                >
-                                    <FontIcon Glyph="&#xE7B3;" FontSize="34" Opacity="0.5" Foreground="White" HorizontalAlignment="Center" />
-                                    <TextBlock x:Uid="Room_WatchHint" Foreground="White" Opacity="0.7" HorizontalAlignment="Center" TextWrapping="Wrap" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                        <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="12,8">
-                            <Grid ColumnSpacing="10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock x:Name="WatchTitleText" Style="{ThemeResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock x:Name="WatchStatsText" Opacity="0.65" FontFamily="Cascadia Mono, Consolas, Courier New" Style="{ThemeResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-                                <ToggleButton x:Name="MuteButton" x:Uid="Room_Mute" Grid.Column="1" Click="OnMuteToggled">
-                                    <FontIcon Glyph="&#xE767;" FontSize="14" />
-                                </ToggleButton>
-                                <Slider
-                                    x:Name="VolumeSlider"
-                                    Grid.Column="2"
-                                    Width="110"
-                                    Minimum="0"
-                                    Maximum="100"
-                                    VerticalAlignment="Center"
-                                    ValueChanged="OnVolumeChanged"
-                                />
-                                <Button x:Name="StopWatchButton" x:Uid="Room_StopAllWatching" Grid.Column="4" IsEnabled="False" Click="OnStopWatching" />
-                            </Grid>
-                        </Border>
-                    </Grid>
-                </PivotItem>
-
-                <PivotItem x:Name="BroadcastTab" x:Uid="Room_BroadcastTab">
-                    <Grid ColumnSpacing="14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="260" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Grid Grid.Column="0" RowSpacing="6">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <Grid Grid.Row="0">
-                                <TextBlock x:Uid="Sources_Heading" Style="{StaticResource SectionHeaderStyle}" />
-                                <Button x:Uid="Sources_Refresh" Style="{StaticResource GhostButtonStyle}" HorizontalAlignment="Right" Click="OnRefreshSources">
-                                    <FontIcon Glyph="&#xE72C;" FontSize="14" />
-                                </Button>
-                            </Grid>
-                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                                <StackPanel Spacing="4">
-                                    <TextBlock x:Uid="Sources_Monitors" Style="{StaticResource HintTextStyle}" />
-                                    <ListView x:Name="MonitorsList" SelectionMode="Single" ItemTemplate="{StaticResource SourceTemplate}" SelectionChanged="OnMonitorSelected" />
-                                    <TextBlock x:Uid="Sources_Windows" Margin="0,10,0,0" Style="{StaticResource HintTextStyle}" />
-                                    <ListView x:Name="WindowsList" SelectionMode="Single" ItemTemplate="{StaticResource SourceTemplate}" SelectionChanged="OnWindowSelected" />
-                                </StackPanel>
-                            </ScrollViewer>
-                        </Grid>
-
-                        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
-                            <StackPanel Spacing="12">
-                                <Border CornerRadius="12" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="#0A0D12">
-                                    <Grid Height="280">
-                                        <ctrl:GpuVideoView x:Name="Preview" />
-                                        <StackPanel x:Name="PreviewHint" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-                                            <FontIcon Glyph="&#xE7F4;" FontSize="34" Opacity="0.5" Foreground="White" HorizontalAlignment="Center" />
-                                            <TextBlock x:Uid="Preview_Hint" Foreground="White" Opacity="0.7" HorizontalAlignment="Center" />
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="12" HorizontalAlignment="Left" VerticalAlignment="Top">
-                                            <Border x:Name="LiveBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,2" Background="{StaticResource BeamLiveBrush}">
-                                                <TextBlock Text="LIVE" FontSize="11" FontWeight="Bold" Foreground="White" />
-                                            </Border>
-                                            <Border x:Name="PausedBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,2" Background="#CC333B48">
-                                                <TextBlock x:Uid="Preview_Paused" FontSize="11" FontWeight="Bold" Foreground="White" />
-                                            </Border>
-                                            <Border x:Name="StandbyBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,2" Background="#CC6B5B00">
-                                                <TextBlock x:Uid="Preview_Standby" FontSize="11" FontWeight="Bold" Foreground="White" />
-                                            </Border>
-                                            <Border x:Name="ViewersBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,2" Background="#B3000000">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE7B3;" FontSize="11" Foreground="White" VerticalAlignment="Center" />
-                                                    <TextBlock x:Name="ViewersText" FontSize="11" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </Border>
-                                        </StackPanel>
-                                        <Border x:Name="StatsBadge" Visibility="Collapsed" CornerRadius="6" Padding="8,3" Margin="12" Background="#B3000000" HorizontalAlignment="Right" VerticalAlignment="Bottom">
-                                            <TextBlock x:Name="StatsText" Foreground="White" FontFamily="Cascadia Mono, Consolas, Courier New" Style="{ThemeResource CaptionTextBlockStyle}" />
-                                        </Border>
-                                    </Grid>
-                                </Border>
-
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Button x:Name="GoLiveButton" x:Uid="Action_GoLive" Style="{StaticResource AccentButtonStyle}" MinWidth="160" Click="OnGoLive" />
-                                    <Button x:Name="PauseButton" x:Uid="Action_Pause" Visibility="Collapsed" Click="OnPause" />
-                                    <Button x:Name="StopButton" x:Uid="Action_Stop" Visibility="Collapsed" Click="OnStop" />
-                                    <TextBlock x:Name="ErrorText" Foreground="{StaticResource BeamAccentBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                    <TextBlock x:Name="BroadcastBlockedText" x:Uid="Room_OnlyOwnerBroadcasts" Visibility="Collapsed" VerticalAlignment="Center" Style="{StaticResource HintTextStyle}" />
-                                    <TextBlock x:Name="ViewerNoteText" VerticalAlignment="Center" Style="{StaticResource HintTextStyle}" />
-                                </StackPanel>
-
-                                <Grid ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0" Style="{StaticResource CardStyle}">
-                                        <StackPanel Spacing="10">
-                                            <TextBlock x:Uid="Quality_Heading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                                            <ComboBox x:Name="ProfileBox" x:Uid="Quality_Profile" HorizontalAlignment="Stretch" SelectionChanged="OnProfileChanged" />
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <Button x:Name="CalibrateButton" x:Uid="Quality_Calibrate" Click="OnCalibrate" />
-                                                <ProgressRing x:Name="CalibrateSpinner" Width="16" Height="16" IsActive="False" />
-                                                <TextBlock x:Name="ProfileStatus" VerticalAlignment="Center" Style="{StaticResource HintTextStyle}" MaxWidth="320" />
-                                            </StackPanel>
-                                            <ComboBox x:Name="EncoderBox" x:Uid="Quality_Encoder" HorizontalAlignment="Stretch" SelectionChanged="OnEncoderChanged" />
-                                            <ComboBox x:Name="PresetBox" x:Uid="Quality_Preset" HorizontalAlignment="Stretch" SelectionChanged="OnQualityChanged" />
-                                            <ComboBox x:Name="FpsBox" x:Uid="Quality_Fps" HorizontalAlignment="Stretch" SelectionChanged="OnQualityChanged" />
-                                            <NumberBox x:Name="BitrateBox" x:Uid="Quality_Bitrate" Minimum="300" Maximum="150000" SmallChange="250" LargeChange="1000" SpinButtonPlacementMode="Compact" ValueChanged="OnBitrateChanged" />
-                                            <ToggleSwitch x:Name="CursorSwitch" x:Uid="Quality_Cursor" Toggled="OnCursorToggled" />
-                                            <ToggleSwitch x:Name="AdaptiveSwitch" x:Uid="Quality_Adaptive" Toggled="OnAdaptiveToggled" />
-                                            <TextBlock x:Uid="Quality_AdaptiveHint" Style="{StaticResource HintTextStyle}" />
-                                        </StackPanel>
-                                    </Border>
-                                    <Border Grid.Column="1" Style="{StaticResource CardStyle}">
-                                        <StackPanel Spacing="10">
-                                            <TextBlock x:Uid="Stream_Heading" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                                            <TextBox x:Name="TitleBox" x:Uid="Stream_Title" MaxLength="48" />
-                                            <ComboBox x:Name="AudioBox" x:Uid="Audio_Mode" HorizontalAlignment="Stretch" SelectionChanged="OnAudioChanged" />
-                                            <TextBlock x:Name="AudioHintText" Style="{StaticResource HintTextStyle}" />
-                                            <ToggleSwitch x:Name="ViewerSoundsSwitch" x:Uid="Stream_ViewerSounds" Toggled="OnViewerSoundsToggled" />
-                                            <ToggleSwitch x:Name="StandbySwitch" x:Uid="Stream_Standby" Toggled="OnStandbyToggled" />
-                                            <TextBlock x:Uid="Stream_StandbyHint" Style="{StaticResource HintTextStyle}" />
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </Grid>
-                </PivotItem>
-
-                <PivotItem x:Name="SettingsTab" x:Uid="Room_SettingsTab">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
-                        <StackPanel MaxWidth="560" HorizontalAlignment="Left" Spacing="12">
-                            <Border Style="{StaticResource CardStyle}">
-                                <StackPanel Spacing="10">
-                                    <TextBlock x:Uid="Room_SettingsRoomCard" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                                    <TextBlock x:Name="SettingsOwnerOnlyText" x:Uid="Room_SettingsOwnerOnly" Style="{StaticResource HintTextStyle}" Visibility="Collapsed" />
-                                    <StackPanel x:Name="SettingsSummary" Spacing="4" Visibility="Collapsed" />
-                                    <ContentPresenter x:Name="SettingsFormHost" />
-                                    <StackPanel x:Name="SettingsActions" Orientation="Horizontal" Spacing="10">
-                                        <Button x:Name="SaveRoomButton" x:Uid="Room_SettingsSave" Style="{ThemeResource AccentButtonStyle}" Click="OnSaveRoom" />
-                                        <TextBlock x:Name="SettingsStatusText" VerticalAlignment="Center" Style="{StaticResource HintTextStyle}" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-
-                            <Border x:Name="InvitesCard" Style="{StaticResource CardStyle}">
-                                <StackPanel Spacing="10">
-                                    <TextBlock x:Uid="Room_SettingsInvitesCard" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                                    <TextBlock x:Uid="Room_SettingsInvitesHint" Style="{StaticResource HintTextStyle}" />
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <Button Click="OnCreateInvite">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <FontIcon Glyph="&#xE8F7;" FontSize="14" />
-                                                <TextBlock x:Uid="Room_SettingsInviteButtonText" />
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Click="OnRevokeInvites">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <FontIcon Glyph="&#xE8F8;" FontSize="14" />
-                                                <TextBlock x:Uid="Room_SettingsRevokeButtonText" />
-                                            </StackPanel>
-                                        </Button>
-                                        <TextBlock x:Name="InviteStatusText" VerticalAlignment="Center" Style="{StaticResource HintTextStyle}" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-
-                            <Border x:Name="DangerCard" Style="{StaticResource CardStyle}">
-                                <StackPanel Spacing="10">
-                                    <TextBlock x:Uid="Room_SettingsDangerCard" Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                                    <TextBlock x:Uid="Room_SettingsDangerHint" Style="{StaticResource HintTextStyle}" />
-                                    <Button Click="OnDeleteRoom">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon Glyph="&#xE74D;" FontSize="14" />
-                                            <TextBlock x:Uid="Room_SettingsDeleteButtonText" />
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                    </ScrollViewer>
-                </PivotItem>
-            </Pivot>
         </Grid>
     </Grid>
 </Page>

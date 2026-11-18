@@ -162,6 +162,7 @@ public sealed partial class SettingsPage : Page
         if (name.Length == 0)
             return;
         SettingsStore.Update(s => s.DisplayName = name);
+        App.Main?.RefreshProfile();
     }
 
     private void OnLanguageChanged(object sender, SelectionChangedEventArgs e)

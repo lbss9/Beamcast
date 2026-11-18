@@ -25,11 +25,11 @@
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
             >
-                <Ellipse Width="18" Height="18" Fill="{StaticResource BeamAccentSoftBrush}" />
+                <Ellipse Width="18" Height="18" Fill="{ThemeResource BeamAccentSoftBrush}" />
                 <Ellipse
                     Width="8"
                     Height="8"
-                    Fill="{StaticResource BeamAccentBrush}"
+                    Fill="{ThemeResource BeamAccentBrush}"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                 />
@@ -49,7 +49,7 @@
             Margin="20,4,20,0"
             CornerRadius="14"
             Padding="18,16"
-            Background="{StaticResource BeamAccentSoftBrush}"
+            Background="{ThemeResource BeamAccentSoftBrush}"
         >
             <Grid ColumnSpacing="14">
                 <Grid.ColumnDefinitions>
@@ -60,7 +60,7 @@
                     Width="44"
                     Height="44"
                     CornerRadius="12"
-                    Background="{StaticResource BeamAccentBrush}"
+                    Background="{ThemeResource BeamAccentBrush}"
                     VerticalAlignment="Top"
                 >
                     <FontIcon Glyph="&#xE896;" FontSize="20" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -71,9 +71,9 @@
                         FontSize="11"
                         FontWeight="SemiBold"
                         CharacterSpacing="60"
-                        Foreground="{StaticResource BeamAccentBrush}"
+                        Foreground="{ThemeResource BeamAccentBrush}"
                     />
-                    <TextBlock x:Name="VersionText" Style="{ThemeResource TitleTextBlockStyle}" />
+                    <TextBlock x:Name="VersionText" Style="{StaticResource ScreenTitleStyle}" />
                     <TextBlock x:Name="CurrentText" Opacity="0.7" Style="{ThemeResource CaptionTextBlockStyle}" />
                     <TextBlock
                         x:Uid="Update_Lead"
