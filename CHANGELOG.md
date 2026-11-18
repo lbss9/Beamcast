@@ -2,6 +2,34 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 3.0.0
+
+- Redesign de UI/UX, desenhado antes no Penpot ("Beamcast — Design", ver `docs/design/README.md`).
+  Rede, protocolo, captura e codec intocados.
+- Sistema visual em `App.xaml`: dicionários de tema `Default`/`Light` com pincéis `Beam*Brush` e
+  overrides dos pincéis dos controles do WinUI (botão, texto, toggle, slider, diálogo). Ficam num
+  `ResourceDictionary` mesclado depois do `XamlControlsResources`: os `ThemeDictionaries` do próprio
+  dicionário do app são consultados depois dos mesclados e perdem para os pincéis padrão.
+  O fundo Mica saiu; a janela usa `BeamBgBrush`.
+- `MainWindow`: `NavigationView` trocado por uma lateral própria (`MainWindow.SideBar.cs`) com os
+  hosts, Novidades/Configurações e o nome. Vira um trilho de 56 px quando a página é `RoomPage`.
+  `SelectedHost`/`HostSelected` ligam a lateral à `LoungePage`; `SetHostState` pinta a bolinha, e
+  `ProbeHostsAsync` pergunta uma vez aos outros hosts salvos (GET de salas, 8 s).
+- `LoungePage`: uma grade (`ItemsRepeater` + `UniformGridLayout`) com as salas do host, as do
+  dono e as favoritas mescladas por código; filtro (`Controls/Segmented`) e busca. Estados
+  `NoHost`/`Loading`/`Offline`/`NeedsKey`/`Empty`/`NoMatch` num painel só. Erros e "convite
+  copiado" vão para um `InfoBar`. O campo de nome saiu da tela: usa `DisplayName` das configurações.
+- `RoomDialogs`: `Build` padroniza os diálogos (primário coral, vermelho e sem botão padrão quando
+  apaga); novos `JoinCodeAsync` e `PasswordAsync`; `RoomForm` com `Segmented` e, ao criar, as opções
+  avançadas num `Expander`. `HostDialogs`: adicionar host, chave do host, nome.
+- `RoomPage`: `Pivot` trocado por `Segmented` + três painéis (`ApplyTab`), todos os `x:Name` e
+  handlers de transmissão mantidos. Cabeçalho com avatar, selos, código (copia) e Convidar; lista
+  de transmissões e de pessoas à direita; opções avançadas de transmissão num `Expander`.
+- `Ui/Beam.cs`: pincéis do tema da janela, avatar, selo, ícone e `LabelButtons` (dá nome de
+  acessibilidade aos botões de ícone).
+- Não exercitado em execução antes do release: assistir/transmitir com outra pessoa, host fora do
+  ar, host com chave, primeiro uso sem host, diálogos de senha, convite e editar sala.
+
 ## 2.9.9
 
 - Sala dona que não existe mais no host (rooms.json do servidor limpo): `RoomManagement.OpenAsync`

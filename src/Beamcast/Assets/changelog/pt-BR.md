@@ -1,3 +1,17 @@
+## 3.0.0
+
+### Novo visual
+
+- **O app inteiro foi redesenhado.** Cores próprias nos temas claro e escuro, botões principais na cor do Beamcast e telas com menos texto e mais espaço.
+- **Hosts na lateral.** Cada host mostra se está online ou fora do ar. O "+" adiciona um host, e o seu nome fica no rodapé, com um clique para trocar. Novidades e Configurações ficam logo acima.
+- **Uma lista de salas só.** As três listas (do host, suas e favoritas) viraram uma grade com o filtro Todas / Minhas / Favoritas e uma busca. Cada sala mostra quantas pessoas estão online e se tem alguém ao vivo. Clicar na sala já entra.
+- **Entrar com código ficou mais simples.** É um botão que abre um campo só. A senha é pedida depois, e só se a sala tiver.
+- **Criar sala em dois campos.** Nome e senha (opcional). Quem transmite, duração e limite de pessoas ficam em "Mais opções".
+- **A tela explica o que houve.** Sem host, ela mostra onde adicionar o primeiro (e aceita um convite direto). Host fora do ar tem "Tentar de novo". Host que pede chave mostra o campo da chave ali mesmo.
+- **Dentro da sala.** O código da sala copia com um clique e "Convidar" fica em destaque. O vídeo ganhou mais espaço: a lateral encolhe enquanto você está na sala. À direita ficam quem está ao vivo e quem está na sala.
+- **Transmitir em dois passos.** Primeiro o que compartilhar, depois título, qualidade e som. Encoder, resolução, bitrate e afins ficam em "Mais opções".
+- **Apagar sala.** Ganhou um bloco vermelho próprio e uma confirmação que diz o nome da sala.
+
 ## 2.9.9
 
 ### Correções

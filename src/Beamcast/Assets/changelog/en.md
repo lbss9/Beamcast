@@ -1,3 +1,17 @@
+## 3.0.0
+
+### New look
+
+- **The whole app was redesigned.** Its own colours in the light and dark themes, main buttons in the Beamcast colour, and screens with less text and more room.
+- **Hosts in the side bar.** Each host shows whether it is online or offline. "+" adds a host, and your name sits at the bottom, one click away from changing it. What's new and Settings are right above.
+- **One list of rooms.** The three lists (the host's, yours and favorites) became one grid with an All / Mine / Favorites filter and a search box. Each room shows how many people are online and whether someone is live. Clicking the room joins it.
+- **Joining with a code is simpler.** It is a button that opens a single field. The password is asked afterwards, and only if the room has one.
+- **Creating a room takes two fields.** Name and (optional) password. Who broadcasts, duration and the people limit are under "More options".
+- **The screen says what happened.** With no host, it shows where to add the first one (and takes an invite directly). An offline host has "Try again". A host that asks for a key shows the key field right there.
+- **Inside the room.** The room code copies with one click and "Invite" stands out. The video got more room: the side bar shrinks while you are in a room. On the right are who is live and who is in the room.
+- **Broadcasting in two steps.** First what to share, then title, quality and sound. Encoder, resolution, bitrate and the like are under "More options".
+- **Deleting a room.** It has its own red block and a confirmation that names the room.
+
 ## 2.9.9
 
 ### Fixes
