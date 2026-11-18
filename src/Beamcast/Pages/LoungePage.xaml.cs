@@ -479,7 +479,15 @@ public sealed partial class LoungePage : Page
             return;
         await ManageAsync(async ct =>
         {
-            var client = await OpenOwnerSessionAsync(code, roomName, hasPassword, ct);
+            LoungeClient? client;
+            try
+            {
+                client = await OpenOwnerSessionAsync(code, roomName, hasPassword, ct);
+            }
+            catch (LoungeException ex) when (ex.Reason == LoungeProtocol.ReasonNoLounge)
+            {
+                return; // already gone from the host: it was just dropped from our list, which is what deleting wanted
+            }
             if (client is null)
                 return;
             try

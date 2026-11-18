@@ -1,3 +1,9 @@
+## 2.9.9
+
+### Fixes
+
+- **Deleting a room that no longer exists.** If one of your rooms had been removed on the server (cleanup, expiry, or a host reset), it stayed under "Your rooms" and Delete only showed an error. The app now notices the room is gone from the host and drops it from the list right away.
+
 ## 2.9.8
 
 ### Fixes

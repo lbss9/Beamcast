@@ -2,6 +2,13 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 2.9.9
+
+- Sala dona que não existe mais no host (rooms.json do servidor limpo): `RoomManagement.OpenAsync`
+  recebia `no_lounge`, o erro aparecia e a sala ficava em OwnedRooms para sempre. Agora
+  `no_lounge` ao abrir a sessão de dono chama `LoungeService.ForgetOwnedRoom` (sai também dos
+  favoritos), e em `LoungePage.DeleteRoomAsync` o `no_lounge` conta como apagada, sem erro.
+
 ## 2.9.8
 
 - Tela preta / 0 FPS ao transmitir (diag de uma amiga: i5-1235U, Intel UHD, Windows 11 26300):

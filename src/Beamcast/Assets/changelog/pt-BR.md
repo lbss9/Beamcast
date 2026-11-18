@@ -1,3 +1,9 @@
+## 2.9.9
+
+### Correções
+
+- **Apagar uma sala que já não existe.** Se uma sala sua tinha sido apagada no servidor (por limpeza, expiração ou porque o host foi reiniciado), ela continuava em "Suas salas" e o botão Apagar só mostrava erro. Agora o app percebe que a sala sumiu do host e a tira da lista na hora.
+
 ## 2.9.8
 
 ### Correções

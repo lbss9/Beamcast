@@ -23,7 +23,17 @@ public static class RoomManagement
         code = LoungeProtocol.NormalizeCode(code);
         var token = LoungeService.OwnerTokenFor(url, code) ?? throw new LoungeException(LoungeProtocol.ReasonNotAllowed);
         var options = new RoomJoinOptions { Code = code, Password = password, OwnerToken = token, ManageOnly = true };
-        var client = await LoungeClient.JoinAsync(url, options, LoungeService.AppKeyFor(url), ct);
+        LoungeClient client;
+        try
+        {
+            client = await LoungeClient.JoinAsync(url, options, LoungeService.AppKeyFor(url), ct);
+        }
+        catch (LoungeException ex) when (ex.Reason == LoungeProtocol.ReasonNoLounge)
+        {
+            // The room is gone from the host (deleted elsewhere, expired, host reset): stop listing it.
+            LoungeService.ForgetOwnedRoom(url, code);
+            throw;
+        }
         if (!client.IsOwner)
         {
             // The host no longer recognises our token (room recreated with the same code, for instance).
