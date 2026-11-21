@@ -15,11 +15,15 @@ public static class MfCodecs
     private static readonly Dictionary<VideoCodec, bool> DecoderCache = new();
     private static readonly Dictionary<VideoCodec, bool> ProbeCache = new();
 
+    /// <summary>MFVideoFormat_AV1 (FourCC 'AV01'); Vortice 3.8 has no constant for it.</summary>
+    private static readonly Guid Av1Subtype = new("31305641-0000-0010-8000-00AA00389B71");
+
     public static Guid Subtype(VideoCodec codec) =>
         codec switch
         {
             VideoCodec.H264 => VideoFormatGuids.H264,
             VideoCodec.Hevc => VideoFormatGuids.Hevc,
+            VideoCodec.Av1 => Av1Subtype,
             _ => throw new ArgumentOutOfRangeException(nameof(codec)),
         };
 
@@ -141,12 +145,33 @@ public static class MfCodecs
         {
             case EncoderPreference.Hevc:
                 return Usable(VideoCodec.Hevc) ? VideoCodec.Hevc : Usable(VideoCodec.H264) ? VideoCodec.H264 : VideoCodec.Vp8;
+            case EncoderPreference.Av1:
+                return Usable(VideoCodec.Av1) ? VideoCodec.Av1 : Usable(VideoCodec.H264) ? VideoCodec.H264 : VideoCodec.Vp8;
             case EncoderPreference.Vp8:
                 return VideoCodec.Vp8;
             default:
                 return Usable(VideoCodec.H264) ? VideoCodec.H264 : VideoCodec.Vp8;
         }
     }
+
+    /// <summary>
+    /// How the encoders are tuned (settings). The probe uses it too, so a driver that goes silent
+    /// with these options is caught before going live; changing it forgets the probe results.
+    /// </summary>
+    public static EncoderTuning Tuning
+    {
+        get => _tuning;
+        set
+        {
+            if (_tuning == value)
+                return;
+            _tuning = value;
+            lock (ProbeCache)
+                ProbeCache.Clear();
+        }
+    }
+
+    private static EncoderTuning _tuning;
 
     /// <summary>A hardware encoder that built but never produced anything; not offered again this run.</summary>
     public static void MarkBroken(VideoCodec codec, string why)
@@ -187,7 +212,7 @@ public static class MfCodecs
             {
                 using var done = new ManualResetEventSlim();
                 nv12 = gpu.CreateTexture(Vortice.DXGI.Format.NV12, 1280, 720, Vortice.Direct3D11.BindFlags.RenderTarget);
-                encoder = new MfVideoEncoder(gpu, codec, 1280, 720, 30, 2500);
+                encoder = new MfVideoEncoder(gpu, codec, 1280, 720, 30, 2500, Tuning);
                 encoder.FrameEncoded += (_, _) => SafeTry.Run(done.Set);
                 var deadline = System.Diagnostics.Stopwatch.GetTimestamp() + System.Diagnostics.Stopwatch.Frequency * 3;
                 var timestamp = 0L;

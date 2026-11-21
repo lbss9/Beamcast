@@ -65,6 +65,12 @@ public sealed class AppSettings
 
     public bool ShowCursor { get; set; } = true;
 
+    /// <summary>Tell the hardware encoder the picture is a desktop (sharper text where the driver supports it).</summary>
+    public bool ScreenContent { get; set; }
+
+    /// <summary>Variable bitrate with a peak instead of constant bitrate (hardware encoders).</summary>
+    public bool VariableBitrate { get; set; }
+
     /// <summary>Lower the bitrate while the uplink cannot keep up, and raise it back when it can (the chosen bitrate is the ceiling).</summary>
     public bool AdaptiveQuality { get; set; } = true;
 

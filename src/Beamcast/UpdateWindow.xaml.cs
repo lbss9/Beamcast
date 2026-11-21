@@ -18,7 +18,7 @@ public sealed partial class UpdateWindow : Window
 
     private readonly UpdateOffer _offer;
 
-    public UpdateWindow(UpdateOffer offer)
+    public UpdateWindow(UpdateOffer offer, bool install = false)
     {
         _offer = offer;
         InitializeComponent();
@@ -48,6 +48,8 @@ public sealed partial class UpdateWindow : Window
         {
             StatusText.Text = DescribeSize(offer);
         }
+        if (install)
+            OnInstall(this, new RoutedEventArgs());
     }
 
     private static string DescribeSize(UpdateOffer offer)

@@ -10,6 +10,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid x:Name="AppTitleBar" Grid.Row="0" Height="44">
@@ -30,12 +31,6 @@
                 </Border>
             </StackPanel>
         </Grid>
-
-        <InfoBar x:Name="UpdateBar" Grid.Row="1" Margin="16,0,16,6" IsOpen="False" Severity="Informational">
-            <InfoBar.ActionButton>
-                <Button x:Name="UpdateBarButton" Click="OnUpdateBarAction" />
-            </InfoBar.ActionButton>
-        </InfoBar>
 
         <Grid x:Name="ShellGrid" Grid.Row="2">
             <Grid.ColumnDefinitions>
@@ -71,6 +66,45 @@
             <Frame x:Name="ContentFrame" Grid.Column="1" Navigated="OnFrameNavigated" />
         </Grid>
 
-        <Grid x:Name="FullscreenHost" Grid.Row="0" Grid.RowSpan="3" Visibility="Collapsed" Background="Black" />
+        <!-- Update banner: slides up from the bottom edge in the app's colour, in a row of its own so it covers nothing. Hidden while live or fullscreen. -->
+        <Grid x:Name="UpdateBanner" Grid.Row="3" MinHeight="56" Padding="20,10,56,10" Visibility="Collapsed" Background="{ThemeResource BeamAccentBrush}">
+            <Grid.RenderTransform>
+                <TranslateTransform x:Name="UpdateBannerShift" Y="72" />
+            </Grid.RenderTransform>
+            <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE896;" FontSize="16" Foreground="White" VerticalAlignment="Center" />
+                <TextBlock x:Name="UpdateBannerText" FontSize="14" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="520" />
+                <Button x:Name="UpdateBannerPrimary" Height="34" Padding="16,0" CornerRadius="8" BorderThickness="0" FontWeight="SemiBold" Click="OnUpdateBannerPrimary">
+                    <Button.Resources>
+                        <ResourceDictionary>
+                            <ResourceDictionary.ThemeDictionaries>
+                                <ResourceDictionary x:Key="Default">
+                                    <SolidColorBrush x:Key="ButtonBackground" Color="White" />
+                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFF0F0F0" />
+                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFE0E0E0" />
+                                    <SolidColorBrush x:Key="ButtonForeground" Color="#FF1A1A1A" />
+                                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FF1A1A1A" />
+                                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#FF1A1A1A" />
+                                </ResourceDictionary>
+                                <ResourceDictionary x:Key="Light">
+                                    <SolidColorBrush x:Key="ButtonBackground" Color="White" />
+                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFF0F0F0" />
+                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFE0E0E0" />
+                                    <SolidColorBrush x:Key="ButtonForeground" Color="#FF1A1A1A" />
+                                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FF1A1A1A" />
+                                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#FF1A1A1A" />
+                                </ResourceDictionary>
+                            </ResourceDictionary.ThemeDictionaries>
+                        </ResourceDictionary>
+                    </Button.Resources>
+                </Button>
+                <HyperlinkButton x:Name="UpdateBannerDetails" Foreground="White" FontWeight="SemiBold" Padding="8,4" Click="OnUpdateBannerDetails" />
+            </StackPanel>
+            <Button x:Name="UpdateBannerClose" Width="36" Height="36" Padding="0" Margin="0,0,-46,0" HorizontalAlignment="Right" VerticalAlignment="Center" Background="Transparent" BorderThickness="0" Foreground="White" Click="OnUpdateBannerClose">
+                <FontIcon Glyph="&#xE711;" FontSize="13" Foreground="White" />
+            </Button>
+        </Grid>
+
+        <Grid x:Name="FullscreenHost" Grid.Row="0" Grid.RowSpan="4" Visibility="Collapsed" Background="Black" />
     </Grid>
 </Window>

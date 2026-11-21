@@ -7,6 +7,11 @@ namespace Beamcast.Services;
 /// <param name="Reason">Why it changed: empty when it went direct, otherwise the link's close reason.</param>
 public sealed record DirectPathChange(uint StreamId, uint PeerId, string PeerName, bool Direct, bool AsPublisher, string Reason);
 
+/// <summary>One viewer of my stream, for the connection panel.</summary>
+/// <param name="DelayMs">The last delay this viewer reported, 0 when it has not complained lately.</param>
+/// <param name="Dropped">Video frames held back on its direct link because the link was behind (0 on the relay: the host does that part).</param>
+public sealed record ViewerPath(uint ViewerId, string Name, bool Direct, int DelayMs, long Dropped);
+
 /// <summary>
 /// Direct (P2P) video links. The host stays in charge of the room (members, streams, keys) and
 /// keeps relaying the video until a direct link has proven itself:
@@ -54,6 +59,9 @@ public sealed partial class LoungeService
         public bool WasOpen { get; set; }
 
         public long LastKeyframeAsk { get; set; }
+
+        /// <summary>Publisher: video frames not sent on this link because it was behind.</summary>
+        public long Dropped;
     }
 
     private sealed class DirectRetry
@@ -77,6 +85,41 @@ public sealed partial class LoungeService
     private readonly HashSet<uint> _watched = new();
     private uint _directSession = (uint)Random.Shared.Next(1, int.MaxValue / 2);
     private volatile bool _directEnabled = SettingsStore.Load().DirectConnection;
+
+    /// <summary>Publisher, network thread: a direct link fell behind and video was held back on it.</summary>
+    public event Action<uint>? DirectCongested;
+
+    private readonly Dictionary<(uint Viewer, uint Stream), (int DelayMs, long At)> _viewerDelay = new();
+
+    /// <summary>How long a viewer's delay report stays on the panel.</summary>
+    private const long DelayReportTtlMs = 6000;
+
+    private void OnViewerReport(uint streamId, uint viewerId, int delayMs)
+    {
+        lock (_directSync)
+            _viewerDelay[(viewerId, streamId)] = (delayMs, Environment.TickCount64);
+        ViewerReported?.Invoke(streamId, viewerId, delayMs);
+    }
+
+    /// <summary>Publisher: who watches this stream and how each one is connected.</summary>
+    public IReadOnlyList<ViewerPath> ViewerPaths(uint streamId)
+    {
+        List<(uint Id, bool Direct, int Delay, long Dropped)> rows = [];
+        var now = Environment.TickCount64;
+        lock (_directSync)
+        {
+            if (_knownViewers.TryGetValue(streamId, out var known))
+            {
+                foreach (var id in known)
+                {
+                    var entry = _direct.TryGetValue((id, streamId), out var e) && e.IsPublisher && e.Link.IsOpen ? e : null;
+                    var delay = _viewerDelay.TryGetValue((id, streamId), out var report) && now - report.At < DelayReportTtlMs ? report.DelayMs : 0;
+                    rows.Add((id, entry is not null, delay, entry is null ? 0 : Interlocked.Read(ref entry.Dropped)));
+                }
+            }
+        }
+        return rows.Select(r => new ViewerPath(r.Id, NameOf(r.Id), r.Direct, r.Delay, r.Dropped)).OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
 
     /// <summary>A video path switched between direct and the host's relay. UI thread.</summary>
     public event Action<DirectPathChange>? PathChanged;
@@ -148,6 +191,8 @@ public sealed partial class LoungeService
             if (behind)
             {
                 entry.AwaitingKeyframe = true;
+                Interlocked.Increment(ref entry.Dropped);
+                DirectCongested?.Invoke(entry.Link.StreamId);
                 AskKeyframe(entry);
                 return;
             }
@@ -155,6 +200,7 @@ public sealed partial class LoungeService
             {
                 if (!keyframe)
                 {
+                    Interlocked.Increment(ref entry.Dropped);
                     AskKeyframe(entry);
                     return;
                 }
@@ -455,7 +501,7 @@ public sealed partial class LoungeService
             }
             else if (kind == LoungeMux.ViewerReport)
             {
-                ViewerReported?.Invoke(link.StreamId, link.PeerId, (int)Math.Min(b, int.MaxValue));
+                OnViewerReport(link.StreamId, link.PeerId, (int)Math.Min(b, int.MaxValue));
             }
             return;
         }
@@ -578,6 +624,7 @@ public sealed partial class LoungeService
             _relayViewers.Clear();
             _knownViewers.Clear();
             _directRetry.Clear();
+            _viewerDelay.Clear();
             _watched.Clear();
         }
         foreach (var entry in links)

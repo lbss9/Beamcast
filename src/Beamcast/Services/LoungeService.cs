@@ -379,7 +379,7 @@ public sealed partial class LoungeService
         // The host only knows viewers on its relay; viewers on a direct link are added in LoungeService.Direct.
         client.ViewerJoined += OnRelayViewerJoined;
         client.ViewerLeft += OnRelayViewerLeft;
-        client.ViewerReported += (streamId, viewerId, ms) => ViewerReported?.Invoke(streamId, viewerId, ms);
+        client.ViewerReported += OnViewerReport;
         client.SignalReceived += OnSignal;
         client.Closed += reason => Post(() => OnClosed(client, reason));
 

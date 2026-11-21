@@ -72,8 +72,19 @@ internal static class CodecApiGuids
     public static readonly Guid AVEncNumWorkerThreads = new("b0c8bf60-16f7-4951-a30b-1db1609293d6");
     public static readonly Guid AVDecVideoAccelerationH264 = new("f7db8a2f-4f48-4ee8-ae31-8b6ebe558ae2");
 
+    public static readonly Guid AVScenarioInfo = new("b28a6e64-3ff9-446a-8a4b-0d7a53413236");
+
     /// <summary>eAVEncCommonRateControlMode_CBR</summary>
     public const uint RateControlCbr = 0;
+
+    /// <summary>eAVEncCommonRateControlMode_PeakConstrainedVBR</summary>
+    public const uint RateControlPeakVbr = 1;
+
+    /// <summary>eAVEncCommonRateControlMode_LowDelayVBR</summary>
+    public const uint RateControlLowDelayVbr = 4;
+
+    /// <summary>eAVScenarioInfo_DisplayRemoting: the picture is a desktop (text, flat colour, small changes).</summary>
+    public const uint ScenarioDisplayRemoting = 1;
 }
 
 /// <summary>Helper that applies codec properties and swallows "not supported" from a given vendor.</summary>

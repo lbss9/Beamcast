@@ -65,6 +65,38 @@ O mesmo aviso aparece dentro do app no primeiro uso e na página Sobre.
 7. Se a internet cair, do seu lado ou do host, o app **reconecta sozinho** por até 5 minutos,
    republica a sua transmissão e volta a assistir o que você assistia. A sala continua existindo
    no host; ninguém precisa reenviar convite.
+8. **Conexão direta (P2P)**: o vídeo começa pelo host e, quando a rede deixa, passa a ir direto
+   de quem transmite para quem assiste. Cada transmissão mostra "Direto" ou "Via servidor" e o
+   app avisa quando o caminho muda. Veja [Conexão direta](#conexão-direta-p2p).
+
+## Conexão direta (P2P)
+
+O host continua cuidando da sala (membros, transmissões, chaves) e repassando o vídeo. Por cima
+disso, desde a 3.1.0 o app tenta um caminho direto entre os dois PCs:
+
+1. Quem assiste assina a transmissão pelo host, como sempre, e a imagem aparece na hora.
+2. Quem transmite oferece um link direto a cada espectador com app 3.1.0+. A negociação vai pelo
+   canal de controle da sala, cifrada com a chave da sala; o host só repassa.
+3. Quando o link abre, chega um keyframe por ele. O espectador troca de caminho nesse quadro e
+   cancela a cópia do host. Se todos os espectadores estão no direto, o transmissor para de
+   enviar ao host.
+4. Se o link cair, o espectador volta para a cópia do host na hora, e o transmissor tenta de
+   novo depois de 20 s, 1, 3 e 10 minutos.
+
+O que vale saber:
+
+- **Ninguém abre porta.** O link é um data channel WebRTC sobre UDP que atravessa os roteadores
+  com STUN (`stun.cloudflare.com` e `stun.l.google.com`, que só veem o seu IP público). Em redes
+  que bloqueiam UDP ou atrás de alguns CGNAT o link não fecha, e o vídeo segue pelo host.
+- **O seu IP fica visível para as pessoas da sala.** É inerente ao P2P. Para evitar, desligue em
+  Configurações → "Conexão direta (P2P)".
+- **Nada muda no host.** Hosts antigos repassam a negociação como qualquer mensagem de controle,
+  e apps antigos continuam pelo host.
+- **O upload passa a ser de quem transmite**: uma cópia do vídeo por espectador direto.
+- **O conteúdo continua cifrado de ponta a ponta** com a chave da sala; o DTLS do WebRTC é uma
+  segunda camada.
+- O link é confiável e ordenado, como o WebSocket. Quando ele fica para trás, o transmissor
+  segura quadros nesse link, recomeça num keyframe e baixa o bitrate (qualidade adaptativa).
 
 ## Segurança
 
@@ -90,7 +122,8 @@ Convites e dono
 Entradas erradas (senha, convite, código) são limitadas por endereço e por sala com janela de
 10 minutos. Salas criadas antes da 2.5.0 como "privadas" usam códigos de 10 caracteres. O host só lê o tipo de cada mensagem
 e a flag de keyframe, que usa para descartar quadros de um espectador lento e pedir um keyframe
-ao transmissor sem prejudicar os outros.
+ao transmissor sem prejudicar os outros. A negociação da conexão direta passa pelo host cifrada
+com a chave da sala, como o resto.
 
 ## Subir o host (quem hospeda)
 
@@ -109,7 +142,7 @@ Variáveis opcionais num `.env` ao lado do `docker-compose.yml`:
 | --- | --- |
 | `BEAMCAST_PORT` | porta publicada no host (padrão `47710`) |
 | `BEAMCAST_HOST_NAME` | nome que o app mostra para este host (padrão: nome da máquina) |
-| `BEAMCAST_APP_KEY` | quando definida, o app precisa carregar a mesma chave (tela Salas → menu do host → "Chave do app…") |
+| `BEAMCAST_APP_KEY` | quando definida, o app precisa carregar a mesma chave (na lateral, menu "⋯" do host → chave do host; o app também pede a chave na tela quando o host exige) |
 | `BEAMCAST_LOUNGE_TTL_HOURS` | tempo padrão que uma sala **temporária** sobrevive vazia (padrão `24`) |
 
 As salas (código, nome, configurações, salt e verificador, hashes de convites e do dono; nunca
@@ -121,15 +154,27 @@ reverse proxy/túnel com TLS (Cloudflare Tunnel, Caddy, nginx) e use `wss://seu-
 Como todo membro só faz conexão de saída, CGNAT e firewall de quem entra não importam.
 
 **Banda:** o host recebe cada transmissão uma vez e reenvia uma vez por espectador. 1080p60 a
-~12 Mbps por espectador; 4K60 H.264 a ~40 Mbps; HEVC gasta ~35% menos.
+~12 Mbps por espectador; 4K60 H.264 a ~40 Mbps; HEVC gasta ~35% menos e AV1 ~45% menos.
+Espectadores em conexão direta não passam pelo host: esse tráfego sai do upload de quem transmite.
+
+**Conexão direta:** não exige nada do host, nem porta UDP. Funciona igual com o host atrás de
+Cloudflare Tunnel ou de um proxy, porque só a negociação passa por ele.
 
 ## O que o app faz
 
 - **Captura** de monitor por DXGI Desktop Duplication (sem a borda amarela do Windows, cursor desenhado
   na GPU) e de janela pela Windows Graphics Capture API; tudo fica na GPU.
-- **Vídeo**: conversão BGRA→NV12 no D3D11 Video Processor e encoder H.264/HEVC por hardware via
-  Media Foundation (AMD, NVIDIA, Intel, D3D12) com perfil de baixa latência; VP8 por software
-  como reserva. Decodificação DXVA direto para um `SwapChainPanel`.
+- **Vídeo**: conversão BGRA→NV12 no D3D11 Video Processor e encoder H.264/HEVC/AV1 por hardware
+  via Media Foundation (AMD, NVIDIA, Intel, D3D12) com perfil de baixa latência; VP8 por software
+  como reserva. O app testa o encoder antes de transmitir e cai para o próximo codec se ele não
+  responder. A lista de codecs diz quem codifica (placa NVIDIA, AMD ou Intel, ou o processador).
+  Decodificação DXVA direto para um `SwapChainPanel`.
+- **Opções do encoder** (em "Mais opções", só para a placa de vídeo): **bitrate variável**
+  (o escolhido vira a média, com pico de até 1,5x; numa RX 6750 XT um quadro parado cai de
+  ~25 kB para ~50 B) e **otimizar para tela** (avisa o driver que a imagem é uma área de
+  trabalho). Se o driver recusar, o app segue com bitrate constante.
+- **AV1** aparece quando a placa tem encoder AV1 (RTX 40/50, RX 7000/9000, Intel Arc). Quem
+  assiste precisa de um decodificador AV1 (no Windows, a "Extensão de Vídeo AV1" da Store).
 - **Áudio**: loopback **por processo** (a mesma API que Discord e Teams usam). Ao compartilhar
   uma janela, captura só o app dela; ao compartilhar a tela inteira, captura todos os apps com
   sessão de áudio **exceto** Discord, Teams, Zoom, Slack, WhatsApp e afins, para a voz da chamada
@@ -137,7 +182,11 @@ Como todo membro só faz conexão de saída, CGNAT e firewall de quem entra não
   no receptor.
 - **Rede**: um WebSocket por membro, heartbeat a cada 10 s (quem some é removido em 30 s mesmo
   atrás de proxy), mensagens cifradas, keyframe sob demanda, fila por espectador no host,
-  reconexão automática. Presets até 2160p/120 fps.
+  reconexão automática. No envio, áudio e controle passam na frente do vídeo e quadros velhos
+  são descartados quando há um keyframe mais novo na fila. Por cima disso, a **conexão direta**
+  (data channel WebRTC) leva o vídeo de PC a PC quando dá. Presets até 2160p/120 fps.
+- **Painel de conexão**: quem transmite vê cada espectador com o caminho (direto ou via
+  servidor), o atraso que ele reportou e os quadros segurados no link direto.
 
 ## Compilar
 
@@ -155,8 +204,14 @@ O host também roda sem Docker: `dotnet run --project src/Beamcast.Server` (port
 a partir da versão do csproj, e o app procura atualizações no GitHub Releases.
 
 Para depurar, crie um arquivo vazio `%LOCALAPPDATA%\Beamcast\diag.on` (ou defina
-`BEAMCAST_DIAG=1`): o app escreve `diag.log` na mesma pasta com eventos de encoder, keyframe e
-fila.
+`BEAMCAST_DIAG=1`): o app escreve `diag.log` na mesma pasta com eventos de encoder, keyframe,
+fila e conexão direta (linhas `p2p:`). O mesmo registro liga em Configurações.
+
+### Ainda não testado em uso real (3.1.0)
+
+- Conexão direta entre dois PCs em redes diferentes. Os testes cobrem dois links na mesma máquina.
+- AV1 numa placa com encoder AV1.
+- Bitrate variável e "otimizar para tela" em NVIDIA e Intel (medidos só em AMD).
 
 ## Organização
 
@@ -165,9 +220,10 @@ src/Beamcast          app WinUI 3
 ├── Capture/          Windows.Graphics.Capture + D3D11, enumeração de fontes
 ├── Codec/            VP8, encoders/decoders Media Foundation, conversor de vídeo
 ├── Audio/            loopback por processo, seletor de fontes, mixer, Opus, player
-├── Net/              protocolo das salas, criptografia, convites, cliente, limitador
-├── Services/         LoungeService (sala + reconexão), BroadcastService, WatchService, UpdateService
-└── Pages/            Salas (hosts e listagem), Sala, diálogos, Configurações, Sobre
+├── Net/              protocolo das salas, criptografia, convites, cliente, limitador, PeerLink (link direto)
+├── Services/         LoungeService (sala + reconexão; .Direct = conexão direta), BroadcastService, WatchService, UpdateService
+├── Logic/            presets, bitrate adaptativo, perfis, diagnóstico
+└── Pages/            Salas (listagem), Sala, diálogos, Configurações, Sobre; os hosts ficam na lateral (MainWindow.SideBar)
 src/Beamcast.Server   host (ASP.NET Core, WebSocket + listagem HTTP)
 tests/Beamcast.Tests  testes xunit das partes de lógica pura
 docker-compose.yml    sobe o host a partir do código

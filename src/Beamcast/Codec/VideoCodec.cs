@@ -6,6 +6,7 @@ public enum VideoCodec
     Vp8,
     H264,
     Hevc,
+    Av1,
 }
 
 public static class VideoCodecs
@@ -13,12 +14,14 @@ public static class VideoCodecs
     public const string Vp8Name = "vp8";
     public const string H264Name = "h264";
     public const string HevcName = "hevc";
+    public const string Av1Name = "av1";
 
     public static string ToWireName(this VideoCodec codec) =>
         codec switch
         {
             VideoCodec.H264 => H264Name,
             VideoCodec.Hevc => HevcName,
+            VideoCodec.Av1 => Av1Name,
             _ => Vp8Name,
         };
 
@@ -33,6 +36,9 @@ public static class VideoCodecs
             case HevcName:
             case "h265":
                 codec = VideoCodec.Hevc;
+                return true;
+            case Av1Name:
+                codec = VideoCodec.Av1;
                 return true;
             case Vp8Name:
                 codec = VideoCodec.Vp8;
@@ -52,9 +58,10 @@ public static class EncoderPreference
     public const string Auto = "Auto";
     public const string H264 = "H264";
     public const string Hevc = "HEVC";
+    public const string Av1 = "AV1";
     public const string Vp8 = "VP8";
 
-    public static readonly string[] All = [Auto, H264, Hevc, Vp8];
+    public static readonly string[] All = [Auto, H264, Hevc, Av1, Vp8];
 
     public static string Normalize(string? value) =>
         All.FirstOrDefault(v => string.Equals(v, value?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? Auto;

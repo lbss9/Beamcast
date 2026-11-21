@@ -272,6 +272,10 @@
                                             <ComboBox x:Name="FpsBox" x:Uid="Quality_Fps" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="OnQualityChanged" />
                                         </Grid>
                                         <NumberBox x:Name="BitrateBox" x:Uid="Quality_Bitrate" Minimum="300" Maximum="150000" SmallChange="250" LargeChange="1000" SpinButtonPlacementMode="Compact" ValueChanged="OnBitrateChanged" />
+                                        <ToggleSwitch x:Name="ScreenSwitch" x:Uid="Quality_Screen" Toggled="OnTuningToggled" />
+                                        <TextBlock x:Uid="Quality_ScreenHint" Style="{StaticResource FaintTextStyle}" TextWrapping="Wrap" />
+                                        <ToggleSwitch x:Name="VbrSwitch" x:Uid="Quality_Vbr" Toggled="OnTuningToggled" />
+                                        <TextBlock x:Uid="Quality_VbrHint" Style="{StaticResource FaintTextStyle}" TextWrapping="Wrap" />
                                         <ToggleSwitch x:Name="CursorSwitch" x:Uid="Quality_Cursor" Toggled="OnCursorToggled" />
                                         <ToggleSwitch x:Name="AdaptiveSwitch" x:Uid="Quality_Adaptive" Toggled="OnAdaptiveToggled" />
                                         <TextBlock x:Uid="Quality_AdaptiveHint" Style="{StaticResource FaintTextStyle}" />
@@ -293,7 +297,8 @@
                                 </StackPanel>
                                 <TextBlock x:Name="ErrorText" Foreground="{ThemeResource BeamDangerBrush}" TextWrapping="Wrap" />
                                 <TextBlock x:Name="BroadcastBlockedText" x:Uid="Room_OnlyOwnerBroadcasts" Visibility="Collapsed" Style="{StaticResource HintTextStyle}" />
-                                <TextBlock x:Name="ViewerNoteText" Style="{StaticResource FaintTextStyle}" />
+                                <TextBlock x:Name="ViewerNoteText" Style="{StaticResource FaintTextStyle}" TextWrapping="Wrap" />
+                                <StackPanel x:Name="ViewerList" Spacing="4" />
                             </StackPanel>
                         </Border>
                     </StackPanel>

@@ -2,6 +2,51 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 3.1.0
+
+- Conexão direta (P2P) para a mídia: `Net/PeerLink.cs` (data channel WebRTC do SIPSorcery, confiável
+  e ordenado, STUN da Cloudflare e do Google, quadros em pedaços de 60 KiB) e
+  `Services/LoungeService.Direct.cs` (quem oferece, quem aceita, troca de caminho, volta ao relay,
+  novas tentativas em 20 s / 1 / 3 / 10 min). A sinalização (`PeerSignal`, `MessageType.Signal`) vai
+  selada com a chave da sala dentro de `LoungeMux.Control`, que o host já repassa para a sala inteira:
+  host e protocolo (`LoungeProtocol.Version` 3) não mudaram. `PresenceMessage.Direct` anuncia suporte.
+- Troca de caminho: o espectador assina pelo host como sempre; quando o link abre, o transmissor manda
+  um keyframe por ele e o espectador troca nesse quadro e cancela a assinatura no host. Sem ninguém no
+  relay (e com host 2.3.0+, que avisa quem assiste), o transmissor para de enviar ao host.
+  `ViewerJoined`/`ViewerLeft` agora consideram os dois caminhos.
+- `LoungeClient`: duas filas de saída (urgente: controle, presença, áudio; vídeo) e descarte de
+  quadros de vídeo na fila atrás de um keyframe mais novo (`OutboxPolicy.IsStale`). `SealMedia` /
+  `SendSealedMedia` / `TryOpenMedia` separam cifrar de enviar, para o mesmo quadro ir ao host e aos links.
+- Bitrate adaptativo no direto: `LoungeService.DirectCongested` (link com mais de 1,5 MB na fila)
+  entra em `BroadcastService.AdaptOnDrop`. Painel por espectador: `LoungeService.ViewerPaths`.
+- AV1: `VideoCodec.Av1` / `EncoderPreference.Av1`, subtipo `MFVideoFormat_AV1`, mesmo `MfVideoEncoder`
+  e a mesma sonda (`MfCodecs.Probe`). Fator de bitrate sugerido 0,55.
+- `EncoderTuning` (`MfCodecs.Tuning`, usado também pela sonda): `ScreenContent` define
+  `CODECAPI_AVScenarioInfo = DisplayRemoting`; `CappedVbr` tenta `PeakConstrainedVBR` e depois
+  `LowDelayVBR`, com pico de 1,5x e VBV de 250 ms no pico; se o driver recusar, fica em CBR.
+  Medido numa RX 6750 XT (1280x720, quadro parado, 6 Mbps): CBR enche ~25 kB por quadro em H.264 e
+  HEVC; com VBR cai para ~50 B. `LowDelayVBR` é aceito pelo MFT H.264 da AMD mas continua enchendo,
+  por isso `PeakConstrainedVBR` vem primeiro.
+- Correção: `LoungeService.ForgetHost` também tira o host de `RelayUrl`; `SettingsStore.Sanitize`
+  reinseria o último host usado (sem a chave) a cada gravação.
+- Correção: o host carimba `LoungeMux.Control` com o id do remetente, e o cliente lia esse campo como
+  id da transmissão. `StreamMetaMessage.StreamId` leva o id; atualizações de apps antigos valem para
+  todas as transmissões do remetente.
+- Aviso de atualização: o `InfoBar` do topo virou a faixa `UpdateBanner` em `MainWindow.xaml` (linha
+  própria no rodapé, `TranslateTransform` animado em `RefreshUpdateBanner`). Só aparece 2,5 s depois
+  do `Loaded`, some em tela cheia e com transmissão ao vivo, e o X vale até a janela voltar a ficar
+  visível. "Instalar e reiniciar" abre a `UpdateWindow` já instalando. Checagem a cada 30 min (era
+  6 h) e ao voltar da barra de tarefas, se a última foi há mais de 30 min: é uma chamada anônima à
+  API do GitHub por checagem, com limite de 60 por hora por IP. Em Debug,
+  `BEAMCAST_FAKE_UPDATE=3.9.9` mostra a faixa sem release.
+- Codecs na tela: `MfCodecs.HardwareEncoderName`/`HardwareEncoderVendor` e a linha `EncoderHintText`.
+- Não exercitado em execução antes do release: conexão direta entre dois PCs em redes diferentes
+  (só dois `PeerLink` na mesma máquina, em `DirectLinkTests`), AV1 em placa com encoder AV1 (a
+  máquina de desenvolvimento não tem), `ScreenContent` e VBR em NVIDIA e Intel.
+- Avaliado e deixado de fora: intra refresh / LTR. Os dois transportes são confiáveis e ordenados,
+  então o decodificador nunca vê perda; keyframe só é pedido quando uma fila descarta quadros ou
+  entra um espectador, e nesses casos o intra refresh não substitui o IDR.
+
 ## 3.0.0
 
 - Redesign de UI/UX, desenhado antes no Penpot ("Beamcast — Design", ver `docs/design/README.md`).

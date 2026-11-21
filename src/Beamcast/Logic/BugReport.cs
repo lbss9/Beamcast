@@ -87,7 +87,7 @@ public static class BugReport
             sb.AppendLine("  (none)");
         foreach (var line in events)
             sb.AppendLine("  " + line);
-        sb.AppendLine($"hardware H.264 encoder: {SafeTry.Run(() => Codec.Gpu.MfCodecs.HasHardwareEncoder(Codec.VideoCodec.H264))}, HEVC: {SafeTry.Run(() => Codec.Gpu.MfCodecs.HasHardwareEncoder(Codec.VideoCodec.Hevc))}");
+        sb.AppendLine($"hardware H.264 encoder: {SafeTry.Run(() => Codec.Gpu.MfCodecs.HasHardwareEncoder(Codec.VideoCodec.H264))}, HEVC: {SafeTry.Run(() => Codec.Gpu.MfCodecs.HasHardwareEncoder(Codec.VideoCodec.Hevc))}, AV1: {SafeTry.Run(() => Codec.Gpu.MfCodecs.HasHardwareEncoder(Codec.VideoCodec.Av1))}");
         return sb.ToString();
     }
 

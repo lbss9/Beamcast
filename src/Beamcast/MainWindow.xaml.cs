@@ -18,13 +18,25 @@ namespace Beamcast;
 public sealed partial class MainWindow : Window
 {
     private static readonly string IconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Beamcast.ico");
-    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
+    /// <summary>
+    /// One check is one anonymous GitHub API call, and GitHub allows 60 an hour per public address
+    /// (shared by everyone behind the same router or carrier NAT). Half an hour leaves a wide margin.
+    /// </summary>
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromMinutes(30);
 
     private UIElement? _fullscreenContent;
     private DispatcherQueueTimer? _updateTimer;
     private UpdateOffer? _pendingOffer;
     private string? _notifiedVersion;
     private bool _barRestarts;
+    private bool _bannerDismissed;
+    private bool _bannerShown;
+    private long _lastUpdateCheckTicks = Environment.TickCount64;
+
+    /// <summary>How long after the window loads the update banner may first slide in.</summary>
+    private const long StartupBannerDelayMs = 2500;
+    private long _bannerNotBeforeTicks;
+    private DispatcherQueueTimer? _bannerDelay;
     private DispatcherQueueTimer? _uiHeartbeat;
     private bool _disclaimerShown;
     private string _page = "lounge";
@@ -48,7 +60,11 @@ public sealed partial class MainWindow : Window
         WatchService.Instance.Initialize(DispatcherQueue);
         LoungeService.Instance.StateChanged += OnLoungeStateChanged;
         BroadcastService.Instance.ApplySettings(SettingsStore.Load());
-        BroadcastService.Instance.StateChanged += _ => UpdateLiveBadge();
+        BroadcastService.Instance.StateChanged += _ =>
+        {
+            UpdateLiveBadge();
+            RefreshUpdateBanner();
+        };
 
         var escape = new KeyboardAccelerator { Key = VirtualKey.Escape };
         escape.Invoked += (_, e) =>
@@ -62,17 +78,38 @@ public sealed partial class MainWindow : Window
         // WinUI shows an automatic "Esc" tooltip for accelerators on hover; not wanted for the whole window.
         RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
 
-        VisibilityChanged += (_, e) => Diag.Log($"ui: window {(e.Visible ? "visible" : "hidden/minimized")}");
+        VisibilityChanged += (_, e) =>
+        {
+            Diag.Log($"ui: window {(e.Visible ? "visible" : "hidden/minimized")}");
+            if (!e.Visible)
+                return;
+            // Back on screen: a banner closed with the X comes back, and a check that is due runs now.
+            _bannerDismissed = false;
+            RefreshUpdateBanner();
+            if (Environment.TickCount64 - _lastUpdateCheckTicks >= UpdateCheckInterval.TotalMilliseconds)
+                _ = CheckForUpdatesAsync();
+        };
         AppWindow.Closing += OnClosing;
         SelectedHost = SettingsStore.Load().RelayUrl;
         RootGrid.ActualThemeChanged += (_, _) => RefreshSideBar();
         RootGrid.Loaded += (_, _) =>
         {
+            _bannerNotBeforeTicks = Environment.TickCount64 + StartupBannerDelayMs;
             RefreshSideBar();
             Beam.LabelButtons(SideBar);
             NavigateTo("lounge");
             _ = ShowDisclaimerIfNeededAsync();
             _ = ProbeHostsAsync();
+#if DEBUG
+            // Debug builds only: BEAMCAST_FAKE_UPDATE=3.9.9 (or "3.9.9 ready") shows the update banner
+            // without a release to find, so its look can be checked from a build folder.
+            if (Environment.GetEnvironmentVariable("BEAMCAST_FAKE_UPDATE") is { Length: > 0 } fake)
+            {
+                var staged = fake.EndsWith(" ready", StringComparison.OrdinalIgnoreCase);
+                var version = staged ? fake[..^6] : fake;
+                NotifyUpdate(new UpdateOffer(version, "- Fake update for the banner preview.", Downloaded: staged, CurrentVersion: AppInfo.Version), staged);
+            }
+#endif
         };
         StartUpdateTimer();
         StartUiHeartbeat();
@@ -179,7 +216,10 @@ public sealed partial class MainWindow : Window
         Close();
     }
 
-    /// <summary>Announces a newer build with a discreet bar under the title, never a pop-up.</summary>
+    /// <summary>
+    /// Announces a newer build with a banner that slides up from the bottom edge, never a pop-up.
+    /// It stays out of the way while broadcasting or in fullscreen and returns afterwards.
+    /// </summary>
     public void NotifyUpdate(UpdateOffer offer, bool staged = false, bool show = true)
     {
         _pendingOffer = offer;
@@ -188,10 +228,75 @@ public sealed partial class MainWindow : Window
             return;
         _notifiedVersion = key;
         _barRestarts = staged;
-        UpdateBar.Title = Loc.Get(staged ? "Update_ReadyTitle" : "Update_BarTitle");
-        UpdateBar.Message = Loc.Format(staged ? "Update_ReadyBody" : "Update_BarBody", offer.Version);
-        UpdateBarButton.Content = Loc.Get(staged ? "Update_Restart" : "Update_BarAction");
-        UpdateBar.IsOpen = true;
+        _bannerDismissed = false;
+        UpdateBannerText.Text = Loc.Format(staged ? "Update_BannerReady" : "Update_BannerAvailable", offer.Version);
+        UpdateBannerPrimary.Content = Loc.Get(staged ? "Update_Restart" : "Update_Install/Content");
+        UpdateBannerDetails.Content = Loc.Get("Update_BannerDetails");
+        ToolTipService.SetToolTip(UpdateBannerClose, Loc.Get("Update_Later/Content"));
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(UpdateBannerClose, Loc.Get("Update_Later/Content"));
+        RefreshUpdateBanner();
+    }
+
+    /// <summary>Shows or hides the banner for the current state, sliding it in or out.</summary>
+    private void RefreshUpdateBanner()
+    {
+        var show = _pendingOffer is not null
+            && _notifiedVersion is not null
+            && !_bannerDismissed
+            && _fullscreenContent is null
+            && BroadcastService.Instance.State != BroadcastState.Live;
+        if (show == _bannerShown)
+            return;
+        // Right after the window opens the banner waits a moment, so it is seen sliding in over a
+        // screen that has settled instead of being there from the first frame.
+        if (show)
+        {
+            var wait = _bannerNotBeforeTicks == 0 ? StartupBannerDelayMs : _bannerNotBeforeTicks - Environment.TickCount64;
+            if (wait > 0)
+            {
+                if (_bannerDelay is null)
+                {
+                    _bannerDelay = DispatcherQueue.CreateTimer();
+                    _bannerDelay.IsRepeating = false;
+                    _bannerDelay.Tick += (_, _) => RefreshUpdateBanner();
+                }
+                _bannerDelay.Interval = TimeSpan.FromMilliseconds(wait + 30);
+                _bannerDelay.Start();
+                return;
+            }
+        }
+        _bannerShown = show;
+        if (show)
+            UpdateBanner.Visibility = Visibility.Visible;
+        var slide = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+        {
+            To = show ? 0 : 72,
+            Duration = TimeSpan.FromMilliseconds(show ? 320 : 200),
+            EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase { EasingMode = show ? Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut : Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseIn },
+        };
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(slide, UpdateBannerShift);
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(slide, "Y");
+        var story = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+        story.Children.Add(slide);
+        if (!show)
+            story.Completed += (_, _) =>
+            {
+                if (!_bannerShown)
+                    UpdateBanner.Visibility = Visibility.Collapsed;
+            };
+        story.Begin();
+    }
+
+    private void OnUpdateBannerClose(object sender, RoutedEventArgs e)
+    {
+        _bannerDismissed = true;
+        RefreshUpdateBanner();
+    }
+
+    private void OnUpdateBannerDetails(object sender, RoutedEventArgs e)
+    {
+        if (_pendingOffer is not null)
+            ShowUpdate(_pendingOffer);
     }
 
     /// <summary>
@@ -224,21 +329,24 @@ public sealed partial class MainWindow : Window
         NotifyUpdate(check.Offer, staged: false, settings.UpdateNotifications);
     }
 
-    public void ShowUpdate(UpdateOffer offer)
+    /// <param name="install">Start downloading and installing at once instead of waiting for the button.</param>
+    public void ShowUpdate(UpdateOffer offer, bool install = false)
     {
         _pendingOffer = offer;
-        var window = new UpdateWindow(offer);
+        var window = new UpdateWindow(offer, install);
         window.Activate();
     }
 
-    private async void OnUpdateBarAction(object sender, RoutedEventArgs e)
+    private async void OnUpdateBannerPrimary(object sender, RoutedEventArgs e)
     {
-        UpdateBar.IsOpen = false;
         if (_pendingOffer is null)
             return;
         if (!_barRestarts)
         {
-            ShowUpdate(_pendingOffer);
+            // Not downloaded yet: the update window shows the progress and restarts at the end.
+            _bannerDismissed = true;
+            RefreshUpdateBanner();
+            ShowUpdate(_pendingOffer, install: true);
             return;
         }
         // The version is already on disk: the only thing left is to restart into it. Ask first when
@@ -255,10 +363,7 @@ public sealed partial class MainWindow : Window
                 DefaultButton = ContentDialogButton.Close,
             };
             if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-            {
-                UpdateBar.IsOpen = true;
                 return;
-            }
         }
         Diag.Log("ui: restart into the staged update");
         await UpdateService.DownloadAndApplyAsync();
@@ -303,6 +408,7 @@ public sealed partial class MainWindow : Window
     {
         if (!SettingsStore.Load().CheckUpdatesOnLaunch)
             return;
+        _lastUpdateCheckTicks = Environment.TickCount64;
         await HandleCheckAsync(await UpdateService.CheckAsync());
     }
 
@@ -316,7 +422,7 @@ public sealed partial class MainWindow : Window
         FullscreenHost.Visibility = Visibility.Visible;
         ShellGrid.Visibility = Visibility.Collapsed;
         AppTitleBar.Visibility = Visibility.Collapsed;
-        UpdateBar.Visibility = Visibility.Collapsed;
+        RefreshUpdateBanner();
         AppWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
     }
 
@@ -331,7 +437,7 @@ public sealed partial class MainWindow : Window
         FullscreenHost.Visibility = Visibility.Collapsed;
         ShellGrid.Visibility = Visibility.Visible;
         AppTitleBar.Visibility = Visibility.Visible;
-        UpdateBar.Visibility = Visibility.Visible;
+        RefreshUpdateBanner();
         AppWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
         FullscreenExited?.Invoke(content);
         return content;

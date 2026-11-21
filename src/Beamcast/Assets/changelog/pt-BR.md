@@ -1,3 +1,32 @@
+## 3.1.0
+
+### Conexão direta (P2P)
+
+- **O vídeo pode ir direto de um PC para o outro**, sem passar pelo servidor, quando a rede deixa. Ninguém precisa abrir porta no roteador. A imagem começa pelo servidor, como antes, e troca para o caminho direto assim que ele abre.
+- **Se a conexão direta cair, o vídeo volta pelo servidor na hora**, e o app tenta a direta de novo sozinho.
+- **Você vê por onde o vídeo está chegando.** Cada transmissão mostra "Direto" ou "Via servidor", e um aviso aparece quando o caminho muda. Quem transmite vê, pessoa por pessoa, quem está no direto, quem reclamou de atraso e quantos quadros foram segurados.
+- **Dá para desligar** em Configurações → "Conexão direta (P2P)". Com ela ligada, as pessoas da sala conseguem ver o seu endereço de IP.
+- Quem está numa versão antiga do app continua assistindo pelo servidor. O servidor não precisa ser atualizado.
+
+### Qualidade
+
+- **AV1 na placa de vídeo.** Placas com encoder AV1 (RTX 40/50, RX 7000/9000, Intel Arc) ganham a opção AV1, que dá a melhor imagem com o mesmo bitrate. Quem assiste precisa decodificar AV1 (no Windows, a "Extensão de Vídeo AV1" da Microsoft Store).
+- **Bitrate variável (opcional).** Em "Mais opções". Cena parada usa bem menos banda e cena agitada pode passar até 50% do bitrate escolhido.
+- **Otimizar para tela (opcional).** Avisa a placa de vídeo que a imagem é uma área de trabalho, para texto mais nítido. Depende do driver.
+- **A lista de codecs diz quem codifica.** Mostra se é a placa de vídeo (NVIDIA, AMD ou Intel) ou o processador, e uma linha embaixo explica o custo e o que acontece quando o codec escolhido não funciona na máquina.
+- **A qualidade adaptativa também vale para a conexão direta.** Se um espectador direto fica para trás, o bitrate cai e volta sozinho.
+- **O som não espera mais o vídeo.** Numa internet lenta, áudio e pedidos de controle passam na frente dos quadros de vídeo, e quadros velhos na fila são descartados quando chega um quadro completo novo.
+
+### Atualizações
+
+- **Aviso de atualização novo.** Uma faixa na cor do Beamcast sobe do rodapé com "Instalar e reiniciar" e "Ver o que muda". Ela espera um instante depois que o app abre, some enquanto você transmite ou está em tela cheia, e volta quando a janela reaparece se você tiver fechado no X.
+- **O app procura atualização a cada 30 minutos** (antes, a cada 6 horas) e também quando a janela volta da barra de tarefas.
+
+### Correções
+
+- **Remover um host que tem chave.** O host voltava para a lista na mesma hora, pedindo a chave de novo. Agora ele sai de vez.
+- **Pausar ou renomear a transmissão.** Em salas com mais de uma transmissão, o aviso de pausa ou o novo título podia ir parar na transmissão errada, ou em nenhuma.
+
 ## 3.0.0
 
 ### Novo visual

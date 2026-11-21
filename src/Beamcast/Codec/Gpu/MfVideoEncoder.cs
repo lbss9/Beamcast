@@ -5,13 +5,19 @@ using Vortice.MediaFoundation;
 namespace Beamcast.Codec.Gpu;
 
 /// <summary>
-/// Hardware H.264/HEVC encoder driven through an asynchronous Media Foundation transform
+/// Hardware H.264/HEVC/AV1 encoder driven through an asynchronous Media Foundation transform
 /// (NVENC, AMD VCN, Intel QSV or the D3D12 generic encoder, whichever the driver registers).
 /// Input is an NV12 texture on the pipeline's device, so nothing is copied to system memory
 /// until the compressed bitstream comes out.
 /// </summary>
+/// <param name="ScreenContent">Tell the driver the picture is a desktop (sharper text for the same bitrate, where the driver listens).</param>
+/// <param name="CappedVbr">Variable bitrate: the chosen bitrate is the average and peaks may go up to <see cref="MfVideoEncoder.VbrPeakFactor"/> times it. Off = constant bitrate.</param>
+public readonly record struct EncoderTuning(bool ScreenContent, bool CappedVbr);
+
 public sealed class MfVideoEncoder : IDisposable
 {
+    public const double VbrPeakFactor = 1.5;
+
     private const int EventNeedInput = 601;
     private const int EventHaveOutput = 602;
     private static readonly Guid Texture2DIid = new("6f15aaf2-d208-4e89-9ab4-489535d34f9c");
@@ -38,10 +44,13 @@ public sealed class MfVideoEncoder : IDisposable
     private int _produced;
     private int _needInputEvents;
     private volatile bool _disposed;
+    private readonly EncoderTuning _tuning;
+    private bool _vbr;
 
-    public MfVideoEncoder(GpuDevice gpu, VideoCodec codec, int width, int height, int fps, int bitrateKbps)
+    public MfVideoEncoder(GpuDevice gpu, VideoCodec codec, int width, int height, int fps, int bitrateKbps, EncoderTuning tuning = default)
     {
         _gpu = gpu;
+        _tuning = tuning;
         Codec = codec;
         Width = width;
         Height = height;
@@ -164,11 +173,17 @@ public sealed class MfVideoEncoder : IDisposable
     public string Describe() =>
         $"{Name} {Width}x{Height}@{Fps}: submitted {SubmittedCount}, produced {ProducedCount}, need-input events {Volatile.Read(ref _needInputEvents)}, age {Stopwatch.GetElapsedTime(_createdTicks).TotalSeconds:F1} s";
 
+    /// <summary>True when the driver accepted a variable-bitrate mode (it falls back to constant otherwise).</summary>
+    public bool IsVbr => _vbr;
+
     public void SetBitrate(int kbps)
     {
-        _codecApi.SetUInt32(CodecApiGuids.AVEncCommonMeanBitRate, (uint)(kbps * 1000L));
-        _codecApi.SetUInt32(CodecApiGuids.AVEncCommonMaxBitRate, (uint)(kbps * 1000L));
+        var bits = (uint)(kbps * 1000L);
+        _codecApi.SetUInt32(CodecApiGuids.AVEncCommonMeanBitRate, bits);
+        _codecApi.SetUInt32(CodecApiGuids.AVEncCommonMaxBitRate, PeakBits(bits));
     }
+
+    private uint PeakBits(uint bits) => _vbr ? (uint)Math.Min(uint.MaxValue, bits * VbrPeakFactor) : bits;
 
     /// <summary>
     /// Hands one NV12 texture to the encoder if it is ready for it. Returns false when the encoder is
@@ -217,11 +232,20 @@ public sealed class MfVideoEncoder : IDisposable
         var bits = (uint)(bitrateKbps * 1000L);
         _codecApi.SetBool(CodecApiGuids.AVLowLatencyMode, true);
         _codecApi.SetUInt32(CodecApiGuids.AVEncCommonLowLatency, 1);
-        _codecApi.SetUInt32(CodecApiGuids.AVEncCommonRateControlMode, CodecApiGuids.RateControlCbr);
+        if (_tuning.ScreenContent)
+            _codecApi.SetUInt32(CodecApiGuids.AVScenarioInfo, CodecApiGuids.ScenarioDisplayRemoting);
+        // Variable bitrate when asked and the driver has a mode for it; constant otherwise.
+        _vbr = _tuning.CappedVbr
+            && (_codecApi.SetUInt32(CodecApiGuids.AVEncCommonRateControlMode, CodecApiGuids.RateControlPeakVbr)
+                || _codecApi.SetUInt32(CodecApiGuids.AVEncCommonRateControlMode, CodecApiGuids.RateControlLowDelayVbr));
+        if (!_vbr)
+            _codecApi.SetUInt32(CodecApiGuids.AVEncCommonRateControlMode, CodecApiGuids.RateControlCbr);
         _codecApi.SetUInt32(CodecApiGuids.AVEncCommonMeanBitRate, bits);
-        _codecApi.SetUInt32(CodecApiGuids.AVEncCommonMaxBitRate, bits);
-        // One frame worth of VBV: the encoder cannot bank bits, so every frame stays small and quick to send.
-        _codecApi.SetUInt32(CodecApiGuids.AVEncCommonBufferSize, Math.Max(bits / (uint)Fps, 64_000u));
+        _codecApi.SetUInt32(CodecApiGuids.AVEncCommonMaxBitRate, PeakBits(bits));
+        // Constant: one frame worth of VBV, so the encoder cannot bank bits and every frame stays
+        // small and quick to send. Variable: a quarter second at the peak, which is what lets a
+        // busy scene borrow from a quiet one.
+        _codecApi.SetUInt32(CodecApiGuids.AVEncCommonBufferSize, _vbr ? Math.Max(PeakBits(bits) / 4, 64_000u) : Math.Max(bits / (uint)Fps, 64_000u));
         _codecApi.SetUInt32(CodecApiGuids.AVEncMPVDefaultBPictureCount, 0);
         _codecApi.SetUInt32(CodecApiGuids.AVEncVideoMaxNumRefFrame, 1);
         _codecApi.SetUInt32(CodecApiGuids.AVEncCommonQualityVsSpeed, 0);

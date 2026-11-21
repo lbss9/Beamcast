@@ -108,7 +108,7 @@
   <data name="Settings_NeverChecked" xml:space="preserve"><value>Not checked yet this session</value></data>
   <data name="Settings_LastChecked" xml:space="preserve"><value>Last checked: {0}</value></data>
   <data name="Settings_UpdatesLabel" xml:space="preserve"><value>Check on launch</value></data>
-  <data name="Settings_UpdatesDesc" xml:space="preserve"><value>Asks GitHub Releases at startup and every 6 hours.</value></data>
+  <data name="Settings_UpdatesDesc" xml:space="preserve"><value>Asks GitHub Releases at startup, every 30 minutes and when the window comes back from the taskbar.</value></data>
   <data name="Settings_DisplayName" xml:space="preserve"><value>Your name</value></data>
   <data name="Settings_DisplayNameDesc" xml:space="preserve"><value>How other people see you in a room.</value></data>
   <data name="Settings_AppearanceHeader.Text" xml:space="preserve"><value>Appearance and behavior</value></data>
@@ -178,6 +178,9 @@
   <data name="Update_Install.Content" xml:space="preserve"><value>Install and restart</value></data>
   <data name="Update_Downloading" xml:space="preserve"><value>Preparing the download…</value></data>
   <data name="Update_Failed" xml:space="preserve"><value>The update could not be downloaded. Check the connection and try again; if it keeps failing, the new version is also available from the About page.</value></data>
+  <data name="Update_BannerAvailable" xml:space="preserve"><value>Beamcast {0} is available</value></data>
+  <data name="Update_BannerReady" xml:space="preserve"><value>Beamcast {0} is downloaded. Restart to finish.</value></data>
+  <data name="Update_BannerDetails" xml:space="preserve"><value>See what changed</value></data>
   <data name="Update_BarTitle" xml:space="preserve"><value>Update available</value></data>
   <data name="Update_BarBody" xml:space="preserve"><value>Beamcast {0} is ready to install. See what changes.</value></data>
   <data name="Update_BarAction" xml:space="preserve"><value>See what changed</value></data>
@@ -191,6 +194,15 @@
   <data name="Encoder_HintGpu" xml:space="preserve"><value>Video is encoded as {0} by the {1} graphics card: it barely touches the processor and keeps up with high resolution and fps.</value></data>
   <data name="Encoder_HintCpu" xml:space="preserve"><value>Video is encoded as VP8 by the processor (CPU): it works on any PC, but costs more and does less at 1080p or 60 fps.</value></data>
   <data name="Encoder_HintHevc" xml:space="preserve"><value>HEVC looks better at the same bitrate, but viewers need a PC that can decode HEVC.</value></data>
+  <data name="Encoder_HintAv1" xml:space="preserve"><value>AV1 gives the best picture at the same bitrate, but viewers need to decode AV1 (on Windows, the "AV1 Video Extension" from the Microsoft Store).</value></data>
+  <data name="Quality_Screen.Header" xml:space="preserve"><value>Optimize for screen (text and interface)</value></data>
+  <data name="Quality_ScreenHint.Text" xml:space="preserve"><value>Tells the graphics card the picture is a desktop, for sharper text. It depends on the driver; leave it off for games or video.</value></data>
+  <data name="Quality_Vbr.Header" xml:space="preserve"><value>Variable bitrate</value></data>
+  <data name="Quality_VbrHint.Text" xml:space="preserve"><value>Off, the bitrate is constant. On, the chosen bitrate becomes the average: a still scene uses less and a busy one may go up to 50% over it. Graphics card only; if the driver refuses, the app uses constant.</value></data>
+  <data name="Viewer_RowDirect" xml:space="preserve"><value>{0} · direct</value></data>
+  <data name="Viewer_RowRelay" xml:space="preserve"><value>{0} · via server</value></data>
+  <data name="Viewer_RowDelay" xml:space="preserve"><value> · {0} ms behind</value></data>
+  <data name="Viewer_RowDropped" xml:space="preserve"><value> · {0} frames held back</value></data>
   <data name="Encoder_HintFallback" xml:space="preserve"><value>{0} does not work on this machine, so the broadcast will use {1}.</value></data>
   <data name="Error_Codec" xml:space="preserve"><value>This machine cannot decode the codec used by the stream.</value></data>
 

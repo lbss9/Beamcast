@@ -60,6 +60,7 @@ public sealed partial class RoomPage : Page
             : Loc.Get("Encoder_AutoCpu"));
         EncoderBox.Items.Add(EncoderLabel(VideoCodec.H264, "H.264"));
         EncoderBox.Items.Add(EncoderLabel(VideoCodec.Hevc, "HEVC"));
+        EncoderBox.Items.Add(EncoderLabel(VideoCodec.Av1, "AV1"));
         EncoderBox.Items.Add(Loc.Get("Encoder_Vp8"));
         EncoderBox.SelectedIndex = Math.Max(0, Array.IndexOf(EncoderPreference.All, _broadcast.EncoderPreferenceValue));
         UpdateEncoderHint();
@@ -84,6 +85,8 @@ public sealed partial class RoomPage : Page
 
         BitrateBox.Value = _broadcast.BitrateKbps;
         CursorSwitch.IsOn = _broadcast.ShowCursor;
+        ScreenSwitch.IsOn = MfCodecs.Tuning.ScreenContent;
+        VbrSwitch.IsOn = MfCodecs.Tuning.CappedVbr;
 
         ProfileBox.Items.Clear();
         ProfileBox.Items.Add(Loc.Get("Profile_Manual"));
@@ -173,6 +176,7 @@ public sealed partial class RoomPage : Page
     {
         VideoCodec.H264 => "H.264",
         VideoCodec.Hevc => "HEVC",
+        VideoCodec.Av1 => "AV1",
         _ => "VP8",
     };
 
@@ -186,10 +190,13 @@ public sealed partial class RoomPage : Page
             : Loc.Format("Encoder_HintGpu", CodecTitle(resolved), MfCodecs.HardwareEncoderVendor(resolved));
         if (resolved == VideoCodec.Hevc)
             text += " " + Loc.Get("Encoder_HintHevc");
+        else if (resolved == VideoCodec.Av1)
+            text += " " + Loc.Get("Encoder_HintAv1");
         var asked = preference switch
         {
             EncoderPreference.H264 => VideoCodec.H264,
             EncoderPreference.Hevc => VideoCodec.Hevc,
+            EncoderPreference.Av1 => VideoCodec.Av1,
             _ => resolved,
         };
         if (asked != resolved)
@@ -1116,6 +1123,40 @@ public sealed partial class RoomPage : Page
         _broadcast.BitrateKbps = (int)sender.Value;
     }
 
+    /// <summary>Screen-content and variable-bitrate switches: they shape the next encoder that is built.</summary>
+    private void OnTuningToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        var tuning = new EncoderTuning(ScreenSwitch.IsOn, VbrSwitch.IsOn);
+        MfCodecs.Tuning = tuning;
+        SettingsStore.Update(s =>
+        {
+            s.ScreenContent = tuning.ScreenContent;
+            s.VariableBitrate = tuning.CappedVbr;
+        });
+    }
+
+    /// <summary>One line per viewer of my stream: how it is connected and whether it is struggling.</summary>
+    private void RefreshViewerList(bool live)
+    {
+        ViewerList.Children.Clear();
+        if (!live)
+            return;
+        foreach (var viewer in _lounge.ViewerPaths(_broadcast.StreamId))
+        {
+            var text = Loc.Format(viewer.Direct ? "Viewer_RowDirect" : "Viewer_RowRelay", viewer.Name);
+            if (viewer.DelayMs > 0)
+                text += Loc.Format("Viewer_RowDelay", viewer.DelayMs);
+            if (viewer.Dropped > 0)
+                text += Loc.Format("Viewer_RowDropped", viewer.Dropped);
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            row.Children.Add(Beam.Icon(viewer.Direct ? "\uE703" : "\uE968", 12, viewer.DelayMs > 0 ? "Warn" : viewer.Direct ? "Ok" : "Text3"));
+            row.Children.Add(Beam.Text(text, 12, "Text2"));
+            ViewerList.Children.Add(row);
+        }
+    }
+
     private void OnCursorToggled(object sender, RoutedEventArgs e)
     {
         if (_loading)
@@ -1235,6 +1276,8 @@ public sealed partial class RoomPage : Page
         PauseButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
         PauseButton.Content = Loc.Get(_broadcast.IsPaused ? "Action_Resume" : "Action_Pause/Content");
         EncoderBox.IsEnabled = !live;
+        ScreenSwitch.IsEnabled = !live;
+        VbrSwitch.IsEnabled = !live;
         TitleBox.IsEnabled = !live;
         PreviewHint.Visibility = state == BroadcastState.Idle ? Visibility.Visible : Visibility.Collapsed;
         if (state == BroadcastState.Idle)
@@ -1269,9 +1312,11 @@ public sealed partial class RoomPage : Page
                 : Loc.Format("Stream_Viewers", _broadcast.ViewerCount);
             ViewersBadge.Visibility = Visibility.Visible;
             StandbyBadge.Visibility = stats.Standby ? Visibility.Visible : Visibility.Collapsed;
+            RefreshViewerList(live: true);
         }
         else
         {
+            RefreshViewerList(live: false);
             StatsText.Text = _broadcast.Source?.SizeLabel ?? string.Empty;
             ViewersBadge.Visibility = Visibility.Collapsed;
             StandbyBadge.Visibility = Visibility.Collapsed;

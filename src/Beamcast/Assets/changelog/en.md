@@ -1,3 +1,32 @@
+## 3.1.0
+
+### Direct connection (P2P)
+
+- **Video can go straight from one PC to the other**, skipping the server, when the network allows it. Nobody has to open a port on the router. The picture starts through the server, as before, and moves to the direct path as soon as it opens.
+- **If the direct connection drops, the video goes back through the server at once**, and the app tries the direct one again on its own.
+- **You can see which way the video is coming.** Each stream shows "Direct" or "Via server", and a notice appears when the path changes. The broadcaster sees, person by person, who is direct, who reported delay and how many frames were held back.
+- **It can be turned off** in Settings → "Direct connection (P2P)". With it on, people in the room can see your IP address.
+- People on an older version of the app keep watching through the server. The server does not need an update.
+
+### Quality
+
+- **AV1 on the graphics card.** Cards with an AV1 encoder (RTX 40/50, RX 7000/9000, Intel Arc) get the AV1 option, the best picture at the same bitrate. Viewers need to decode AV1 (on Windows, the "AV1 Video Extension" from the Microsoft Store).
+- **Variable bitrate (optional).** Under "More options". A still scene uses far less bandwidth and a busy one may go up to 50% over the chosen bitrate.
+- **Optimize for screen (optional).** Tells the graphics card the picture is a desktop, for sharper text. It depends on the driver.
+- **The codec list says who encodes.** It shows whether it is the graphics card (NVIDIA, AMD or Intel) or the processor, and a line below explains the cost and what happens when the chosen codec does not work on this machine.
+- **Adaptive quality also covers the direct connection.** If a direct viewer falls behind, the bitrate drops and comes back on its own.
+- **Sound no longer waits for video.** On a slow connection, audio and control requests go ahead of video frames, and old frames in the queue are dropped when a new full frame arrives.
+
+### Updates
+
+- **New update notice.** A banner in the Beamcast colour slides up from the bottom with "Install and restart" and "See what changed". It waits a moment after the app opens, stays away while you broadcast or are in fullscreen, and comes back when the window reappears if you closed it with the X.
+- **The app looks for updates every 30 minutes** (it was every 6 hours) and also when the window comes back from the taskbar.
+
+### Fixes
+
+- **Removing a host that has a key.** The host came straight back to the list, asking for the key again. Now it is gone for good.
+- **Pausing or renaming a stream.** In rooms with more than one stream, the pause notice or the new title could land on the wrong stream, or on none.
+
 ## 3.0.0
 
 ### New look

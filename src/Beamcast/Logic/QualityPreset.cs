@@ -96,6 +96,7 @@ public static class QualityPreset
         kbps *= codec.ToLowerInvariant() switch
         {
             "hevc" => 0.65,
+            "av1" => 0.55,
             "vp8" => 0.6,
             _ => 1.0,
         };

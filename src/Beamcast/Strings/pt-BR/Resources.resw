@@ -108,7 +108,7 @@
   <data name="Settings_NeverChecked" xml:space="preserve"><value>Ainda não verificou nesta sessão</value></data>
   <data name="Settings_LastChecked" xml:space="preserve"><value>Última verificação: {0}</value></data>
   <data name="Settings_UpdatesLabel" xml:space="preserve"><value>Verificar ao abrir</value></data>
-  <data name="Settings_UpdatesDesc" xml:space="preserve"><value>Consulta o GitHub Releases ao iniciar e a cada 6 horas.</value></data>
+  <data name="Settings_UpdatesDesc" xml:space="preserve"><value>Consulta o GitHub Releases ao iniciar, a cada 30 minutos e quando a janela volta da barra de tarefas.</value></data>
   <data name="Settings_DisplayName" xml:space="preserve"><value>Seu nome</value></data>
   <data name="Settings_DisplayNameDesc" xml:space="preserve"><value>Como você aparece para as outras pessoas na sala.</value></data>
   <data name="Settings_AppearanceHeader.Text" xml:space="preserve"><value>Aparência e comportamento</value></data>
@@ -178,6 +178,9 @@
   <data name="Update_Install.Content" xml:space="preserve"><value>Instalar e reiniciar</value></data>
   <data name="Update_Downloading" xml:space="preserve"><value>Preparando o download…</value></data>
   <data name="Update_Failed" xml:space="preserve"><value>Não foi possível baixar a atualização. Verifique a conexão e tente de novo; se persistir, a versão nova também está na página Sobre.</value></data>
+  <data name="Update_BannerAvailable" xml:space="preserve"><value>Beamcast {0} está disponível</value></data>
+  <data name="Update_BannerReady" xml:space="preserve"><value>Beamcast {0} já foi baixada. Reinicie para concluir.</value></data>
+  <data name="Update_BannerDetails" xml:space="preserve"><value>Ver o que muda</value></data>
   <data name="Update_BarTitle" xml:space="preserve"><value>Atualização disponível</value></data>
   <data name="Update_BarBody" xml:space="preserve"><value>Beamcast {0} está pronta para instalar. Veja o que muda.</value></data>
   <data name="Update_BarAction" xml:space="preserve"><value>Ver detalhes</value></data>
@@ -191,6 +194,15 @@
   <data name="Encoder_HintGpu" xml:space="preserve"><value>O vídeo é codificado em {0} pela placa de vídeo {1}: quase não usa o processador e aguenta resolução e fps altos.</value></data>
   <data name="Encoder_HintCpu" xml:space="preserve"><value>O vídeo é codificado em VP8 pelo processador (CPU): funciona em qualquer PC, mas pesa mais e rende menos em 1080p ou 60 fps.</value></data>
   <data name="Encoder_HintHevc" xml:space="preserve"><value>HEVC dá imagem melhor com o mesmo bitrate, mas quem assiste precisa de um PC que decodifique HEVC.</value></data>
+  <data name="Encoder_HintAv1" xml:space="preserve"><value>AV1 dá a melhor imagem com o mesmo bitrate, mas quem assiste precisa decodificar AV1 (no Windows, a "Extensão de Vídeo AV1" da Microsoft Store).</value></data>
+  <data name="Quality_Screen.Header" xml:space="preserve"><value>Otimizar para tela (texto e interface)</value></data>
+  <data name="Quality_ScreenHint.Text" xml:space="preserve"><value>Avisa a placa de vídeo que a imagem é uma área de trabalho, para deixar texto mais nítido. Depende do driver; em jogo ou vídeo, deixe desligado.</value></data>
+  <data name="Quality_Vbr.Header" xml:space="preserve"><value>Bitrate variável</value></data>
+  <data name="Quality_VbrHint.Text" xml:space="preserve"><value>Desligado, o bitrate é constante. Ligado, o bitrate escolhido vira a média: cena parada usa menos e cena agitada pode passar até 50% dele. Só vale para a placa de vídeo, e se o driver não aceitar o app usa o constante.</value></data>
+  <data name="Viewer_RowDirect" xml:space="preserve"><value>{0} · direto</value></data>
+  <data name="Viewer_RowRelay" xml:space="preserve"><value>{0} · via servidor</value></data>
+  <data name="Viewer_RowDelay" xml:space="preserve"><value> · atraso de {0} ms</value></data>
+  <data name="Viewer_RowDropped" xml:space="preserve"><value> · {0} quadros segurados</value></data>
   <data name="Encoder_HintFallback" xml:space="preserve"><value>{0} não funciona nesta máquina, então a transmissão vai usar {1}.</value></data>
   <data name="Error_Codec" xml:space="preserve"><value>Esta máquina não consegue decodificar o codec da transmissão.</value></data>
 

@@ -112,6 +112,7 @@ public sealed class BroadcastService
         _lounge.ViewerJoined += (streamId, viewerId, name) => OnViewer(streamId, viewerId, name, joined: true);
         _lounge.ViewerLeft += (streamId, viewerId, name) => OnViewer(streamId, viewerId, name, joined: false);
         _lounge.ViewerReported += OnViewerReported;
+        _lounge.DirectCongested += OnDirectCongested;
         _lounge.StateChanged += state =>
         {
             if (state == LoungeState.Disconnected)
@@ -328,6 +329,13 @@ public sealed class BroadcastService
             AdaptOnDrop();
     }
 
+    /// <summary>Network thread. A direct link fell behind and dropped video: same signal as a drop at the uplink gate.</summary>
+    private void OnDirectCongested(uint streamId)
+    {
+        if (streamId == _streamId && _live)
+            AdaptOnDrop();
+    }
+
     private static void InterlockedMax(ref int target, int value)
     {
         int current;
@@ -392,6 +400,7 @@ public sealed class BroadcastService
         StandbyWithoutViewers = settings.StandbyWithoutViewers;
         ShowCursor = settings.ShowCursor;
         EncoderPreferenceValue = settings.Encoder;
+        MfCodecs.Tuning = new EncoderTuning(settings.ScreenContent, settings.VariableBitrate);
         _audioMode = AudioMode.Normalize(settings.AudioMode);
     }
 
@@ -1100,7 +1109,7 @@ public sealed class BroadcastService
         if (encoder is null || encoder.Width != width || encoder.Height != height || encoder.Fps != _fps)
         {
             encoder?.Dispose();
-            encoder = new MfVideoEncoder(Gpu, ActiveCodec, width, height, _fps, EffectiveBitrateKbps);
+            encoder = new MfVideoEncoder(Gpu, ActiveCodec, width, height, _fps, EffectiveBitrateKbps, MfCodecs.Tuning);
             // It opens with an IDR frame, so anything waiting for a keyframe is already served.
             Interlocked.Exchange(ref _keyframeRequested, 0);
             _rebuildHeld = false;
@@ -1112,7 +1121,7 @@ public sealed class BroadcastService
             });
             _gpuEncoder = encoder;
             EncoderName = encoder.Name;
-            Diag.Log($"broadcast: encoder {encoder.Name} {width}x{height}@{_fps} {_bitrateKbps} kbps");
+            Diag.Log($"broadcast: encoder {encoder.Name} {width}x{height}@{_fps} {_bitrateKbps} kbps, {(encoder.IsVbr ? "variable" : "constant")} bitrate, screen content {MfCodecs.Tuning.ScreenContent}");
             Interlocked.Exchange(ref _keyframeRequested, 1);
         }
 
