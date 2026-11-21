@@ -1,6 +1,6 @@
 # Beamcast server (salão). Build and run from a clone of this repository:
 #
-#   git clone https://github.com/lbss9/Beamcast.git && cd Beamcast
+#   git clone https://github.com/trupper9/Beamcast.git && cd Beamcast
 #   docker compose up -d --build
 #
 # Then point the app at  ws://<ip-or-host>:47710  (or wss://… behind a reverse proxy / tunnel).

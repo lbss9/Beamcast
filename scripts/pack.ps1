@@ -26,7 +26,7 @@ if (-not $Version) {
 }
 
 $repo = $env:BEAMCAST_REPO_URL
-if (-not $repo) { $repo = "https://github.com/lbss9/Beamcast" }
+if (-not $repo) { $repo = "https://github.com/trupper9/Beamcast" }
 $repo = $repo.TrimEnd("/")
 $repoSlug = $repo -replace "^https://github.com/", ""
 $token = $env:GH_TOKEN

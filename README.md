@@ -136,7 +136,7 @@ com a chave da sala, como o resto.
 Precisa só de Docker com Compose. Sem Actions, sem registry, sem conta:
 
 ```bash
-git clone https://github.com/lbss9/Beamcast.git
+git clone https://github.com/trupper9/Beamcast.git
 cd Beamcast
 docker compose up -d --build
 ```
