@@ -85,7 +85,7 @@ public sealed class LoungeClient : IDisposable
     private readonly ConcurrentDictionary<uint, TaskCompletionSource<InviteCreatedMessage>> _inviteWaiters = new();
     private readonly TaskCompletionSource<bool> _keyReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly List<(byte Kind, uint A, uint B, byte[] Payload)> _beforeKey = [];
-    private readonly byte[] _scratch = new byte[64 * 1024];
+    private byte[] _rx = new byte[256 * 1024];
     private readonly object _keySync = new();
     private SecureChannel? _channel;
     private byte[]? _contentKey;
@@ -517,13 +517,21 @@ public sealed class LoungeClient : IDisposable
     /// Encrypts a media message into a ready <see cref="LoungeMux.Media"/> frame, the same bytes the
     /// host relays and a direct link carries. Null before the room key arrived.
     /// </summary>
-    public byte[]? SealMedia(uint streamId, MessageType type, ReadOnlySpan<byte> body, bool keyframe, uint sendStamp)
+    public byte[]? SealMedia(uint streamId, MessageType type, ReadOnlySpan<byte> body, bool keyframe, uint sendStamp) =>
+        SealMedia(streamId, type, body, ReadOnlySpan<byte>.Empty, keyframe, sendStamp);
+
+    /// <summary>
+    /// Same, with the message body given in two parts (packet header, bitstream) so the caller does
+    /// not have to join them first. One allocation and one copy for the whole frame.
+    /// </summary>
+    public byte[]? SealMedia(uint streamId, MessageType type, ReadOnlySpan<byte> head, ReadOnlySpan<byte> tail, bool keyframe, uint sendStamp)
     {
         var channel = _channel;
         if (channel is null)
             return null;
-        var framed = channel.Seal(type, body, keyframe ? MessageFlags.Keyframe : MessageFlags.None);
-        return LoungeMux.Encode(LoungeMux.Media, streamId, sendStamp, framed);
+        var frame = channel.SealWithPrefix(LoungeMux.HeaderSize, type, head, tail, keyframe ? MessageFlags.Keyframe : MessageFlags.None);
+        LoungeMux.WriteHeader(frame, LoungeMux.Media, streamId, sendStamp);
+        return frame;
     }
 
     /// <summary>Queues a frame from <see cref="SealMedia"/> for the host.</summary>
@@ -545,16 +553,15 @@ public sealed class LoungeClient : IDisposable
     }
 
     /// <summary>Opens a media frame that came over a direct link (same layout as the host's).</summary>
-    public bool TryOpenMedia(byte[] payload, out MessageType type, out bool keyframe, out byte[] body)
+    public bool TryOpenMedia(ReadOnlySpan<byte> payload, out MessageType type, out bool keyframe, out byte[] body)
     {
         type = default;
         keyframe = false;
         body = [];
         var channel = _channel;
-        if (channel is null || !Framing.TryDecodeWhole(payload, out var message) || !channel.TryOpen(message, out body))
+        if (channel is null || !channel.TryOpenFramed(payload, out type, out var flags, out body))
             return false;
-        type = message.Type;
-        keyframe = message.IsKeyframe;
+        keyframe = (flags & MessageFlags.Keyframe) != 0;
         return true;
     }
 
@@ -691,13 +698,13 @@ public sealed class LoungeClient : IDisposable
         {
             while (!ct.IsCancellationRequested)
             {
-                byte[]? frame;
+                int length;
                 using (var idle = CancellationTokenSource.CreateLinkedTokenSource(ct))
                 {
                     idle.CancelAfter(LoungeProtocol.IdleTimeout);
                     try
                     {
-                        frame = await ReadFrameAsync(_socket, _scratch, idle.Token).ConfigureAwait(false);
+                        length = await ReadFrameAsync(idle.Token).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                     {
@@ -705,11 +712,9 @@ public sealed class LoungeClient : IDisposable
                         break;
                     }
                 }
-                if (frame is null)
+                if (length < 0)
                     break;
-                if (!LoungeMux.TryDecode(frame, out var kind, out var a, out var b, out var payload))
-                    continue;
-                Route(kind, a, b, payload);
+                RouteFrame(length);
             }
         }
         catch (OperationCanceledException)
@@ -721,6 +726,23 @@ public sealed class LoungeClient : IDisposable
             reason = "lost";
         }
         Close(_byeReason ?? reason);
+    }
+
+    /// <summary>
+    /// One frame, still in the receive buffer. Media, which is nearly all the traffic, is decrypted
+    /// straight from there; everything else is small and gets its own copy, as it may be kept.
+    /// </summary>
+    private void RouteFrame(int length)
+    {
+        if (!LoungeMux.TryReadHeader(_rx.AsSpan(0, length), out var kind, out var a, out var b, out var payload))
+            return;
+        if (kind == LoungeMux.Media && _channel is not null)
+        {
+            if (TryOpenMedia(payload, out var type, out var keyframe, out var body))
+                MediaReceived?.Invoke(a, type, keyframe, body, b);
+            return;
+        }
+        Route(kind, a, b, payload.ToArray());
     }
 
     private void Route(byte kind, uint a, uint b, byte[] payload)
@@ -857,8 +879,9 @@ public sealed class LoungeClient : IDisposable
                 KeyframeRequested?.Invoke(a);
                 break;
             case LoungeMux.Media:
-                if (channel is not null && Framing.TryDecodeWhole(payload, out var message) && channel.TryOpen(message, out var body))
-                    MediaReceived?.Invoke(a, message.Type, message.IsKeyframe, body, b);
+                // Only media that arrived before the room key (replayed from the buffer) comes this way.
+                if (TryOpenMedia(payload, out var mediaType, out var mediaKey, out var body))
+                    MediaReceived?.Invoke(a, mediaType, mediaKey, body, b);
                 break;
             case LoungeMux.ViewerJoined:
                 ViewerJoined?.Invoke(a, b);
@@ -892,30 +915,41 @@ public sealed class LoungeClient : IDisposable
         }
     }
 
-    private static async Task<byte[]?> ReadFrameAsync(WebSocket socket, byte[] scratch, CancellationToken ct)
+    /// <summary>
+    /// Reads one whole message into <see cref="_rx"/> (reused from frame to frame and grown when a
+    /// bigger one arrives) and returns its length, or -1 when the socket closed. The socket writes
+    /// straight into the buffer, so a frame is not copied on its way in.
+    /// </summary>
+    private async Task<int> ReadFrameAsync(CancellationToken ct)
     {
-        using var assembled = new MemoryStream();
+        var length = 0;
         while (true)
         {
-            WebSocketReceiveResult result;
+            if (length == _rx.Length)
+            {
+                if (length >= MaxFrame)
+                    throw new InvalidDataException("Frame too large.");
+                Array.Resize(ref _rx, (int)Math.Min(MaxFrame, (long)length * 2));
+            }
+            ValueWebSocketReceiveResult result;
             try
             {
-                result = await socket.ReceiveAsync(scratch, ct).ConfigureAwait(false);
+                result = await _socket.ReceiveAsync(_rx.AsMemory(length), ct).ConfigureAwait(false);
             }
             catch (WebSocketException)
             {
-                return null;
+                return -1;
             }
 
             if (result.MessageType == WebSocketMessageType.Close)
-                return null;
-            assembled.Write(scratch, 0, result.Count);
-            if (assembled.Length > Framing.MaxMessageSize + LoungeMux.HeaderSize)
-                throw new InvalidDataException("Frame too large.");
+                return -1;
+            length += result.Count;
             if (result.EndOfMessage)
-                return assembled.ToArray();
+                return length;
         }
     }
+
+    private const int MaxFrame = Framing.MaxMessageSize + LoungeMux.HeaderSize;
 
     private static Task SendJsonAsync<T>(WebSocket socket, T value, CancellationToken ct) =>
         socket.SendAsync(Json.Serialize(value), WebSocketMessageType.Text, true, ct);

@@ -79,6 +79,9 @@
   <data name="Watch_Leave.Content" xml:space="preserve"><value>Sair</value></data>
   <data name="Watch_Subtitle" xml:space="preserve"><value>Transmitido por {0} · {1} assistindo</value></data>
   <data name="Watch_Waiting" xml:space="preserve"><value>Aguardando o primeiro quadro…</value></data>
+  <data name="Watch_NoDecoder" xml:space="preserve"><value>Este PC não consegue decodificar {0}. Peça para quem transmite trocar o codec para H.264.</value></data>
+  <data name="Watch_NoDecoderHevc" xml:space="preserve"><value>Este PC não consegue decodificar HEVC. Instale as "Extensões de Vídeo HEVC" da Microsoft Store ou peça para quem transmite usar H.264.</value></data>
+  <data name="Watch_NoDecoderAv1" xml:space="preserve"><value>Este PC não consegue decodificar AV1. Instale a "Extensão de Vídeo AV1" da Microsoft Store ou peça para quem transmite usar H.264.</value></data>
   <data name="Broadcast_StillStopping" xml:space="preserve"><value>A transmissão anterior ainda está encerrando. Tente de novo em alguns segundos.</value></data>
   <data name="Watch_PublisherBack" xml:space="preserve"><value>A conexão de {0} caiu. Esperando a transmissão voltar…</value></data>
   <data name="Watch_PausedByHost" xml:space="preserve"><value>A transmissão está pausada.</value></data>
@@ -201,6 +204,7 @@
   <data name="Quality_VbrHint.Text" xml:space="preserve"><value>Desligado, o bitrate é constante. Ligado, o bitrate escolhido vira a média: cena parada usa menos e cena agitada pode passar até 50% dele. Só vale para a placa de vídeo, e se o driver não aceitar o app usa o constante.</value></data>
   <data name="Viewer_RowDirect" xml:space="preserve"><value>{0} · direto</value></data>
   <data name="Viewer_RowRelay" xml:space="preserve"><value>{0} · via servidor</value></data>
+  <data name="Viewer_RowReduced" xml:space="preserve"><value> · qualidade reduzida</value></data>
   <data name="Viewer_RowDelay" xml:space="preserve"><value> · atraso de {0} ms</value></data>
   <data name="Viewer_RowDropped" xml:space="preserve"><value> · {0} quadros segurados</value></data>
   <data name="Encoder_HintFallback" xml:space="preserve"><value>{0} não funciona nesta máquina, então a transmissão vai usar {1}.</value></data>

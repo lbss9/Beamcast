@@ -60,6 +60,25 @@ public static class QualityPreset
         return (x, y, width, height);
     }
 
+    /// <summary>
+    /// Size of the reduced stream for a full stream of that size: half the height, kept between
+    /// 360 and 720 lines (and never above the original), same shape, even numbers.
+    /// </summary>
+    public static (int Width, int Height) ReducedSize(int width, int height)
+    {
+        if (width <= 0 || height <= 0)
+            return (0, 0);
+        var target = Math.Min(height, Math.Clamp(height / 2, 360, 720));
+        var scaled = (int)Math.Round(width * (double)target / height);
+        return (Math.Max(2, scaled & ~1), Math.Max(2, target & ~1));
+    }
+
+    /// <summary>Bitrate of the reduced stream: a quarter of the full one, at least 500 kbps and never above it.</summary>
+    public static int ReducedBitrate(int fullKbps) => Math.Min(fullKbps, Math.Max(500, fullKbps / 4));
+
+    /// <summary>Frame rate of the reduced stream: half above 30 fps, the same otherwise.</summary>
+    public static int ReducedFps(int fullFps) => fullFps > 30 ? fullFps / 2 : fullFps;
+
     public static (int Width, int Height) Fit(string preset, int width, int height)
     {
         if (width <= 0 || height <= 0)

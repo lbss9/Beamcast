@@ -700,8 +700,19 @@ public sealed partial class LoungeService
 
     // ----- pipe for the broadcast/watch services -----
 
-    public Task<uint> PublishAsync(StreamMetaMessage meta, CancellationToken ct) =>
-        (_client ?? throw new InvalidOperationException("Not in a room.")).PublishAsync(meta, ct);
+    public Task<uint> PublishAsync(StreamMetaMessage meta, CancellationToken ct)
+    {
+        var client = _client ?? throw new InvalidOperationException("Not in a room.");
+        meta.Publisher = PublisherTag(client.Code);
+        return client.PublishAsync(meta, ct);
+    }
+
+    /// <summary>
+    /// Who publishes a stream, stable across reconnects (member and stream ids are not) and
+    /// different in every room, so it cannot be used to recognise the same person elsewhere.
+    /// </summary>
+    private static string PublisherTag(string roomCode) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ClientId + "|" + roomCode)), 0, 8);
 
     public void Unpublish(uint streamId)
     {
@@ -717,7 +728,11 @@ public sealed partial class LoungeService
             if (_streams.TryGetValue(streamId, out var stream))
                 stream.Meta = meta;
         }
-        _client?.UpdateStreamMeta(streamId, meta);
+        if (_client is { } client)
+        {
+            meta.Publisher = PublisherTag(client.Code);
+            client.UpdateStreamMeta(streamId, meta);
+        }
         Post(() => StreamsChanged?.Invoke());
     }
 
@@ -729,7 +744,6 @@ public sealed partial class LoungeService
             return _streams.TryGetValue(streamId, out var s) ? s : null;
     }
 
-    /// <summary>After a reconnect: the stream that looks like the one we were watching (same owner and title).</summary>
     /// <summary>Id of this installation, created on first use; hosts use it to replace a stale connection of ours.</summary>
     public static string ClientId
     {
@@ -744,12 +758,23 @@ public sealed partial class LoungeService
         }
     }
 
-    public LoungeStream? FindStreamLike(string ownerName, string title)
+    /// <summary>
+    /// After a reconnect or when a publisher comes back: the stream that continues the one we were
+    /// watching. Streams from apps 3.1.1+ carry a publisher tag and are matched by it, so two people
+    /// with the same name are never mixed up; older ones fall back to owner name and title.
+    /// </summary>
+    public LoungeStream? FindStreamLike(string ownerName, string title, string publisher = "")
     {
         lock (_sync)
         {
-            return _streams.Values.FirstOrDefault(s => !s.IsMine && s.OwnerName == ownerName && s.Meta.Title == title)
-                ?? _streams.Values.FirstOrDefault(s => !s.IsMine && s.OwnerName == ownerName);
+            var others = _streams.Values.Where(s => !s.IsMine).ToList();
+            if (publisher.Length > 0)
+            {
+                var same = others.Where(s => s.Meta.Publisher == publisher).ToList();
+                return same.FirstOrDefault(s => s.Meta.Title == title) ?? same.FirstOrDefault();
+            }
+            var untagged = others.Where(s => string.IsNullOrEmpty(s.Meta.Publisher) && s.OwnerName == ownerName).ToList();
+            return untagged.FirstOrDefault(s => s.Meta.Title == title) ?? untagged.FirstOrDefault();
         }
     }
 

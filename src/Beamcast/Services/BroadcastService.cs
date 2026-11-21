@@ -40,7 +40,7 @@ public sealed record HostStats(double Fps, double Kbps, double AudioKbps, double
 /// Audio, when enabled, is captured per process and sent on the same stream.
 /// Every event is raised on the UI thread handed to <see cref="Initialize"/>.
 /// </summary>
-public sealed class BroadcastService
+public sealed partial class BroadcastService
 {
     public static BroadcastService Instance { get; } = new();
 
@@ -113,6 +113,7 @@ public sealed class BroadcastService
         _lounge.ViewerLeft += (streamId, viewerId, name) => OnViewer(streamId, viewerId, name, joined: false);
         _lounge.ViewerReported += OnViewerReported;
         _lounge.DirectCongested += OnDirectCongested;
+        _lounge.ReducedKeyframeRequested += OnReducedKeyframeRequested;
         _lounge.StateChanged += state =>
         {
             if (state == LoungeState.Disconnected)
@@ -275,6 +276,11 @@ public sealed class BroadcastService
             changed = joined ? _viewers.Add(viewerId) : _viewers.Remove(viewerId);
         if (!changed)
             return;
+        if (!joined)
+        {
+            _congestion.Forget(viewerId);
+            ForgetViewerQuality(viewerId);
+        }
         Diag.Log($"broadcast: viewer {viewerId} ({name}) {(joined ? "joined" : "left")}; {ViewerCount} watching");
         if (_viewerSounds)
             SoundEffects.Play(joined ? SoundEffects.ViewerIn : SoundEffects.ViewerOut);
@@ -314,6 +320,8 @@ public sealed class BroadcastService
     {
         lock (_viewers)
             _viewers.Clear();
+        _congestion.Reset();
+        ResetReduced();
     }
 
     private int _worstViewerDelayMs;
@@ -326,14 +334,40 @@ public sealed class BroadcastService
         Diag.Log($"broadcast: viewer {viewerId} reports {delayMs} ms of delay");
         InterlockedMax(ref _worstViewerDelayMs, delayMs);
         if (delayMs >= ViewerLagPolicy.ReportAboveMs)
-            AdaptOnDrop();
+            OnViewerStruggling(viewerId, $"{delayMs} ms late");
     }
 
-    /// <summary>Network thread. A direct link fell behind and dropped video: same signal as a drop at the uplink gate.</summary>
-    private void OnDirectCongested(uint streamId)
+    /// <summary>Network thread. A direct link fell behind and held video back for that viewer.</summary>
+    private void OnDirectCongested(uint streamId, uint viewerId)
     {
         if (streamId == _streamId && _live)
+            OnViewerStruggling(viewerId, "direct link behind");
+    }
+
+    private readonly ViewerCongestion _congestion = new();
+    private long _lastSparedLogTicks;
+
+    /// <summary>
+    /// One viewer in trouble does not lower the bitrate for everyone: it takes at least half of
+    /// them (see <see cref="ViewerCongestion"/>). My own uplink dropping frames still does, at once.
+    /// </summary>
+    private void OnViewerStruggling(uint viewerId, string why)
+    {
+        // A viewer on a direct link gets its own, lighter stream instead of costing everyone quality.
+        if (TryReduceViewer(viewerId, why))
+            return;
+        var viewers = ViewerCount;
+        if (_congestion.Complain(viewerId, Environment.TickCount64, viewers))
+        {
             AdaptOnDrop();
+            return;
+        }
+        var now = Environment.TickCount64;
+        if (now - Interlocked.Read(ref _lastSparedLogTicks) >= 5000)
+        {
+            Interlocked.Exchange(ref _lastSparedLogTicks, now);
+            Diag.Log($"broadcast: viewer {viewerId} struggling ({why}) but fewer than {ViewerCongestion.Needed(viewers)} of {viewers} are; bitrate kept");
+        }
     }
 
     private static void InterlockedMax(ref int target, int value)
@@ -345,6 +379,7 @@ public sealed class BroadcastService
     /// <summary>Once per stats window: let the ladder climb back after a quiet spell.</summary>
     private void AdaptTick()
     {
+        QualityTick();
         if (!_adaptiveEnabled || !_adaptive.OnTick(Environment.TickCount64))
             return;
         Diag.Log($"broadcast: uplink quiet, bitrate back up to {EffectiveBitrateKbps} kbps (level {_adaptive.Level})");
@@ -747,6 +782,7 @@ public sealed class BroadcastService
                     ActiveCodec = VideoCodec.Vp8;
                     encoder = _gpuEncoder;
                     _gpuEncoder = null;
+                    DisposeReduced(); // no reduced stream on the CPU codec
                 }
                 EncoderName = "libvpx (CPU)";
 
@@ -805,6 +841,7 @@ public sealed class BroadcastService
         var encoder = _gpuEncoder;
         _gpuEncoder = null;
         encoder?.Dispose();
+        DisposeReduced();
 
         if (_streamId != 0)
         {
@@ -892,474 +929,9 @@ public sealed class BroadcastService
         }
     }
 
-    // ----- profile calibration -----
-
-    /// <summary>
-    /// Measures this machine against the current source and applies the settings the profile
-    /// asks for: every candidate size is encoded from live capture for a moment to get the encoder's
-    /// time per frame and how many frames it kept up with; the upload to the host is timed when the
-    /// host offers the probe. Runs in preview only (never while live). Returns null when nothing
-    /// could be measured.
-    /// </summary>
-    public async Task<ProfileChoice?> CalibrateAsync(BroadcastProfile profile, IProgress<string>? progress, CancellationToken ct)
-    {
-        var source = Source ?? throw new InvalidOperationException("no-source");
-        if (State != BroadcastState.Preview)
-            throw new InvalidOperationException("live");
-        var capture = _capture ?? throw new InvalidOperationException("no-source");
-
-        var hasH264 = MfCodecs.HasHardwareEncoder(VideoCodec.H264);
-        var hasHevc = MfCodecs.HasHardwareEncoder(VideoCodec.Hevc);
-        var codec = hasH264 ? VideoCodec.H264 : hasHevc ? VideoCodec.Hevc : VideoCodec.Vp8;
-        var samples = new List<EncodeSample>();
-        Diag.Log($"profile: calibrating {profile} for {source.Width}x{source.Height}, encoders h264={hasH264} hevc={hasHevc}");
-        capture.MaxFps = 60;
-        try
-        {
-            foreach (var preset in BroadcastProfiles.Candidates(source.Width, source.Height))
-            {
-                ct.ThrowIfCancellationRequested();
-                var (width, height) = QualityPreset.Fit(preset, source.Width, source.Height);
-                progress?.Report(preset);
-                if (codec == VideoCodec.Vp8)
-                {
-                    samples.Add(new EncodeSample(preset, width, height, 0, 0));
-                    continue;
-                }
-                var run = new Calibration(Gpu, codec, preset);
-                _calibration = run;
-                try
-                {
-                    await Task.Delay(1400, ct);
-                }
-                finally
-                {
-                    _calibration = null;
-                }
-                await Task.Delay(60, ct); // let a frame in flight finish before tearing the encoder down
-                var sample = run.Finish();
-                samples.Add(sample);
-                Diag.Log($"profile: {preset} {sample.Width}x{sample.Height}: {sample.EncodeMs:F1} ms/frame, {sample.EncodedFps:F0} fps kept");
-            }
-
-            var uplink = 0;
-            var host = _lounge.ServerUrl;
-            if (host.Length > 0)
-            {
-                progress?.Report("upload");
-                uplink = await LoungeClient.MeasureUploadAsync(host, LoungeService.AppKeyFor(host), 1_500_000, TimeSpan.FromSeconds(8), ct);
-                Diag.Log($"profile: upload to host {uplink} kbps");
-            }
-
-            var choice = BroadcastProfiles.Recommend(profile, new ProfileInputs(source.Width, source.Height, samples, uplink, hasH264, hasHevc));
-            if (choice is null)
-                return null;
-            Preset = choice.Preset;
-            Fps = choice.Fps;
-            BitrateKbps = choice.BitrateKbps;
-            EncoderPreferenceValue = choice.Encoder;
-            Diag.Log($"profile: {profile} -> {choice.Preset} {choice.Width}x{choice.Height}@{choice.Fps} {choice.BitrateKbps} kbps {choice.Encoder}");
-            return choice;
-        }
-        finally
-        {
-            _calibration = null;
-            capture.MaxFps = _fps;
-        }
-    }
-
-    /// <summary>One measured preset: a throwaway encoder fed from the live capture for about a second.</summary>
-    private sealed class Calibration
-    {
-        private readonly GpuDevice _gpu;
-        private readonly VideoCodec _codec;
-        private readonly string _preset;
-        private readonly VideoProcessorConverter _converter;
-        private MfVideoEncoder? _encoder;
-        private ID3D11Texture2D? _nv12;
-        private int _width;
-        private int _height;
-        private int _encoded;
-        private double _encodeMs;
-        private long _firstTicks;
-        private long _lastTicks;
-        private volatile bool _closed;
-
-        public Calibration(GpuDevice gpu, VideoCodec codec, string preset)
-        {
-            _gpu = gpu;
-            _codec = codec;
-            _preset = preset;
-            _converter = new VideoProcessorConverter(gpu);
-        }
-
-        /// <summary>Capture thread, context lock held.</summary>
-        public void Offer(GpuFrame frame)
-        {
-            if (_closed)
-                return;
-            try
-            {
-                if (_encoder is null)
-                {
-                    (_width, _height) = QualityPreset.Fit(_preset, frame.Width, frame.Height);
-                    if (_width <= 0 || _height <= 0)
-                        return;
-                    _nv12 = _gpu.CreateTexture(Format.NV12, _width, _height, BindFlags.RenderTarget);
-                    _encoder = new MfVideoEncoder(_gpu, _codec, _width, _height, 60, QualityPreset.SuggestedBitrate(_preset, 60, _codec.ToWireName()));
-                    _encoder.FrameEncoded += (_, ms) =>
-                    {
-                        Interlocked.Increment(ref _encoded);
-                        lock (this)
-                            _encodeMs += ms;
-                    };
-                    _firstTicks = Stopwatch.GetTimestamp();
-                }
-                _lastTicks = Stopwatch.GetTimestamp();
-                if (!_encoder.WantsInput)
-                    return;
-                var box = QualityPreset.Letterbox(frame.Width, frame.Height, _width, _height);
-                RectI? dest = box is { } b ? new RectI(b.X, b.Y, b.Width, b.Height) : null;
-                _converter.Convert(frame.Texture, 0, frame.Width, frame.Height, false, _nv12!, _width, _height, true, dest);
-                _encoder.TrySubmit(_nv12!, frame.TimestampMs);
-            }
-            catch (Exception ex)
-            {
-                Diag.Log("profile: sample failed: " + ex.Message);
-                _closed = true;
-            }
-        }
-
-        public EncodeSample Finish()
-        {
-            _closed = true;
-            var seconds = _firstTicks == 0 ? 0 : Stopwatch.GetElapsedTime(_firstTicks, _lastTicks).TotalSeconds;
-            var encoded = Volatile.Read(ref _encoded);
-            double ms;
-            lock (this)
-                ms = encoded > 0 ? _encodeMs / encoded : 0;
-            var fps = seconds > 0.2 ? encoded / seconds : 0;
-            lock (_gpu.ContextLock)
-            {
-                _encoder?.Dispose();
-                _encoder = null;
-                if (_nv12 is not null)
-                    _converter.Forget(_nv12);
-                _nv12?.Dispose();
-                _nv12 = null;
-                _converter.Dispose();
-            }
-            return new EncodeSample(_preset, _width, _height, ms, fps);
-        }
-    }
-
-    private void MaybePreview(GpuFrame frame)
-    {
-        var presenter = _preview;
-        if (presenter is null || !presenter.IsAttached)
-            return;
-        var now = Stopwatch.GetTimestamp();
-        if (Stopwatch.GetElapsedTime(_lastPreviewTicks, now) < PreviewInterval)
-            return;
-        var first = _lastPreviewTicks == 0;
-        _lastPreviewTicks = now;
-        try
-        {
-            presenter.Present(frame.Texture, 0, frame.Width, frame.Height, false);
-        }
-        catch (Exception ex)
-        {
-            // The preview is only for the person broadcasting; a hiccup there must never end the
-            // capture and the stream with it. The next frame tries again.
-            Diag.Log("broadcast: preview present failed: " + ex.Message);
-            return;
-        }
-        if (first)
-            Post(() => PreviewStarted?.Invoke());
-    }
-
-    private void EncodeOnGpu(GpuFrame frame)
-    {
-        var (width, height) = StreamSize(frame.Width, frame.Height);
-        if (width <= 0 || height <= 0)
-            return;
-
-        var encoder = _gpuEncoder;
-        if (encoder is not null && encoder.KeyframeOverdue)
-        {
-            // The driver ignored the keyframe request; a fresh encoder starts with an IDR frame.
-            // Rebuilding costs a full-size IDR, which on a slow uplink causes the next drop and the
-            // next request: without this gap an encoder that never honours the property is rebuilt
-            // twice a second for ever (seen on AMD at 2560x1080).
-            var now = Environment.TickCount64;
-            if (now - _lastRebuildTicks >= RebuildGapMs)
-            {
-                _lastRebuildTicks = now;
-                Diag.Log("broadcast: keyframe overdue, recreating encoder");
-                encoder.Dispose();
-                encoder = null;
-                _gpuEncoder = null;
-            }
-            else if (!_rebuildHeld)
-            {
-                _rebuildHeld = true;
-                Diag.Log($"broadcast: keyframe overdue again less than {RebuildGapMs} ms after the last rebuild, carrying on with this encoder");
-            }
-        }
-        if (encoder is null || encoder.Width != width || encoder.Height != height || encoder.Fps != _fps)
-        {
-            encoder?.Dispose();
-            encoder = new MfVideoEncoder(Gpu, ActiveCodec, width, height, _fps, EffectiveBitrateKbps, MfCodecs.Tuning);
-            // It opens with an IDR frame, so anything waiting for a keyframe is already served.
-            Interlocked.Exchange(ref _keyframeRequested, 0);
-            _rebuildHeld = false;
-            encoder.FrameEncoded += OnGpuFrameEncoded;
-            encoder.Faulted += ex => Post(() =>
-            {
-                Error?.Invoke(ex.Message);
-                StopLive();
-            });
-            _gpuEncoder = encoder;
-            EncoderName = encoder.Name;
-            Diag.Log($"broadcast: encoder {encoder.Name} {width}x{height}@{_fps} {_bitrateKbps} kbps, {(encoder.IsVbr ? "variable" : "constant")} bitrate, screen content {MfCodecs.Tuning.ScreenContent}");
-            Interlocked.Exchange(ref _keyframeRequested, 1);
-        }
-
-        // The encoder only takes a frame when it asked for one; otherwise this frame is dropped and
-        // the next capture wins. That keeps the queue depth at zero, which is the whole point.
-        if (!encoder.WantsInput)
-            return;
-
-        _converter ??= new VideoProcessorConverter(Gpu);
-        var nv12 = NextNv12(width, height);
-        var box = QualityPreset.Letterbox(frame.Width, frame.Height, width, height);
-        RectI? destRect = box is { } b ? new RectI(b.X, b.Y, b.Width, b.Height) : null;
-        _converter.Convert(frame.Texture, 0, frame.Width, frame.Height, false, nv12, width, height, true, destRect);
-
-        if (Interlocked.Exchange(ref _keyframeRequested, 0) == 1)
-            encoder.RequestKeyframe();
-        encoder.TrySubmit(nv12, frame.TimestampMs);
-    }
-
-    private ID3D11Texture2D NextNv12(int width, int height)
-    {
-        if (_nv12Size != (width, height))
-        {
-            for (var i = 0; i < _nv12Ring.Length; i++)
-            {
-                _nv12Ring[i]?.Dispose();
-                _nv12Ring[i] = null;
-            }
-            _nv12Size = (width, height);
-        }
-
-        _nv12Index = (_nv12Index + 1) % _nv12Ring.Length;
-        return _nv12Ring[_nv12Index] ??= Gpu.CreateTexture(Format.NV12, width, height, BindFlags.RenderTarget);
-    }
-
-    private void OnGpuFrameEncoded(EncodedFrame frame, double encodeMs)
-    {
-        if (!_live)
-            return;
-        Volatile.Write(ref _lastFrameTicks, Environment.TickCount64);
-        if (frame.IsKeyframe || frame.Sequence % 120 == 1)
-            Diag.Log($"broadcast: frame #{frame.Sequence} key={frame.IsKeyframe} {frame.Data.Length} B");
-        Publish(frame);
-        AccountFrame(frame, encodeMs);
-    }
-
-    /// <summary>
-    /// Sends a frame once to the host (which fans it out) and to each direct link. A slow uplink
-    /// to the host drops frames here, not in the server; each direct link has its own gate.
-    /// </summary>
-    private void Publish(EncodedFrame frame)
-    {
-        var streamId = _streamId;
-        if (streamId == 0)
-            return;
-
-        var header = new VideoPacketHeader(frame.Sequence, frame.TimestampMs, frame.Width, frame.Height, frame.IsKeyframe);
-        _lounge.SendMedia(streamId, MessageType.Video, VideoPacket.Build(header, frame.Data), frame.IsKeyframe, _lounge.ServerClockNow(),
-            relayGate: () => RelayAllows(streamId, frame.IsKeyframe));
-    }
-
-    private bool RelayAllows(uint streamId, bool keyframe)
-    {
-        GateDecision decision;
-        lock (_upstreamGate)
-        {
-            decision = _upstreamGate.Offer(keyframe, _lounge.PendingVideo(streamId));
-        }
-        if (decision == GateDecision.DropAndRequestKeyframe)
-        {
-            AdaptOnDrop();
-            Interlocked.Exchange(ref _keyframeRequested, 1);
-            _gpuEncoder?.RequestKeyframe();
-            return false;
-        }
-        if (decision != GateDecision.Send)
-        {
-            AdaptOnDrop();
-            return false;
-        }
-        return true;
-    }
-
-    private void OnAudioPacket(byte[] packet)
-    {
-        if (!_live || _paused || _streamId == 0 || IsStandby)
-            return;
-        _lounge.SendMedia(_streamId, MessageType.Audio, packet, false);
-        Interlocked.Add(ref _statsAudioBytes, packet.Length);
-    }
-
-    private void QueueForVp8(GpuFrame frame)
-    {
-        var raw = _capture!.ReadPixels(frame);
-        var previous = Interlocked.Exchange(ref _latest, raw);
-        if (previous is not null)
-            ArrayPool<byte>.Shared.Return(previous.Pixels);
-        try
-        {
-            _frameSignal.Release();
-        }
-        catch (SemaphoreFullException) { }
-    }
-
-    private void Vp8Loop(CancellationToken ct)
-    {
-        using var encoder = new Vp8Encoder { BitrateKbps = EffectiveBitrateKbps };
-        byte[]? encodeBuffer = null;
-        var lastKeyframe = Stopwatch.GetTimestamp();
-
-        try
-        {
-            while (!ct.IsCancellationRequested)
-            {
-                if (!_frameSignal.Wait(250, ct))
-                    continue;
-
-                var raw = Interlocked.Exchange(ref _latest, null);
-                if (raw is null)
-                    continue;
-
-                try
-                {
-                    var (width, height) = StreamSize(raw.Width, raw.Height);
-                    if (width <= 0 || height <= 0)
-                        continue;
-
-                    var needed = width * height * 4;
-                    if (encodeBuffer is null || encodeBuffer.Length != needed)
-                        encodeBuffer = new byte[needed];
-
-                    var box = QualityPreset.Letterbox(raw.Width, raw.Height, width, height);
-                    if (box is { } b)
-                    {
-                        // Different aspect: scale into a centred box on black bars.
-                        var inner = ArrayPool<byte>.Shared.Rent(b.Width * b.Height * 4);
-                        try
-                        {
-                            FrameScaler.Resize(raw.Pixels, raw.Width, raw.Height, inner, b.Width, b.Height);
-                            Array.Clear(encodeBuffer, 0, needed);
-                            for (var row = 0; row < b.Height; row++)
-                                Buffer.BlockCopy(inner, row * b.Width * 4, encodeBuffer, ((b.Y + row) * width + b.X) * 4, b.Width * 4);
-                        }
-                        finally
-                        {
-                            ArrayPool<byte>.Shared.Return(inner);
-                        }
-                    }
-                    else if (width == raw.Width && height == raw.Height)
-                        Buffer.BlockCopy(raw.Pixels, 0, encodeBuffer, 0, needed);
-                    else
-                        FrameScaler.Resize(raw.Pixels, raw.Width, raw.Height, encodeBuffer, width, height);
-
-                    encoder.BitrateKbps = EffectiveBitrateKbps;
-                    var wantKey = Interlocked.Exchange(ref _keyframeRequested, 0) == 1
-                        || Stopwatch.GetElapsedTime(lastKeyframe) >= Vp8KeyframeInterval;
-                    if (wantKey)
-                        encoder.RequestKeyframe();
-
-                    var start = Stopwatch.GetTimestamp();
-                    var encoded = encoder.Encode(encodeBuffer, width, height, raw.TimestampMs);
-                    var encodeMs = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
-                    if (encoded is null)
-                        continue;
-                    if (encoded.IsKeyframe)
-                        lastKeyframe = Stopwatch.GetTimestamp();
-
-                    Publish(encoded);
-                    AccountFrame(encoded, encodeMs);
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(raw.Pixels);
-                }
-            }
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            Post(() =>
-            {
-                Error?.Invoke(ex.Message);
-                StopLive();
-            });
-        }
-    }
-
-    private void ResetStats()
-    {
-        _statsWindowStart = Stopwatch.GetTimestamp();
-        _statsFrames = 0;
-        _statsBytes = 0;
-        _statsEncodeMs = 0;
-        Interlocked.Exchange(ref _statsAudioBytes, 0);
-    }
-
-    private void AccountFrame(EncodedFrame frame, double encodeMs)
-    {
-        _statsFrames++;
-        _statsBytes += frame.Data.Length;
-        _statsEncodeMs += encodeMs;
-        var elapsed = Stopwatch.GetElapsedTime(_statsWindowStart);
-        if (elapsed.TotalMilliseconds < 1000)
-            return;
-
-        AdaptTick();
-        var seconds = elapsed.TotalSeconds;
-        var audioBytes = Interlocked.Exchange(ref _statsAudioBytes, 0);
-        var worstDelay = Interlocked.Exchange(ref _worstViewerDelayMs, 0);
-        var stats = new HostStats(
-            _statsFrames / seconds,
-            _statsBytes * 8 / 1000.0 / seconds,
-            audioBytes * 8 / 1000.0 / seconds,
-            _statsFrames > 0 ? _statsEncodeMs / _statsFrames : 0,
-            frame.Width,
-            frame.Height,
-            ActiveCodec.ToWireName().ToUpperInvariant(),
-            ViewerCount,
-            EffectiveBitrateKbps,
-            _adaptiveEnabled && _adaptive.IsAdapted,
-            false,
-            worstDelay
-        );
-        LastStats = stats;
-        _statsWindowStart = Stopwatch.GetTimestamp();
-        _statsFrames = 0;
-        _statsBytes = 0;
-        _statsEncodeMs = 0;
-        if (Environment.TickCount64 - _lastStatsLogTicks >= 5000)
-        {
-            _lastStatsLogTicks = Environment.TickCount64;
-            Diag.Log($"broadcast: stats {stats.Codec} {stats.Width}x{stats.Height} {stats.Fps:F1} fps {stats.Kbps:F0} kbps enc {stats.EncodeMs:F1} ms audio {stats.AudioKbps:F0} kbps viewers {stats.Viewers} target {stats.TargetKbps} adapted {stats.Adapted} worst viewer {stats.WorstViewerDelayMs} ms pending {_lounge.PendingVideo(_streamId)}");
-        }
-        Post(() => StatsChanged?.Invoke(stats));
-    }
-
     private void DisposeGpuResources()
     {
+        DisposeReduced();
         _converter?.Dispose();
         _converter = null;
         for (var i = 0; i < _nv12Ring.Length; i++)

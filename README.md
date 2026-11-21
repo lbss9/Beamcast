@@ -59,7 +59,8 @@ O mesmo aviso aparece dentro do app no primeiro uso e na página Sobre.
    entrar. O token de dono fica só no PC de quem criou, protegido pelo Windows (DPAPI). Salas
    antigas sem dono passam a ser da primeira pessoa que entrar.
 6. **Qualidade adaptativa**: se o seu upload não acompanha, o bitrate cai em degraus e volta
-   sozinho; o valor escolhido é o teto. Cada transmissão assistida mostra o **atraso real** e o
+   sozinho; o valor escolhido é o teto. Espectador atrasado só baixa o bitrate quando pelo menos
+   metade deles está atrasada, para um não piorar a imagem de todos. Cada transmissão assistida mostra o **atraso real** e o
    ping, dá para **assistir várias ao mesmo tempo** em grade, e quem transmite ouve um **som** e vê
    o nome quando alguém entra ou sai da transmissão (host 2.3.0+).
 7. Se a internet cair, do seu lado ou do host, o app **reconecta sozinho** por até 5 minutos,
@@ -93,6 +94,11 @@ O que vale saber:
 - **Nada muda no host.** Hosts antigos repassam a negociação como qualquer mensagem de controle,
   e apps antigos continuam pelo host.
 - **O upload passa a ser de quem transmite**: uma cópia do vídeo por espectador direto.
+- **Qualidade por espectador**: quem está no link direto e não acompanha recebe uma versão
+  reduzida só para si (metade da altura, um quarto do bitrate), feita por um segundo encoder que
+  só roda enquanto alguém precisa. Os demais seguem com a imagem cheia, e o app tenta devolver a
+  pessoa à versão cheia depois de um tempo sem problemas. Quem assiste pelo host recebe sempre a
+  versão cheia.
 - **O conteúdo continua cifrado de ponta a ponta** com a chave da sala; o DTLS do WebRTC é uma
   segunda camada.
 - O link é confiável e ordenado, como o WebSocket. Quando ele fica para trás, o transmissor
@@ -199,6 +205,11 @@ dotnet test tests/Beamcast.Tests
 dotnet run --project src/Beamcast
 ```
 
+Os testes cobrem a lógica pura, dois links diretos na mesma máquina e o cliente do app contra o
+host de verdade: o próprio teste sobe o `Beamcast.Server` deste repositório em `127.0.0.1`, numa
+porta livre e com uma pasta de dados temporária, e o encerra no fim. Nenhum endereço real é
+usado. O workflow `CI` roda tudo isso a cada push e pull request.
+
 O host também roda sem Docker: `dotnet run --project src/Beamcast.Server` (porta 8080).
 `scripts/pack.ps1` gera o MSI com Velopack; os workflows do GitHub publicam o release do app
 a partir da versão do csproj, e o app procura atualizações no GitHub Releases.
@@ -207,11 +218,13 @@ Para depurar, crie um arquivo vazio `%LOCALAPPDATA%\Beamcast\diag.on` (ou defina
 `BEAMCAST_DIAG=1`): o app escreve `diag.log` na mesma pasta com eventos de encoder, keyframe,
 fila e conexão direta (linhas `p2p:`). O mesmo registro liga em Configurações.
 
-### Ainda não testado em uso real (3.1.0)
+### Ainda não testado em uso real (3.1.x)
 
 - Conexão direta entre dois PCs em redes diferentes. Os testes cobrem dois links na mesma máquina.
 - AV1 numa placa com encoder AV1.
 - Bitrate variável e "otimizar para tela" em NVIDIA e Intel (medidos só em AMD).
+- Qualidade por espectador com um espectador real numa rede ruim (os dois encoders juntos e a
+  troca de tamanho no decodificador foram medidos numa AMD).
 
 ## Organização
 
@@ -224,7 +237,7 @@ src/Beamcast          app WinUI 3
 ├── Services/         LoungeService (sala + reconexão; .Direct = conexão direta), BroadcastService, WatchService, UpdateService
 ├── Logic/            presets, bitrate adaptativo, perfis, diagnóstico
 └── Pages/            Salas (listagem), Sala, diálogos, Configurações, Sobre; os hosts ficam na lateral (MainWindow.SideBar)
-src/Beamcast.Server   host (ASP.NET Core, WebSocket + listagem HTTP)
-tests/Beamcast.Tests  testes xunit das partes de lógica pura
+src/Beamcast.Server   host (ASP.NET Core, WebSocket + listagem HTTP): LoungeHub (salas e admissão), Room (uma sala)
+tests/Beamcast.Tests  testes xunit: lógica pura, link direto e o cliente contra o host em 127.0.0.1
 docker-compose.yml    sobe o host a partir do código
 ```

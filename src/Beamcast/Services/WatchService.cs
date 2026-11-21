@@ -60,6 +60,10 @@ public sealed class WatchService
     /// <summary>Name of the person whose stream this tile is waiting for, or null when the tile is live.</summary>
     public string? WaitingOwner(uint streamId) =>
         _viewers.TryGetValue(streamId, out var viewer) && viewer.WaitingSince != 0 ? viewer.OwnerName : null;
+    /// <summary>The codec this machine cannot decode for that stream ("HEVC", "AV1"), or null when it can.</summary>
+    public string? UndecodableCodec(uint streamId) =>
+        _viewers.TryGetValue(streamId, out var viewer) && viewer.CannotDecode ? viewer.Codec.ToWireName().ToUpperInvariant() : null;
+
     public ViewerStats? LastStats(uint streamId) => _viewers.TryGetValue(streamId, out var v) ? v.LastStats : null;
     public SwapChainPresenter? PresenterFor(uint streamId) => _viewers.TryGetValue(streamId, out var v) ? v.Presenter : null;
 
@@ -101,6 +105,7 @@ public sealed class WatchService
         {
             Volume = _volume,
             IsMuted = _muted,
+            Publisher = stream.Meta.Publisher ?? string.Empty,
         };
         if (!_viewers.TryAdd(streamId, viewer))
         {
@@ -167,7 +172,7 @@ public sealed class WatchService
     /// <summary>Rebinds the tile to a live stream by the same owner (and title when possible). False when there is none yet.</summary>
     private bool TryFollow(Viewer viewer)
     {
-        var again = _lounge.FindStreamLike(viewer.OwnerName, viewer.Title);
+        var again = _lounge.FindStreamLike(viewer.OwnerName, viewer.Title, viewer.Publisher);
         if (again is null || again.Id == viewer.Id)
             return false;
         if (_viewers.ContainsKey(again.Id))
@@ -194,7 +199,7 @@ public sealed class WatchService
         foreach (var viewer in old)
         {
             _viewers.TryRemove(viewer.Id, out _);
-            var again = _lounge.FindStreamLike(viewer.OwnerName, viewer.Title);
+            var again = _lounge.FindStreamLike(viewer.OwnerName, viewer.Title, viewer.Publisher);
             if (again is null || _viewers.ContainsKey(again.Id))
             {
                 Diag.Log($"watch: after reconnect, no stream like #{viewer.Id} by {viewer.OwnerName} '{viewer.Title}' (found {(again is null ? "none" : "#" + again.Id + " already watched")}); dropping");
@@ -236,14 +241,17 @@ public sealed class WatchService
 
         var outcome = viewer.OnVideo(body, latency);
         if (outcome == Viewer.VideoOutcome.NeedKeyframe)
+        {
+            Diag.Log($"watch: decode error on #{viewer.Id}, asking for a keyframe");
             _lounge.RequestKeyframe(streamId);
+        }
         else if (outcome == Viewer.VideoOutcome.FirstFrame)
         {
             Diag.Log($"watch: first frame of #{viewer.Id}");
             Post(() => FirstFrame?.Invoke(viewer.Id));
         }
-        else if (outcome == Viewer.VideoOutcome.NeedKeyframe)
-            Diag.Log($"watch: decode error on #{viewer.Id}, asking for a keyframe");
+        else if (outcome == Viewer.VideoOutcome.NoDecoder)
+            Post(() => WatchingChanged?.Invoke());
         if (viewer.TakeStats() is { } stats)
         {
             // Once a second: a late picture is reported to the publisher (it lowers its bitrate from
@@ -277,7 +285,13 @@ public sealed class WatchService
     /// <summary>One watched stream: decoder, presenter, audio, stats. Touched by the network thread only, except the volume knobs.</summary>
     private sealed class Viewer : IDisposable
     {
-        public enum VideoOutcome { Presented, FirstFrame, Skipped, NeedKeyframe }
+        public enum VideoOutcome { Presented, FirstFrame, Skipped, NeedKeyframe, NoDecoder }
+
+        /// <summary>This machine has no decoder for the stream's codec.</summary>
+        public volatile bool CannotDecode;
+        private long _lastDecoderAttempt;
+
+        public VideoCodec Codec => _codec;
 
         private readonly GpuDevice _gpu;
         private MfVideoDecoder? _gpuDecoder;
@@ -328,6 +342,9 @@ public sealed class WatchService
         }
         public string OwnerName { get; }
         public string Title { get; }
+
+        /// <summary>The publisher's tag (see <see cref="StreamMetaMessage.Publisher"/>), empty for older apps.</summary>
+        public string Publisher { get; init; } = string.Empty;
         public int Order { get; }
         public SwapChainPresenter Presenter { get; }
         public bool HasFrame => Volatile.Read(ref _firstFrame) != 0;
@@ -382,18 +399,40 @@ public sealed class WatchService
             var start = Stopwatch.GetTimestamp();
             if (_codec.IsGpu())
             {
+                // The publisher moved us between its full and reduced streams: a keyframe of another
+                // size. A fresh decoder is the surest way through, whatever the driver does on a
+                // mid-stream size change.
+                if (header.IsKeyframe && _gpuDecoder is not null && _width != 0 && (header.Width != _width || header.Height != _height))
+                {
+                    Diag.Log($"watch: #{Id} changes size {_width}x{_height} -> {header.Width}x{header.Height}, new decoder");
+                    _gpuDecoder.Dispose();
+                    _gpuDecoder = null;
+                }
                 var decoder = _gpuDecoder;
                 if (decoder is null || decoder.Codec != _codec)
                 {
                     decoder?.Dispose();
+                    _gpuDecoder = null;
+                    // No decoder for this codec on this machine (HEVC or AV1 without the Windows
+                    // extension): say so on the tile instead of waiting for a frame that never comes,
+                    // and only try again now and then in case the extension gets installed meanwhile.
+                    var now = Environment.TickCount64;
+                    if (CannotDecode && now - _lastDecoderAttempt < 5000)
+                        return VideoOutcome.Skipped;
+                    _lastDecoderAttempt = now;
                     try
                     {
                         decoder = new MfVideoDecoder(_gpu, _codec, header.Width, header.Height);
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
-                        return VideoOutcome.Skipped;
+                        if (CannotDecode)
+                            return VideoOutcome.Skipped;
+                        CannotDecode = true;
+                        Diag.Log($"watch: no decoder for {_codec} on #{Id}: {ex.Message}");
+                        return VideoOutcome.NoDecoder;
                     }
+                    CannotDecode = false;
                     _gpuDecoder = decoder;
                 }
 

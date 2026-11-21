@@ -23,19 +23,77 @@ public sealed class SecureChannel : IDisposable
     }
 
     /// <summary>Frames and encrypts a message. The type and flags stay readable for the server.</summary>
-    public byte[] Seal(MessageType type, ReadOnlySpan<byte> plaintext, byte flags = MessageFlags.None)
+    public byte[] Seal(MessageType type, ReadOnlySpan<byte> plaintext, byte flags = MessageFlags.None) =>
+        SealWithPrefix(0, type, plaintext, ReadOnlySpan<byte>.Empty, flags);
+
+    /// <summary>
+    /// Same as <see cref="Seal"/>, built in a single allocation with room in front for a transport
+    /// header: <c>[prefixSize bytes, left zeroed][framed encrypted message]</c>. The plaintext is
+    /// <paramref name="head"/> followed by <paramref name="tail"/> (a packet header and its
+    /// bitstream), copied once into place and encrypted there. A 4K keyframe used to be copied
+    /// four times on its way out; this is the one copy that is left.
+    /// </summary>
+    public byte[] SealWithPrefix(int prefixSize, MessageType type, ReadOnlySpan<byte> head, ReadOnlySpan<byte> tail, byte flags = MessageFlags.None)
     {
-        var body = new byte[NonceSize + plaintext.Length + TagSize];
-        var nonce = body.AsSpan(0, NonceSize);
+        var plainLength = head.Length + tail.Length;
+        var bodyLength = NonceSize + plainLength + TagSize;
+        if (bodyLength + Framing.PrefixSize > Framing.MaxMessageSize)
+            throw new ArgumentException("Message too large.", nameof(tail));
+        flags |= MessageFlags.Encrypted;
+
+        var buffer = new byte[prefixSize + Framing.HeaderSize + Framing.PrefixSize + bodyLength];
+        var framed = buffer.AsSpan(prefixSize);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(framed, bodyLength + Framing.PrefixSize);
+        framed[Framing.HeaderSize] = (byte)type;
+        framed[Framing.HeaderSize + 1] = flags;
+
+        var body = framed[(Framing.HeaderSize + Framing.PrefixSize)..];
+        var nonce = body[..NonceSize];
         RandomNumberGenerator.Fill(nonce);
-        var ciphertext = body.AsSpan(NonceSize, plaintext.Length);
-        var tag = body.AsSpan(NonceSize + plaintext.Length, TagSize);
-        var aad = new byte[] { (byte)type, (byte)(flags | MessageFlags.Encrypted) };
+        var text = body.Slice(NonceSize, plainLength);
+        head.CopyTo(text);
+        tail.CopyTo(text[head.Length..]);
+        var tag = body.Slice(NonceSize + plainLength, TagSize);
+        Span<byte> aad = [(byte)type, flags];
         lock (_aes)
         {
-            _aes.Encrypt(nonce, plaintext, ciphertext, tag, aad);
+            _aes.Encrypt(nonce, text, text, tag, aad); // in place: same span for plaintext and ciphertext
         }
-        return Framing.Encode(type, body, (byte)(flags | MessageFlags.Encrypted));
+        return buffer;
+    }
+
+    /// <summary>
+    /// Opens a framed message straight from the bytes it arrived in: no intermediate copies, the
+    /// only allocation is the plaintext. False when malformed, tampered with or the key is wrong.
+    /// </summary>
+    public bool TryOpenFramed(ReadOnlySpan<byte> framed, out MessageType type, out byte flags, out byte[] plaintext)
+    {
+        type = default;
+        flags = 0;
+        plaintext = [];
+        if (!Framing.TryReadLength(framed, out var length) || framed.Length != Framing.HeaderSize + length)
+            return false;
+        type = (MessageType)framed[Framing.HeaderSize];
+        flags = framed[Framing.HeaderSize + 1];
+        var body = framed[(Framing.HeaderSize + Framing.PrefixSize)..];
+        if ((flags & MessageFlags.Encrypted) == 0 || body.Length < NonceSize + TagSize)
+            return false;
+
+        var output = new byte[body.Length - NonceSize - TagSize];
+        Span<byte> aad = [(byte)type, flags];
+        try
+        {
+            lock (_aes)
+            {
+                _aes.Decrypt(body[..NonceSize], body.Slice(NonceSize, output.Length), body[^TagSize..], output, aad);
+            }
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+        plaintext = output;
+        return true;
     }
 
     /// <summary>Decrypts a message body; returns false when the key is wrong or the data was tampered with.</summary>
@@ -67,15 +125,8 @@ public sealed class SecureChannel : IDisposable
     }
 
     /// <summary>Convenience: decrypt a framed blob (as stored by the server) into plaintext.</summary>
-    public bool TryOpenFramed(ReadOnlySpan<byte> framed, out MessageType type, out byte[] plaintext)
-    {
-        type = default;
-        plaintext = [];
-        if (!Framing.TryDecodeWhole(framed, out var message))
-            return false;
-        type = message.Type;
-        return TryOpen(message, out plaintext);
-    }
+    public bool TryOpenFramed(ReadOnlySpan<byte> framed, out MessageType type, out byte[] plaintext) =>
+        TryOpenFramed(framed, out type, out _, out plaintext);
 
     public void Dispose() => _aes.Dispose();
 }

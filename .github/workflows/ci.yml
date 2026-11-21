@@ -1,0 +1,31 @@
+name: CI
+
+# Builds everything and runs the tests on every push and pull request, so a broken change shows
+# up here and not in the middle of a release. The tests start the host on 127.0.0.1 themselves.
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Test (logic, direct link, app against the host)
+        run: dotnet test tests/Beamcast.Tests/Beamcast.Tests.csproj --nologo
+
+      - name: Build the app
+        run: dotnet build src/Beamcast/Beamcast.csproj -c Release -p:Platform=x64 --nologo

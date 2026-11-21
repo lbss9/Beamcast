@@ -21,31 +21,61 @@ public static class SettingsStore
 
     public static string FilePath => Path.Combine(DirectoryPath, "settings.json");
 
+    // Load() is called from dozens of places, several per screen refresh. The sanitized settings are
+    // kept as JSON in memory and every caller still gets its own fresh object (callers change what
+    // they get), but the file is only read again when its timestamp says somebody else wrote it.
+    private static readonly object CacheSync = new();
+    private static string? _cachedJson;
+    private static DateTime _cachedStamp;
+
+    private static DateTime FileStamp() =>
+        SafeTry.Run(() => File.Exists(FilePath) ? File.GetLastWriteTimeUtc(FilePath) : DateTime.MinValue);
+
     public static AppSettings Load()
     {
-        var loaded = SafeTry.Run(() =>
+        lock (CacheSync)
         {
-            if (!File.Exists(FilePath))
-                return new AppSettings();
-            var json = File.ReadAllText(FilePath);
-            return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
-        });
+            var stamp = FileStamp();
+            if (_cachedJson is not null && stamp == _cachedStamp
+                && SafeTry.Run(() => JsonSerializer.Deserialize<AppSettings>(_cachedJson, JsonOptions)) is { } cached)
+                return cached;
 
-        return Sanitize(loaded ?? new AppSettings());
+            var loaded = SafeTry.Run(() =>
+            {
+                if (!File.Exists(FilePath))
+                    return new AppSettings();
+                var json = File.ReadAllText(FilePath);
+                return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
+            });
+
+            var settings = Sanitize(loaded ?? new AppSettings());
+            _cachedJson = SafeTry.Run(() => JsonSerializer.Serialize(settings, JsonOptions));
+            _cachedStamp = stamp;
+            return settings;
+        }
     }
 
     public static void Save(AppSettings settings)
     {
-        Directory.CreateDirectory(DirectoryPath);
-        var json = JsonSerializer.Serialize(Sanitize(settings), JsonOptions);
-        File.WriteAllText(FilePath, json);
+        lock (CacheSync)
+        {
+            Directory.CreateDirectory(DirectoryPath);
+            var json = JsonSerializer.Serialize(Sanitize(settings), JsonOptions);
+            _cachedJson = null;
+            File.WriteAllText(FilePath, json);
+            _cachedJson = json;
+            _cachedStamp = FileStamp();
+        }
     }
 
     public static void Update(Action<AppSettings> change)
     {
-        var settings = Load();
-        change(settings);
-        Save(settings);
+        lock (CacheSync)
+        {
+            var settings = Load();
+            change(settings);
+            Save(settings);
+        }
     }
 
     public static bool Exists() => File.Exists(FilePath);

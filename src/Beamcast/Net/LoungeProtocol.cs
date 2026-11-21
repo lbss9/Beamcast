@@ -436,11 +436,33 @@ public static class LoungeMux
     public static byte[] Encode(byte kind, uint a, uint b, ReadOnlySpan<byte> payload)
     {
         var buffer = new byte[HeaderSize + payload.Length];
-        buffer[0] = kind;
-        BinaryPrimitives.WriteUInt32LittleEndian(buffer.AsSpan(1), a);
-        BinaryPrimitives.WriteUInt32LittleEndian(buffer.AsSpan(5), b);
+        WriteHeader(buffer, kind, a, b);
         payload.CopyTo(buffer.AsSpan(HeaderSize));
         return buffer;
+    }
+
+    /// <summary>Writes the 9-byte header at the start of a buffer whose payload is already in place.</summary>
+    public static void WriteHeader(Span<byte> frame, byte kind, uint a, uint b)
+    {
+        frame[0] = kind;
+        BinaryPrimitives.WriteUInt32LittleEndian(frame[1..], a);
+        BinaryPrimitives.WriteUInt32LittleEndian(frame[5..], b);
+    }
+
+    /// <summary>Reads the header and hands back the payload as a slice of the same bytes (no copy).</summary>
+    public static bool TryReadHeader(ReadOnlySpan<byte> frame, out byte kind, out uint a, out uint b, out ReadOnlySpan<byte> payload)
+    {
+        kind = 0;
+        a = 0;
+        b = 0;
+        payload = default;
+        if (frame.Length < HeaderSize)
+            return false;
+        kind = frame[0];
+        a = BinaryPrimitives.ReadUInt32LittleEndian(frame[1..]);
+        b = BinaryPrimitives.ReadUInt32LittleEndian(frame[5..]);
+        payload = frame[HeaderSize..];
+        return true;
     }
 
     public static bool TryDecode(ReadOnlySpan<byte> frame, out byte kind, out uint a, out uint b, out byte[] payload)
@@ -484,6 +506,13 @@ public sealed class StreamMetaMessage
     /// messages with the sender's member id, so the stream id has to travel inside. 0 = unknown.
     /// </summary>
     public uint StreamId { get; set; }
+
+    /// <summary>
+    /// 3.1.1: a tag of the publishing installation, stable across reconnects and scoped to the room
+    /// (a hash of the installation id and the room code). Lets a viewer find the same publisher's
+    /// new stream after a drop without relying on the display name. Null from older apps.
+    /// </summary>
+    public string? Publisher { get; set; }
 }
 
 /// <summary>

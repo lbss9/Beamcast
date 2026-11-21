@@ -1,3 +1,17 @@
+## 3.1.1
+
+### Improvements
+
+- **A notice when the PC cannot decode the stream.** If someone broadcasts in HEVC or AV1 and your PC has no decoder for it, the video stayed on "Waiting for the first frame" for ever. Now the tile says which codec is missing and how to fix it.
+- **Quality per viewer.** Someone watching over a direct connection who cannot keep up now gets a lighter version just for them (smaller picture, a quarter of the bitrate and half the frames above 30 fps). Everyone else keeps the full picture. After a while without trouble, the app tries them on the full version again. The broadcaster sees "reduced quality" next to the name. Works with H.264, HEVC and AV1 on the graphics card, with adaptive quality on.
+- **One person on a bad connection no longer worsens the picture for everyone.** For people watching through the server, the bitrate only drops because of viewers when at least half of them are behind.
+- **Less memory per frame.** Each video frame was copied several times before leaving and on arrival. Now it is copied once at each end, which eases high-resolution broadcasts.
+- **Lighter settings.** The app read the settings file from disk on every screen; now it only reads it again when the file changes.
+
+### Fixes
+
+- **Following the right person after a drop.** With two people of the same name in a room, the app could resume the wrong stream. It now recognises the broadcaster by a tag of its own for that room, not by the name.
+
 ## 3.1.0
 
 ### Direct connection (P2P)

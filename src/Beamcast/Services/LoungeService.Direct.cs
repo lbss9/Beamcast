@@ -10,7 +10,8 @@ public sealed record DirectPathChange(uint StreamId, uint PeerId, string PeerNam
 /// <summary>One viewer of my stream, for the connection panel.</summary>
 /// <param name="DelayMs">The last delay this viewer reported, 0 when it has not complained lately.</param>
 /// <param name="Dropped">Video frames held back on its direct link because the link was behind (0 on the relay: the host does that part).</param>
-public sealed record ViewerPath(uint ViewerId, string Name, bool Direct, int DelayMs, long Dropped);
+/// <param name="Reduced">It is getting the reduced stream (smaller picture, lower bitrate) over its direct link.</param>
+public sealed record ViewerPath(uint ViewerId, string Name, bool Direct, int DelayMs, long Dropped, bool Reduced = false);
 
 /// <summary>
 /// Direct (P2P) video links. The host stays in charge of the room (members, streams, keys) and
@@ -62,6 +63,9 @@ public sealed partial class LoungeService
 
         /// <summary>Publisher: video frames not sent on this link because it was behind.</summary>
         public long Dropped;
+
+        /// <summary>Publisher: which version of the video this link carries, 0 = full, 1 = reduced.</summary>
+        public volatile int Variant;
     }
 
     private sealed class DirectRetry
@@ -86,8 +90,8 @@ public sealed partial class LoungeService
     private uint _directSession = (uint)Random.Shared.Next(1, int.MaxValue / 2);
     private volatile bool _directEnabled = SettingsStore.Load().DirectConnection;
 
-    /// <summary>Publisher, network thread: a direct link fell behind and video was held back on it.</summary>
-    public event Action<uint>? DirectCongested;
+    /// <summary>Publisher, network thread: a direct link fell behind and video was held back on it (stream id, viewer id).</summary>
+    public event Action<uint, uint>? DirectCongested;
 
     private readonly Dictionary<(uint Viewer, uint Stream), (int DelayMs, long At)> _viewerDelay = new();
 
@@ -104,7 +108,7 @@ public sealed partial class LoungeService
     /// <summary>Publisher: who watches this stream and how each one is connected.</summary>
     public IReadOnlyList<ViewerPath> ViewerPaths(uint streamId)
     {
-        List<(uint Id, bool Direct, int Delay, long Dropped)> rows = [];
+        List<(uint Id, bool Direct, int Delay, long Dropped, bool Reduced)> rows = [];
         var now = Environment.TickCount64;
         lock (_directSync)
         {
@@ -114,11 +118,11 @@ public sealed partial class LoungeService
                 {
                     var entry = _direct.TryGetValue((id, streamId), out var e) && e.IsPublisher && e.Link.IsOpen ? e : null;
                     var delay = _viewerDelay.TryGetValue((id, streamId), out var report) && now - report.At < DelayReportTtlMs ? report.DelayMs : 0;
-                    rows.Add((id, entry is not null, delay, entry is null ? 0 : Interlocked.Read(ref entry.Dropped)));
+                    rows.Add((id, entry is not null, delay, entry is null ? 0 : Interlocked.Read(ref entry.Dropped), entry?.Variant == 1));
                 }
             }
         }
-        return rows.Select(r => new ViewerPath(r.Id, NameOf(r.Id), r.Direct, r.Delay, r.Dropped)).OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        return rows.Select(r => new ViewerPath(r.Id, NameOf(r.Id), r.Direct, r.Delay, r.Dropped, r.Reduced)).OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
     /// <summary>A video path switched between direct and the host's relay. UI thread.</summary>
@@ -163,24 +167,76 @@ public sealed partial class LoungeService
     /// while anyone still watches there. <paramref name="relayGate"/> is asked only when the frame
     /// would go to the host (it holds the uplink back-pressure for the relay).
     /// </summary>
-    public void SendMedia(uint streamId, MessageType type, ReadOnlySpan<byte> body, bool keyframe, uint sendStamp = 0, Func<bool>? relayGate = null)
+    public void SendMedia(uint streamId, MessageType type, ReadOnlySpan<byte> body, bool keyframe, uint sendStamp = 0, Func<bool>? relayGate = null) =>
+        SendMedia(streamId, type, body, ReadOnlySpan<byte>.Empty, keyframe, sendStamp, relayGate);
+
+    /// <summary>
+    /// Same, with the body in two parts (packet header, bitstream) that are joined only once, inside
+    /// the sealed frame. <paramref name="variant"/> says which version of the video this frame is:
+    /// 0 is the full stream (the host and every link on it), 1 the reduced one, which only goes to
+    /// the direct links switched to it. Audio goes to everyone.
+    /// </summary>
+    public void SendMedia(uint streamId, MessageType type, ReadOnlySpan<byte> head, ReadOnlySpan<byte> tail, bool keyframe, uint sendStamp, Func<bool>? relayGate, int variant = 0)
     {
         var client = _client;
         if (client is null)
-            return;
-        var frame = client.SealMedia(streamId, type, body, keyframe, sendStamp);
-        if (frame is null)
             return;
         var isVideo = type == MessageType.Video;
 
         List<DirectEntry> links;
         lock (_directSync)
-            links = _direct.Values.Where(e => e.IsPublisher && e.Link.IsOpen && e.Link.StreamId == streamId).ToList();
+            links = _direct.Values.Where(e => e.IsPublisher && e.Link.IsOpen && e.Link.StreamId == streamId && (!isVideo || e.Variant == variant)).ToList();
+        var toRelay = variant == 0 && NeedsRelay(streamId);
+        if (links.Count == 0 && !toRelay)
+            return;
+        var frame = client.SealMedia(streamId, type, head, tail, keyframe, sendStamp);
+        if (frame is null)
+            return;
         foreach (var entry in links)
             SendDirect(entry, frame, isVideo, keyframe);
 
-        if (NeedsRelay(streamId) && (relayGate?.Invoke() ?? true))
+        if (toRelay && (relayGate?.Invoke() ?? true))
             client.SendSealedMedia(frame, streamId, isVideo, keyframe);
+    }
+
+    /// <summary>Publisher: the reduced stream needs a keyframe (a viewer was switched to it or fell behind on it).</summary>
+    public event Action<uint>? ReducedKeyframeRequested;
+
+    private void RaiseKeyframe(DirectEntry entry) =>
+        (entry.Variant == 1 ? ReducedKeyframeRequested : KeyframeRequested)?.Invoke(entry.Link.StreamId);
+
+    /// <summary>Publisher: this viewer watches over an open direct link.</summary>
+    public bool HasDirectLink(uint streamId, uint viewerId)
+    {
+        lock (_directSync)
+            return _direct.TryGetValue((viewerId, streamId), out var entry) && entry.IsPublisher && entry.Link.IsOpen;
+    }
+
+    /// <summary>Publisher: some viewer of this stream is on the reduced version.</summary>
+    public bool AnyReducedViewer(uint streamId)
+    {
+        lock (_directSync)
+            return _direct.Values.Any(e => e.IsPublisher && e.Link.IsOpen && e.Link.StreamId == streamId && e.Variant == 1);
+    }
+
+    /// <summary>
+    /// Publisher: moves one direct viewer to the reduced or back to the full version. The switch
+    /// happens on the next keyframe of the new version, which is asked for here. False when the
+    /// viewer has no open direct link (viewers on the host's relay always get the full stream).
+    /// </summary>
+    public bool SetViewerReduced(uint streamId, uint viewerId, bool reduced)
+    {
+        DirectEntry? entry;
+        lock (_directSync)
+            _direct.TryGetValue((viewerId, streamId), out entry);
+        if (entry is null || !entry.IsPublisher || !entry.Link.IsOpen)
+            return false;
+        entry.Variant = reduced ? 1 : 0;
+        entry.AwaitingKeyframe = true;
+        entry.LastKeyframeAsk = Environment.TickCount64;
+        Diag.Log($"p2p: viewer {viewerId} of #{streamId} -> {(reduced ? "reduced" : "full")} stream");
+        RaiseKeyframe(entry);
+        return true;
     }
 
     private void SendDirect(DirectEntry entry, byte[] frame, bool isVideo, bool keyframe)
@@ -192,7 +248,7 @@ public sealed partial class LoungeService
             {
                 entry.AwaitingKeyframe = true;
                 Interlocked.Increment(ref entry.Dropped);
-                DirectCongested?.Invoke(entry.Link.StreamId);
+                DirectCongested?.Invoke(entry.Link.StreamId, entry.Link.PeerId);
                 AskKeyframe(entry);
                 return;
             }
@@ -220,7 +276,7 @@ public sealed partial class LoungeService
         if (now - entry.LastKeyframeAsk < DirectKeyframeAskGapMs)
             return;
         entry.LastKeyframeAsk = now;
-        KeyframeRequested?.Invoke(entry.Link.StreamId);
+        RaiseKeyframe(entry);
     }
 
     /// <summary>
@@ -490,14 +546,14 @@ public sealed partial class LoungeService
 
     private void OnLinkReceived(PeerLink link, byte[] frame)
     {
-        if (EntryOf(link) is not { } entry || !LoungeMux.TryDecode(frame, out var kind, out _, out var b, out var payload))
+        if (EntryOf(link) is not { } entry || !LoungeMux.TryReadHeader(frame, out var kind, out _, out var b, out var payload))
             return;
         if (entry.IsPublisher)
         {
             if (kind == LoungeMux.KeyframeRequest)
             {
                 entry.AwaitingKeyframe = true;
-                KeyframeRequested?.Invoke(link.StreamId);
+                RaiseKeyframe(entry);
             }
             else if (kind == LoungeMux.ViewerReport)
             {

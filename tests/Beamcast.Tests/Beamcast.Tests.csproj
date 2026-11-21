@@ -17,6 +17,12 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- The host is built with the tests and started by them as a separate process on 127.0.0.1
+       (HostFixture); its assembly is not referenced, so the shared protocol sources do not clash. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Beamcast.Server\Beamcast.Server.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
   <ItemGroup>
     <Compile Include="..\..\src\Beamcast\Logic\AppInfo.cs" Link="Logic\AppInfo.cs" />
     <Compile Include="..\..\src\Beamcast\Logic\AppLanguage.cs" Link="Logic\AppLanguage.cs" />
@@ -35,6 +41,9 @@
     <Compile Include="..\..\src\Beamcast\Net\LoungeInvite.cs" Link="Net\LoungeInvite.cs" />
     <Compile Include="..\..\src\Beamcast\Net\JoinRateLimiter.cs" Link="Net\JoinRateLimiter.cs" />
     <Compile Include="..\..\src\Beamcast\Net\PeerLink.cs" Link="Net\PeerLink.cs" />
+    <Compile Include="..\..\src\Beamcast\Net\LoungeClient.cs" Link="Net\LoungeClient.cs" />
+    <Compile Include="..\..\src\Beamcast\Logic\ViewerCongestion.cs" Link="Logic\ViewerCongestion.cs" />
+    <Compile Include="..\..\src\Beamcast\Logic\ViewerQuality.cs" Link="Logic\ViewerQuality.cs" />
     <Compile Include="..\..\src\Beamcast\Logic\Diag.cs" Link="Logic\Diag.cs" />
     <Compile Include="..\..\src\Beamcast\Audio\AudioMixer.cs" Link="Audio\AudioMixer.cs" />
     <Compile Include="..\..\src\Beamcast\Audio\AudioSourceSelector.cs" Link="Audio\AudioSourceSelector.cs" />

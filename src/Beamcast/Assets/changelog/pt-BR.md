@@ -1,3 +1,17 @@
+## 3.1.1
+
+### Melhorias
+
+- **Aviso quando o PC não decodifica a transmissão.** Se alguém transmite em HEVC ou AV1 e o seu PC não tem o decodificador, o vídeo ficava em "Aguardando o primeiro quadro" para sempre. Agora a tela diz qual codec falta e como resolver.
+- **Qualidade por espectador.** Quem assiste por conexão direta e não acompanha a transmissão passa a receber uma versão mais leve só para si (imagem menor, um quarto do bitrate e metade dos quadros acima de 30 fps). Os outros continuam com a imagem cheia. Depois de um tempo sem problemas, o app tenta devolver a pessoa à versão cheia. Quem transmite vê "qualidade reduzida" ao lado do nome. Vale para H.264, HEVC e AV1 na placa de vídeo, com a qualidade adaptativa ligada.
+- **Uma pessoa com internet ruim não piora a imagem de todo mundo.** Para quem assiste pelo servidor, o bitrate só cai por causa dos espectadores quando pelo menos metade deles está atrasada.
+- **Menos memória por quadro.** Cada quadro de vídeo era copiado várias vezes antes de sair e ao chegar. Agora é copiado uma vez em cada ponta, o que alivia transmissões em resolução alta.
+- **Configurações mais leves.** O app lia o arquivo de configurações do disco a cada tela; agora só relê quando o arquivo muda.
+
+### Correções
+
+- **Voltar a assistir a pessoa certa depois de uma queda.** Com duas pessoas de mesmo nome na sala, o app podia retomar a transmissão errada. Agora ele reconhece quem transmite por uma marca própria da sala, e não pelo nome.
+
 ## 3.1.0
 
 ### Conexão direta (P2P)

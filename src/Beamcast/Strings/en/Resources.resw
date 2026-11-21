@@ -79,6 +79,9 @@
   <data name="Watch_Leave.Content" xml:space="preserve"><value>Leave</value></data>
   <data name="Watch_Subtitle" xml:space="preserve"><value>Hosted by {0} · {1} watching</value></data>
   <data name="Watch_Waiting" xml:space="preserve"><value>Waiting for the first frame…</value></data>
+  <data name="Watch_NoDecoder" xml:space="preserve"><value>This PC cannot decode {0}. Ask the broadcaster to switch the codec to H.264.</value></data>
+  <data name="Watch_NoDecoderHevc" xml:space="preserve"><value>This PC cannot decode HEVC. Install "HEVC Video Extensions" from the Microsoft Store or ask the broadcaster to use H.264.</value></data>
+  <data name="Watch_NoDecoderAv1" xml:space="preserve"><value>This PC cannot decode AV1. Install the "AV1 Video Extension" from the Microsoft Store or ask the broadcaster to use H.264.</value></data>
   <data name="Broadcast_StillStopping" xml:space="preserve"><value>The previous broadcast is still closing. Try again in a few seconds.</value></data>
   <data name="Watch_PublisherBack" xml:space="preserve"><value>{0} lost connection. Waiting for the stream to come back…</value></data>
   <data name="Watch_PausedByHost" xml:space="preserve"><value>The stream is paused.</value></data>
@@ -201,6 +204,7 @@
   <data name="Quality_VbrHint.Text" xml:space="preserve"><value>Off, the bitrate is constant. On, the chosen bitrate becomes the average: a still scene uses less and a busy one may go up to 50% over it. Graphics card only; if the driver refuses, the app uses constant.</value></data>
   <data name="Viewer_RowDirect" xml:space="preserve"><value>{0} · direct</value></data>
   <data name="Viewer_RowRelay" xml:space="preserve"><value>{0} · via server</value></data>
+  <data name="Viewer_RowReduced" xml:space="preserve"><value> · reduced quality</value></data>
   <data name="Viewer_RowDelay" xml:space="preserve"><value> · {0} ms behind</value></data>
   <data name="Viewer_RowDropped" xml:space="preserve"><value> · {0} frames held back</value></data>
   <data name="Encoder_HintFallback" xml:space="preserve"><value>{0} does not work on this machine, so the broadcast will use {1}.</value></data>

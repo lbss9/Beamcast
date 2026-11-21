@@ -2,6 +2,50 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 3.1.1
+
+- Sem decodificador: `WatchService.Viewer` marca `CannotDecode` quando `MfVideoDecoder` não constrói
+  (HEVC/AV1 sem a extensão do Windows), tenta de novo só a cada 5 s, e `RoomPage` mostra
+  `Watch_NoDecoder*` no lugar de "aguardando". O log de erro de decodificação, que estava num ramo
+  inalcançável, voltou a ser escrito.
+- `ViewerCongestion`: atraso reportado ou link direto atrasado só chamam `AdaptOnDrop` quando pelo
+  menos metade dos espectadores reclamou nos últimos 5 s. Descarte no próprio uplink continua
+  baixando na hora. `DirectCongested` passou a levar o id do espectador.
+- `StreamMetaMessage.Publisher`: hash de `ClientId` + código da sala, posto em `PublishAsync` e
+  `UpdateStreamMeta`. `FindStreamLike` casa por ele; transmissões de apps antigos (sem a marca)
+  continuam por nome e título, e nunca são confundidas com as marcadas.
+- Caminho do quadro: `SecureChannel.SealWithPrefix` monta `[cabeçalho mux][mensagem cifrada]` numa
+  alocação só, com o texto (cabeçalho do pacote + bitstream) copiado uma vez e cifrado no lugar;
+  eram 4 cópias (`VideoPacket.Build`, `Seal`, `Framing.Encode`, `LoungeMux.Encode`). Na chegada,
+  `LoungeClient` recebe direto num buffer reaproveitado (`_rx`) e `TryOpenFramed` decifra dali; a
+  única alocação é o texto. Os pedaços do `PeerLink` continuam copiados.
+- `SettingsStore`: JSON já saneado em memória, relido só quando o `LastWriteTime` do arquivo muda;
+  cada `Load()` ainda devolve um objeto próprio.
+- Testes: `HostFixture` sobe o `Beamcast.Server` deste repositório como processo em 127.0.0.1, porta
+  livre e pasta de dados temporária; `HostRoundTripTests` exercita `LoungeClient` contra ele (sala
+  sem senha com entrega de chave, sala com senha, publicar, assistir, mídia de 600 kB, atualização
+  de transmissão, sinal de conexão direta). `FramePathTests` cobre o novo caminho e `ViewerCongestion`.
+- CI: `.github/workflows/ci.yml` roda os testes e compila o app a cada push e pull request.
+- Arquivos divididos em classes parciais, sem mudança de comportamento: `RoomPage` (`.Settings`,
+  `.Watch`, `.Broadcast`), `BroadcastService` (`.Calibration`, `.Encode`, `.Stats`) e, no host,
+  `Room` e `Room.Members` saíram de `LoungeHub.cs`.
+- Qualidade por espectador (`BroadcastService.Reduced.cs`): um segundo `MfVideoEncoder` no tamanho de
+  `QualityPreset.ReducedSize` (metade da altura, entre 360 e 720 linhas), `ReducedBitrate` (1/4, mín.
+  500 kbps) e `ReducedFps` (metade acima de 30), com conversor e anel NV12 próprios, criado só
+  enquanto algum espectador precisa e liberado depois. `ViewerQuality` decide por espectador: duas
+  reclamações em 6 s reduzem; volta à cheia após 30 s / 1 / 2 / 5 min sem reclamar; reclamação nos
+  15 s seguintes à volta reduz na hora. `DirectEntry.Variant` e o parâmetro `variant` de
+  `SendMedia` mandam cada quadro só para os links daquela versão; a troca acontece no keyframe da
+  versão nova (`ReducedKeyframeRequested`). Só em links diretos: o host repassa uma versão por
+  transmissão, então quem está no relay recebe sempre a cheia. Se o segundo encoder falhar, a
+  transmissão segue e os espectadores voltam à versão cheia. No espectador, keyframe de outro
+  tamanho recria o decodificador.
+  Medido numa RX 6750 XT: 1080p60 + 540p30 ao mesmo tempo em H.264 e HEVC, e o decodificador
+  aceitando a troca de tamanho tanto novo quanto no meio do fluxo.
+- Não feito: mover para XAML a interface montada em código. Não exercitado em execução: a troca de
+  versão com um espectador real numa rede ruim, o aviso de decodificador ausente e a divisão dos
+  arquivos numa sessão de sala real (compila e os testes passam).
+
 ## 3.1.0
 
 - Conexão direta (P2P) para a mídia: `Net/PeerLink.cs` (data channel WebRTC do SIPSorcery, confiável
