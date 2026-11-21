@@ -9,6 +9,19 @@ public enum MessageType : byte
     Audio = 12,
     Presence = 20,
     StreamMeta = 21,
+
+    /// <summary>Direct-link signaling (offer, answer, ICE candidate, bye) inside a control message (3.1).</summary>
+    Signal = 22,
+}
+
+/// <summary>Send-queue rules, kept apart from the socket so they can be unit tested.</summary>
+public static class OutboxPolicy
+{
+    /// <summary>
+    /// A queued video frame is stale when a newer keyframe of the same stream is already queued
+    /// behind it: the keyframe restarts decoding, so sending the older frames only adds delay.
+    /// </summary>
+    public static bool IsStale(long order, long newestKeyframeOrder) => newestKeyframeOrder > order;
 }
 
 /// <summary>Bits of the per-message flags byte. The server reads these without decrypting anything.</summary>

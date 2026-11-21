@@ -74,6 +74,9 @@ public sealed class AppSettings
     /// <summary>Play a short sound when another person starts broadcasting in the room.</summary>
     public bool StreamSounds { get; set; } = true;
 
+    /// <summary>Try a direct (P2P) link for video before falling back to the host's relay.</summary>
+    public bool DirectConnection { get; set; } = true;
+
     /// <summary>While live with nobody watching, keep capturing but stop encoding and sending.</summary>
     public bool StandbyWithoutViewers { get; set; } = true;
 

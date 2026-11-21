@@ -11,6 +11,7 @@ public static class MfCodecs
     private const uint FlagSortAndFilter = 0x40;
 
     private static readonly Dictionary<VideoCodec, bool> EncoderCache = new();
+    private static readonly Dictionary<VideoCodec, string> EncoderNames = new();
     private static readonly Dictionary<VideoCodec, bool> DecoderCache = new();
     private static readonly Dictionary<VideoCodec, bool> ProbeCache = new();
 
@@ -74,12 +75,44 @@ public static class MfCodecs
         {
             if (EncoderCache.TryGetValue(codec, out var cached))
                 return cached && !IsBroken(codec);
-            var transform = SafeTry.Run(() => CreateHardwareEncoder(codec, out _));
+            var name = string.Empty;
+            var transform = SafeTry.Run(() => CreateHardwareEncoder(codec, out name));
             var available = transform is not null;
             transform?.Dispose();
             EncoderCache[codec] = available;
+            EncoderNames[codec] = available ? name ?? string.Empty : string.Empty;
             return available && !IsBroken(codec);
         }
+    }
+
+    /// <summary>The driver's name for the hardware encoder of the codec ("NVIDIA H.264 Encoder MFT"), empty when there is none.</summary>
+    public static string HardwareEncoderName(VideoCodec codec)
+    {
+        HasHardwareEncoder(codec);
+        lock (EncoderCache)
+            return EncoderNames.TryGetValue(codec, out var name) ? name : string.Empty;
+    }
+
+    /// <summary>
+    /// Who makes the chip behind the hardware encoder, with the name people know its encoder by
+    /// ("NVIDIA (NVENC)", "AMD (AMF)", "Intel (Quick Sync)"); the driver's own name otherwise.
+    /// </summary>
+    public static string HardwareEncoderVendor(VideoCodec codec) => VendorOf(HardwareEncoderName(codec));
+
+    public static string VendorOf(string encoderName)
+    {
+        if (encoderName.Length == 0)
+            return string.Empty;
+        bool Has(string word) => encoderName.Contains(word, StringComparison.OrdinalIgnoreCase);
+        if (Has("NVIDIA") || Has("NVENC"))
+            return "NVIDIA (NVENC)";
+        if (Has("AMD") || Has("Radeon") || Has("AMF"))
+            return "AMD (AMF)";
+        if (Has("Intel") || Has("Quick Sync") || Has("QSV"))
+            return "Intel (Quick Sync)";
+        if (Has("Qualcomm") || Has("Adreno"))
+            return "Qualcomm (Adreno)";
+        return encoderName.Replace(" Encoder MFT", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
     }
 
     public static bool HasDecoder(VideoCodec codec)

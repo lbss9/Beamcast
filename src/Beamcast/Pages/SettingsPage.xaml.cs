@@ -69,6 +69,10 @@ public sealed partial class SettingsPage : Page
         StreamSoundPlay.Content = Loc.Get("Settings_StreamSoundTry");
         StreamSoundSwitch.IsOn = settings.StreamSounds;
 
+        DirectRow.Header = Loc.Get("Settings_Direct");
+        DirectRow.Description = Loc.Get("Settings_DirectDesc");
+        DirectSwitch.IsOn = settings.DirectConnection;
+
         DiagRow.Header = Loc.Get("Settings_Diag");
         DiagRow.Description = Loc.Get("Settings_DiagDesc");
         DiagSwitch.IsOn = Diag.IsEnabled;
@@ -197,6 +201,15 @@ public sealed partial class SettingsPage : Page
     }
 
     private void OnPlayStreamSound(object sender, RoutedEventArgs e) => SoundEffects.Play(SoundEffects.StreamStart);
+
+    private void OnDirectToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        var on = DirectSwitch.IsOn;
+        SettingsStore.Update(s => s.DirectConnection = on);
+        LoungeService.Instance.DirectEnabled = on;
+    }
 
     private void OnDiagToggled(object sender, RoutedEventArgs e)
     {

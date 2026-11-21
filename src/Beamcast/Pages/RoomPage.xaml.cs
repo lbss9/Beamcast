@@ -55,11 +55,14 @@ public sealed partial class RoomPage : Page
         Tabs.SetItems(Loc.Get("Room_WatchTab/Header"), Loc.Get("Room_BroadcastTab/Header"), Loc.Get("Room_SettingsTab/Header"));
 
         EncoderBox.Items.Clear();
-        EncoderBox.Items.Add(Loc.Get("Encoder_Auto"));
+        EncoderBox.Items.Add(MfCodecs.HasHardwareEncoder(VideoCodec.H264)
+            ? Loc.Format("Encoder_AutoGpu", MfCodecs.HardwareEncoderVendor(VideoCodec.H264))
+            : Loc.Get("Encoder_AutoCpu"));
         EncoderBox.Items.Add(EncoderLabel(VideoCodec.H264, "H.264"));
         EncoderBox.Items.Add(EncoderLabel(VideoCodec.Hevc, "HEVC"));
         EncoderBox.Items.Add(Loc.Get("Encoder_Vp8"));
         EncoderBox.SelectedIndex = Math.Max(0, Array.IndexOf(EncoderPreference.All, _broadcast.EncoderPreferenceValue));
+        UpdateEncoderHint();
 
         PresetBox.Items.Clear();
         foreach (var preset in QualityPreset.All)
@@ -115,6 +118,7 @@ public sealed partial class RoomPage : Page
         _watch.StatsChanged += OnWatchStats;
         _watch.Stopped += OnWatchStopped;
         _broadcast.ViewerChanged += OnViewerChanged;
+        _lounge.PathChanged += OnPathChanged;
         if (App.Main is not null)
             App.Main.FullscreenExited += OnFullscreenExited;
 
@@ -152,6 +156,7 @@ public sealed partial class RoomPage : Page
         _watch.StatsChanged -= OnWatchStats;
         _watch.Stopped -= OnWatchStopped;
         _broadcast.ViewerChanged -= OnViewerChanged;
+        _lounge.PathChanged -= OnPathChanged;
         if (App.Main is not null)
             App.Main.FullscreenExited -= OnFullscreenExited;
         Preview.Unbind();
@@ -160,7 +165,39 @@ public sealed partial class RoomPage : Page
     }
 
     private static string EncoderLabel(VideoCodec codec, string name) =>
-        MfCodecs.HasHardwareEncoder(codec) ? Loc.Format("Encoder_Gpu", name) : Loc.Format("Encoder_Unavailable", name);
+        MfCodecs.HasHardwareEncoder(codec)
+            ? Loc.Format("Encoder_Gpu", name, MfCodecs.HardwareEncoderVendor(codec))
+            : Loc.Format("Encoder_Unavailable", name);
+
+    private static string CodecTitle(VideoCodec codec) => codec switch
+    {
+        VideoCodec.H264 => "H.264",
+        VideoCodec.Hevc => "HEVC",
+        _ => "VP8",
+    };
+
+    /// <summary>Says under the codec box where the video gets encoded (which chip) and what that costs.</summary>
+    private void UpdateEncoderHint()
+    {
+        var preference = EncoderPreference.All[Math.Max(0, EncoderBox.SelectedIndex)];
+        var resolved = MfCodecs.Resolve(preference);
+        var text = resolved == VideoCodec.Vp8
+            ? Loc.Get("Encoder_HintCpu")
+            : Loc.Format("Encoder_HintGpu", CodecTitle(resolved), MfCodecs.HardwareEncoderVendor(resolved));
+        if (resolved == VideoCodec.Hevc)
+            text += " " + Loc.Get("Encoder_HintHevc");
+        var asked = preference switch
+        {
+            EncoderPreference.H264 => VideoCodec.H264,
+            EncoderPreference.Hevc => VideoCodec.Hevc,
+            _ => resolved,
+        };
+        if (asked != resolved)
+            text = Loc.Format("Encoder_HintFallback", CodecTitle(asked), CodecTitle(resolved)) + " " + text;
+        EncoderHintText.Text = text;
+        var driver = resolved == VideoCodec.Vp8 ? string.Empty : MfCodecs.HardwareEncoderName(resolved);
+        ToolTipService.SetToolTip(EncoderBox, driver.Length > 0 ? driver : null);
+    }
 
     private void PersistInputs()
     {
@@ -711,8 +748,34 @@ public sealed partial class RoomPage : Page
             return;
         var audio = stats.AudioKbps > 0 ? $"  ♪ {stats.AudioKbps:F0} kbps" : string.Empty;
         var latency = stats.LatencyMs >= 0 ? "  " + Loc.Format("Watch_Latency", stats.LatencyMs.ToString("F0")) : string.Empty;
-        tile.StatsText.Text = $"{stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  dec {stats.DecodeMs:F1} ms{audio}{latency}";
+        var path = Loc.Get(_lounge.IsDirect(streamId) ? "Watch_PathDirect" : "Watch_PathRelay");
+        tile.StatsText.Text = $"{path}  {stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  dec {stats.DecodeMs:F1} ms{audio}{latency}";
         UpdatePingText();
+    }
+
+    /// <summary>A video path switched between direct and the server: tell the person, briefly.</summary>
+    private void OnPathChanged(DirectPathChange change)
+    {
+        if (change.AsPublisher)
+        {
+            ViewerNoteText.Text = Loc.Format(change.Direct ? "Path_PublisherDirect" : "Path_PublisherRelay", change.PeerName);
+            OnBroadcastStats(_broadcast.LastStats);
+            return;
+        }
+        if (!_watch.IsWatchingStream(change.StreamId))
+            return;
+        var message = Loc.Format(change.Direct ? "Path_ViewerDirect" : "Path_ViewerRelay", change.PeerName);
+        PathBar.Severity = change.Direct ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
+        PathBar.Message = message;
+        PathBar.IsOpen = true;
+        _ = ClosePathBarLaterAsync(message);
+    }
+
+    private async Task ClosePathBarLaterAsync(string message)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(6));
+        if (PathBar.Message == message)
+            PathBar.IsOpen = false;
     }
 
     private void OnWatchStopped(uint streamId, string reason)
@@ -1027,6 +1090,7 @@ public sealed partial class RoomPage : Page
             return;
         DropToManual();
         _broadcast.EncoderPreferenceValue = EncoderPreference.All[EncoderBox.SelectedIndex];
+        UpdateEncoderHint();
         BitrateBox.Value = QualityPreset.SuggestedBitrate(_broadcast.Preset, _broadcast.Fps, ResolvedCodecName());
     }
 
@@ -1199,7 +1263,10 @@ public sealed partial class RoomPage : Page
             StatsText.Text = stats.Standby
                 ? Loc.Get("Stream_StandbyStats")
                 : $"{stats.Codec}  {stats.Width}×{stats.Height}  {stats.Fps:F0} fps  {stats.Kbps / 1000:F1} Mbps  {stats.EncodeMs:F1} ms{audio}{adapted}{lag}";
-            ViewersText.Text = Loc.Format("Stream_Viewers", _broadcast.ViewerCount);
+            var direct = _lounge.DirectViewers(_broadcast.StreamId);
+            ViewersText.Text = direct > 0
+                ? Loc.Format("Stream_ViewersDirect", _broadcast.ViewerCount, direct)
+                : Loc.Format("Stream_Viewers", _broadcast.ViewerCount);
             ViewersBadge.Visibility = Visibility.Visible;
             StandbyBadge.Visibility = stats.Standby ? Visibility.Visible : Visibility.Collapsed;
         }

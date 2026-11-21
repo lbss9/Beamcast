@@ -99,7 +99,10 @@
             </StackPanel>
         </Grid>
 
-        <InfoBar x:Name="ReconnectBar" x:Uid="Room_ReconnectBar" Grid.Row="1" IsOpen="False" IsClosable="False" Severity="Warning" />
+        <StackPanel Grid.Row="1">
+            <InfoBar x:Name="ReconnectBar" x:Uid="Room_ReconnectBar" IsOpen="False" IsClosable="False" Severity="Warning" />
+            <InfoBar x:Name="PathBar" IsOpen="False" IsClosable="True" Severity="Informational" />
+        </StackPanel>
 
         <ctrl:Segmented x:Name="Tabs" Grid.Row="2" SelectionChanged="OnTabChanged" />
 
@@ -259,6 +262,7 @@
                                     </Expander.Header>
                                     <StackPanel Spacing="10">
                                         <ComboBox x:Name="EncoderBox" x:Uid="Quality_Encoder" HorizontalAlignment="Stretch" SelectionChanged="OnEncoderChanged" />
+                                        <TextBlock x:Name="EncoderHintText" Style="{StaticResource FaintTextStyle}" TextWrapping="Wrap" Margin="0,-4,0,0" />
                                         <Grid ColumnSpacing="12">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />

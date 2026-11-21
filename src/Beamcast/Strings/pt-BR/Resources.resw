@@ -183,10 +183,15 @@
   <data name="Update_BarAction" xml:space="preserve"><value>Ver detalhes</value></data>
 
   <data name="Quality_Encoder.Header" xml:space="preserve"><value>Codec</value></data>
-  <data name="Encoder_Auto" xml:space="preserve"><value>Automático (GPU se houver)</value></data>
-  <data name="Encoder_Gpu" xml:space="preserve"><value>{0} (GPU)</value></data>
-  <data name="Encoder_Unavailable" xml:space="preserve"><value>{0} (sem encoder nesta máquina)</value></data>
-  <data name="Encoder_Vp8" xml:space="preserve"><value>VP8 (CPU, compatível)</value></data>
+  <data name="Encoder_AutoGpu" xml:space="preserve"><value>Automático: H.264 na placa de vídeo {0}</value></data>
+  <data name="Encoder_AutoCpu" xml:space="preserve"><value>Automático: VP8 no processador (sem GPU compatível)</value></data>
+  <data name="Encoder_Gpu" xml:space="preserve"><value>{0} na placa de vídeo {1}</value></data>
+  <data name="Encoder_Unavailable" xml:space="preserve"><value>{0} (sua placa de vídeo não tem esse encoder)</value></data>
+  <data name="Encoder_Vp8" xml:space="preserve"><value>VP8 no processador (CPU, funciona em qualquer PC)</value></data>
+  <data name="Encoder_HintGpu" xml:space="preserve"><value>O vídeo é codificado em {0} pela placa de vídeo {1}: quase não usa o processador e aguenta resolução e fps altos.</value></data>
+  <data name="Encoder_HintCpu" xml:space="preserve"><value>O vídeo é codificado em VP8 pelo processador (CPU): funciona em qualquer PC, mas pesa mais e rende menos em 1080p ou 60 fps.</value></data>
+  <data name="Encoder_HintHevc" xml:space="preserve"><value>HEVC dá imagem melhor com o mesmo bitrate, mas quem assiste precisa de um PC que decodifique HEVC.</value></data>
+  <data name="Encoder_HintFallback" xml:space="preserve"><value>{0} não funciona nesta máquina, então a transmissão vai usar {1}.</value></data>
   <data name="Error_Codec" xml:space="preserve"><value>Esta máquina não consegue decodificar o codec da transmissão.</value></data>
 
   <data name="Session_Mode.Header" xml:space="preserve"><value>Como os outros chegam até você</value></data>
@@ -255,6 +260,15 @@
   <data name="Stream_ViewerSounds.Header" xml:space="preserve"><value>Som quando alguém entra ou sai da transmissão</value></data>
   <data name="Stream_ViewerSounds.OnContent" xml:space="preserve"><value>Ligado</value></data>
   <data name="Stream_ViewerSounds.OffContent" xml:space="preserve"><value>Desligado</value></data>
+  <data name="Watch_PathDirect" xml:space="preserve"><value>Direto</value></data>
+  <data name="Watch_PathRelay" xml:space="preserve"><value>Via servidor</value></data>
+  <data name="Path_ViewerDirect" xml:space="preserve"><value>Conexão direta com {0}: o vídeo agora chega sem passar pelo servidor.</value></data>
+  <data name="Path_ViewerRelay" xml:space="preserve"><value>A conexão direta com {0} caiu. O vídeo voltou a passar pelo servidor, e o app tenta a conexão direta de novo sozinho.</value></data>
+  <data name="Path_PublisherDirect" xml:space="preserve"><value>{0} agora assiste por conexão direta.</value></data>
+  <data name="Path_PublisherRelay" xml:space="preserve"><value>A conexão direta com {0} caiu; essa pessoa voltou a assistir pelo servidor.</value></data>
+  <data name="Stream_ViewersDirect" xml:space="preserve"><value>{0} assistindo · {1} direto</value></data>
+  <data name="Settings_Direct" xml:space="preserve"><value>Conexão direta (P2P)</value></data>
+  <data name="Settings_DirectDesc" xml:space="preserve"><value>Manda o vídeo direto entre os PCs, sem passar pelo servidor, quando a rede deixa. Se não der, ele vai pelo servidor como antes. Quem está na sala consegue ver o seu endereço de IP.</value></data>
   <data name="Stream_Viewers" xml:space="preserve"><value>{0} assistindo</value></data>
   <data name="Stream_ViewerJoined" xml:space="preserve"><value>{0} começou a assistir.</value></data>
   <data name="Stream_ViewerLeft" xml:space="preserve"><value>{0} parou de assistir.</value></data>

@@ -1159,33 +1159,41 @@ public sealed class BroadcastService
         AccountFrame(frame, encodeMs);
     }
 
-    /// <summary>Sends a frame once; the server fans it out. A slow uplink drops frames here, not in the server.</summary>
+    /// <summary>
+    /// Sends a frame once to the host (which fans it out) and to each direct link. A slow uplink
+    /// to the host drops frames here, not in the server; each direct link has its own gate.
+    /// </summary>
     private void Publish(EncodedFrame frame)
     {
         var streamId = _streamId;
         if (streamId == 0)
             return;
 
+        var header = new VideoPacketHeader(frame.Sequence, frame.TimestampMs, frame.Width, frame.Height, frame.IsKeyframe);
+        _lounge.SendMedia(streamId, MessageType.Video, VideoPacket.Build(header, frame.Data), frame.IsKeyframe, _lounge.ServerClockNow(),
+            relayGate: () => RelayAllows(streamId, frame.IsKeyframe));
+    }
+
+    private bool RelayAllows(uint streamId, bool keyframe)
+    {
         GateDecision decision;
         lock (_upstreamGate)
         {
-            decision = _upstreamGate.Offer(frame.IsKeyframe, _lounge.PendingVideo(streamId));
+            decision = _upstreamGate.Offer(keyframe, _lounge.PendingVideo(streamId));
         }
         if (decision == GateDecision.DropAndRequestKeyframe)
         {
             AdaptOnDrop();
             Interlocked.Exchange(ref _keyframeRequested, 1);
             _gpuEncoder?.RequestKeyframe();
-            return;
+            return false;
         }
         if (decision != GateDecision.Send)
         {
             AdaptOnDrop();
-            return;
+            return false;
         }
-
-        var header = new VideoPacketHeader(frame.Sequence, frame.TimestampMs, frame.Width, frame.Height, frame.IsKeyframe);
-        _lounge.SendMedia(streamId, MessageType.Video, VideoPacket.Build(header, frame.Data), frame.IsKeyframe, _lounge.ServerClockNow());
+        return true;
     }
 
     private void OnAudioPacket(byte[] packet)

@@ -19,6 +19,9 @@ public sealed class LoungeMember
     public string Name { get; set; } = string.Empty;
     public bool IsMe { get; init; }
     public bool IsOwner { get; init; }
+
+    /// <summary>Their app accepts direct (P2P) links (3.1+, setting on).</summary>
+    public bool SupportsDirect { get; set; }
 }
 
 public sealed class LoungeStream
@@ -38,7 +41,7 @@ public sealed class LoungeStream
 /// Events are raised on the UI thread except <see cref="MediaReceived"/> and
 /// <see cref="KeyframeRequested"/>, which stay on the network thread for latency.
 /// </summary>
-public sealed class LoungeService
+public sealed partial class LoungeService
 {
     public static LoungeService Instance { get; } = new();
 
@@ -81,8 +84,6 @@ public sealed class LoungeService
     public event Action<uint, uint, string>? ViewerLeft;
     /// <summary>A viewer of my stream reports its delay (stream id, viewer id, ms). Network thread, like media.</summary>
     public event Action<uint, uint, int>? ViewerReported;
-
-    public void SendViewerReport(uint streamId, int latencyMs) => _client?.SendViewerReport(streamId, latencyMs);
 
     /// <summary>Round trip to the host in ms (0 until the first heartbeat echo).</summary>
     public int RoundTripMs => _client?.RoundTripMs ?? 0;
@@ -169,7 +170,15 @@ public sealed class LoungeService
     }
 
     public static void ForgetHost(string serverUrl) =>
-        SettingsStore.Update(s => s.Hosts.RemoveAll(h => string.Equals(h.Url, serverUrl, StringComparison.OrdinalIgnoreCase)));
+        SettingsStore.Update(s =>
+        {
+            s.Hosts.RemoveAll(h => string.Equals(h.Url, serverUrl, StringComparison.OrdinalIgnoreCase));
+            // The last-used host is put back in the book when the settings load (old files carry
+            // over that way), and without its key: left pointing here, the host came straight back
+            // and asked for the key again.
+            if (string.Equals(s.RelayUrl, serverUrl, StringComparison.OrdinalIgnoreCase))
+                s.RelayUrl = s.Hosts.FirstOrDefault()?.Url ?? string.Empty;
+        });
 
     // ----- favorites -----
 
@@ -365,15 +374,17 @@ public sealed class LoungeService
             Post(() => RoomChanged?.Invoke(info));
         };
         client.Notice += reason => { Diag.Log($"lounge: notice {reason}"); Post(() => Notice?.Invoke(reason)); };
-        client.MediaReceived += (id, type, key, body, stamp) => MediaReceived?.Invoke(id, type, key, body, stamp);
+        client.MediaReceived += OnRelayMedia;
         client.KeyframeRequested += id => KeyframeRequested?.Invoke(id);
-        client.ViewerJoined += (streamId, viewerId) => Post(() => ViewerJoined?.Invoke(streamId, viewerId, NameOf(viewerId)));
-        client.ViewerLeft += (streamId, viewerId) => Post(() => ViewerLeft?.Invoke(streamId, viewerId, NameOf(viewerId)));
+        // The host only knows viewers on its relay; viewers on a direct link are added in LoungeService.Direct.
+        client.ViewerJoined += OnRelayViewerJoined;
+        client.ViewerLeft += OnRelayViewerLeft;
         client.ViewerReported += (streamId, viewerId, ms) => ViewerReported?.Invoke(streamId, viewerId, ms);
+        client.SignalReceived += OnSignal;
         client.Closed += reason => Post(() => OnClosed(client, reason));
 
         _client = client;
-        client.SendPresence(new PresenceMessage { Name = _displayName, AppVersion = AppInfo.Version });
+        client.SendPresence(MyPresence());
     }
 
     public async Task LeaveAsync()
@@ -399,6 +410,7 @@ public sealed class LoungeService
         if (!ReferenceEquals(_client, client))
             return;
         _client = null;
+        ResetDirect();
         client.Dispose();
 
         var session = _session;
@@ -529,7 +541,7 @@ public sealed class LoungeService
                 _members[id] = new LoungeMember { Id = id, Name = Placeholder(id), IsOwner = isOwner };
         }
         // Newcomers need our name too.
-        SafeTry.Run(() => _client?.SendPresence(new PresenceMessage { Name = _displayName, AppVersion = AppInfo.Version }));
+        SafeTry.Run(() => _client?.SendPresence(MyPresence()));
         Post(() => MembersChanged?.Invoke());
     }
 
@@ -541,6 +553,7 @@ public sealed class LoungeService
         {
             _members.Remove(id);
         }
+        CloseDirectWith(id);
         Post(() => MembersChanged?.Invoke());
     }
 
@@ -557,7 +570,8 @@ public sealed class LoungeService
             if (_members.TryGetValue(id, out var member))
                 member.Name = name;
             else
-                _members[id] = new LoungeMember { Id = id, Name = name };
+                _members[id] = member = new LoungeMember { Id = id, Name = name };
+            member.SupportsDirect = presence.Direct;
             foreach (var stream in _streams.Values.Where(s => s.OwnerId == id))
                 stream.OwnerName = name;
         }
@@ -566,6 +580,15 @@ public sealed class LoungeService
             MembersChanged?.Invoke();
             StreamsChanged?.Invoke();
         });
+        // A viewer's presence can arrive after the host said it watches: offer the link now.
+        if (presence.Direct)
+        {
+            List<uint> mine;
+            lock (_sync)
+                mine = _streams.Values.Where(s => s.IsMine).Select(s => s.Id).ToList();
+            foreach (var streamId in mine)
+                MaybeOfferDirect(id, streamId);
+        }
     }
 
     private void OnStreamStarted(uint streamId, uint owner, StreamMetaMessage meta)
@@ -597,11 +620,17 @@ public sealed class LoungeService
         });
     }
 
-    private void OnStreamMetaUpdated(uint streamId, StreamMetaMessage meta)
+    /// <summary>
+    /// The host stamps relayed control messages with the sender's member id, so the update is
+    /// matched against that member's streams: the one it names (3.1+), or every stream it owns when
+    /// an older app sent it. Before 3.1 this looked the sender id up as a stream id, which updated
+    /// the wrong stream (or none) when someone paused or renamed a broadcast.
+    /// </summary>
+    private void OnStreamMetaUpdated(uint senderId, StreamMetaMessage meta)
     {
         lock (_sync)
         {
-            if (_streams.TryGetValue(streamId, out var stream))
+            foreach (var stream in _streams.Values.Where(s => s.OwnerId == senderId && (meta.StreamId == 0 || s.Id == meta.StreamId)))
                 stream.Meta = meta;
         }
         Post(() => StreamsChanged?.Invoke());
@@ -674,7 +703,11 @@ public sealed class LoungeService
     public Task<uint> PublishAsync(StreamMetaMessage meta, CancellationToken ct) =>
         (_client ?? throw new InvalidOperationException("Not in a room.")).PublishAsync(meta, ct);
 
-    public void Unpublish(uint streamId) => _client?.Unpublish(streamId);
+    public void Unpublish(uint streamId)
+    {
+        CloseDirectFor(streamId);
+        _client?.Unpublish(streamId);
+    }
 
     public void UpdateStreamMeta(uint streamId, StreamMetaMessage meta)
     {
@@ -688,28 +721,7 @@ public sealed class LoungeService
         Post(() => StreamsChanged?.Invoke());
     }
 
-    public void SendMedia(uint streamId, MessageType type, ReadOnlySpan<byte> body, bool keyframe, uint sendStamp = 0) =>
-        _client?.SendMedia(streamId, type, body, keyframe, sendStamp);
-
     public int PendingVideo(uint streamId) => _client?.PendingVideo(streamId) ?? 0;
-
-    public void Subscribe(uint streamId)
-    {
-        Diag.Log($"lounge: subscribe #{streamId}");
-        _client?.Subscribe(streamId);
-    }
-
-    public void Unsubscribe(uint streamId)
-    {
-        Diag.Log($"lounge: unsubscribe #{streamId}");
-        _client?.Unsubscribe(streamId);
-    }
-
-    public void RequestKeyframe(uint streamId)
-    {
-        Diag.Log($"lounge: keyframe request for #{streamId}");
-        _client?.RequestKeyframe(streamId);
-    }
 
     public LoungeStream? FindStream(uint streamId)
     {

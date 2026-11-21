@@ -50,6 +50,11 @@
                     </StackPanel>
                 </ctrl:SettingsRow.ActionContent>
             </ctrl:SettingsRow>
+            <ctrl:SettingsRow x:Name="DirectRow" Glyph="&#xE703;">
+                <ctrl:SettingsRow.ActionContent>
+                    <ToggleSwitch x:Name="DirectSwitch" MinWidth="0" Toggled="OnDirectToggled" />
+                </ctrl:SettingsRow.ActionContent>
+            </ctrl:SettingsRow>
 
             <!-- version and updates -->
             <TextBlock x:Uid="Settings_VersionHeader" Style="{StaticResource SectionHeaderStyle}" Margin="4,14,0,8" />

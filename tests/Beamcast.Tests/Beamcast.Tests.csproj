@@ -11,6 +11,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="SIPSorcery" Version="10.0.17" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
@@ -33,6 +34,8 @@
     <Compile Include="..\..\src\Beamcast\Net\LoungeCrypto.cs" Link="Net\LoungeCrypto.cs" />
     <Compile Include="..\..\src\Beamcast\Net\LoungeInvite.cs" Link="Net\LoungeInvite.cs" />
     <Compile Include="..\..\src\Beamcast\Net\JoinRateLimiter.cs" Link="Net\JoinRateLimiter.cs" />
+    <Compile Include="..\..\src\Beamcast\Net\PeerLink.cs" Link="Net\PeerLink.cs" />
+    <Compile Include="..\..\src\Beamcast\Logic\Diag.cs" Link="Logic\Diag.cs" />
     <Compile Include="..\..\src\Beamcast\Audio\AudioMixer.cs" Link="Audio\AudioMixer.cs" />
     <Compile Include="..\..\src\Beamcast\Audio\AudioSourceSelector.cs" Link="Audio\AudioSourceSelector.cs" />
     <Compile Include="..\..\src\Beamcast\Audio\ProcessTable.cs" Link="Audio\ProcessTable.cs" />

@@ -72,8 +72,14 @@ public sealed class LoungeClient : IDisposable
     private const int MaxBufferedBeforeKey = 512;
 
     private readonly ClientWebSocket _socket;
-    private readonly Channel<(byte[] Frame, uint StreamId, bool IsVideo)> _outbox =
-        Channel.CreateUnbounded<(byte[], uint, bool)>(new UnboundedChannelOptions { SingleReader = true });
+
+    // Two queues into one socket: control, presence and audio go ahead of video, so a big keyframe
+    // waiting for a slow uplink never holds back the sound or a keyframe request.
+    private readonly ConcurrentQueue<byte[]> _urgent = new();
+    private readonly ConcurrentQueue<(byte[] Frame, uint StreamId, long Order, bool Keyframe)> _video = new();
+    private readonly SemaphoreSlim _outboxSignal = new(0);
+    private readonly ConcurrentDictionary<uint, long> _keyframeOrder = new();
+    private long _videoOrder;
     private readonly ConcurrentDictionary<uint, int> _pendingVideo = new();
     private readonly ConcurrentDictionary<uint, TaskCompletionSource<uint>> _publishWaiters = new();
     private readonly ConcurrentDictionary<uint, TaskCompletionSource<InviteCreatedMessage>> _inviteWaiters = new();
@@ -159,6 +165,7 @@ public sealed class LoungeClient : IDisposable
     /// <summary>The server's folded clock right now, or 0 when it is still unknown.</summary>
     public uint ServerClockNow() =>
         ClockSynced ? unchecked(LoungeMux.ClockNow() + (uint)Volatile.Read(ref _clockOffsetMs)) : 0;
+    /// <summary>A member changed one of its streams (paused, new title): sender member id, new meta.</summary>
     public event Action<uint, StreamMetaMessage>? StreamMetaUpdated;
     public event Action<uint>? KeyframeRequested;
     public event Action<RoomInfo>? RoomUpdated;
@@ -481,8 +488,11 @@ public sealed class LoungeClient : IDisposable
         Enqueue(LoungeMux.Encode(LoungeMux.Unpublish, streamId, 0, ReadOnlySpan<byte>.Empty));
 
     /// <summary>Tells everyone about a state change (paused/live) or a new title for a stream.</summary>
-    public void UpdateStreamMeta(uint streamId, StreamMetaMessage meta) =>
+    public void UpdateStreamMeta(uint streamId, StreamMetaMessage meta)
+    {
+        meta.StreamId = streamId; // the host replaces the header's a with our member id, so the stream rides inside
         Enqueue(LoungeMux.Encode(LoungeMux.Control, streamId, 0, Sealer.Seal(MessageType.StreamMeta, Json.Serialize(meta))));
+    }
 
     public void Subscribe(uint streamId) =>
         Enqueue(LoungeMux.Encode(LoungeMux.Subscribe, streamId, 0, ReadOnlySpan<byte>.Empty));
@@ -499,14 +509,69 @@ public sealed class LoungeClient : IDisposable
     /// <param name="sendStamp">Server-clock stamp of this frame (<see cref="ServerClockNow"/>), 0 when unknown.</param>
     public void SendMedia(uint streamId, MessageType type, ReadOnlySpan<byte> body, bool keyframe, uint sendStamp = 0)
     {
+        if (SealMedia(streamId, type, body, keyframe, sendStamp) is { } frame)
+            SendSealedMedia(frame, streamId, type == MessageType.Video, keyframe);
+    }
+
+    /// <summary>
+    /// Encrypts a media message into a ready <see cref="LoungeMux.Media"/> frame, the same bytes the
+    /// host relays and a direct link carries. Null before the room key arrived.
+    /// </summary>
+    public byte[]? SealMedia(uint streamId, MessageType type, ReadOnlySpan<byte> body, bool keyframe, uint sendStamp)
+    {
         var channel = _channel;
         if (channel is null)
-            return;
+            return null;
         var framed = channel.Seal(type, body, keyframe ? MessageFlags.Keyframe : MessageFlags.None);
-        var isVideo = type == MessageType.Video;
-        if (isVideo)
-            _pendingVideo.AddOrUpdate(streamId, 1, (_, n) => n + 1);
-        _outbox.Writer.TryWrite((LoungeMux.Encode(LoungeMux.Media, streamId, sendStamp, framed), streamId, isVideo));
+        return LoungeMux.Encode(LoungeMux.Media, streamId, sendStamp, framed);
+    }
+
+    /// <summary>Queues a frame from <see cref="SealMedia"/> for the host.</summary>
+    public void SendSealedMedia(byte[] frame, uint streamId, bool isVideo, bool keyframe)
+    {
+        if (!IsOpen)
+            return;
+        if (!isVideo)
+        {
+            Enqueue(frame);
+            return;
+        }
+        var order = Interlocked.Increment(ref _videoOrder);
+        if (keyframe)
+            _keyframeOrder[streamId] = order; // older frames of this stream still queued are useless now
+        _pendingVideo.AddOrUpdate(streamId, 1, (_, n) => n + 1);
+        _video.Enqueue((frame, streamId, order, keyframe));
+        _outboxSignal.Release();
+    }
+
+    /// <summary>Opens a media frame that came over a direct link (same layout as the host's).</summary>
+    public bool TryOpenMedia(byte[] payload, out MessageType type, out bool keyframe, out byte[] body)
+    {
+        type = default;
+        keyframe = false;
+        body = [];
+        var channel = _channel;
+        if (channel is null || !Framing.TryDecodeWhole(payload, out var message) || !channel.TryOpen(message, out body))
+            return false;
+        type = message.Type;
+        keyframe = message.IsKeyframe;
+        return true;
+    }
+
+    // ----- direct links: signaling through the host -----
+
+    /// <summary>Raised for a direct-link signal addressed to us: sender member id and the message.</summary>
+    public event Action<uint, PeerSignal>? SignalReceived;
+
+    /// <summary>
+    /// Sends a direct-link signal. It rides the encrypted control channel, which the host relays to
+    /// everyone in the room without reading it; only the addressee acts on it, so hosts and older
+    /// apps need nothing new.
+    /// </summary>
+    public void SendSignal(PeerSignal signal)
+    {
+        if (_channel is { } channel)
+            Enqueue(LoungeMux.Encode(LoungeMux.Control, 0, 0, channel.Seal(MessageType.Signal, Json.Serialize(signal))));
     }
 
     // ----- owner operations -----
@@ -564,21 +629,36 @@ public sealed class LoungeClient : IDisposable
 
     // ----- loops -----
 
-    private void Enqueue(byte[] frame) => _outbox.Writer.TryWrite((frame, 0, false));
+    private void Enqueue(byte[] frame)
+    {
+        if (!IsOpen)
+            return;
+        _urgent.Enqueue(frame);
+        _outboxSignal.Release();
+    }
 
     private async Task SendLoopAsync(CancellationToken ct)
     {
         try
         {
-            var reader = _outbox.Reader;
-            while (await reader.WaitToReadAsync(ct).ConfigureAwait(false))
+            while (!ct.IsCancellationRequested)
             {
-                while (reader.TryRead(out var item))
+                await _outboxSignal.WaitAsync(ct).ConfigureAwait(false);
+                // Everything urgent first, then one video frame, then look again.
+                if (_urgent.TryDequeue(out var urgent))
                 {
-                    await _socket.SendAsync(item.Frame, WebSocketMessageType.Binary, true, ct).ConfigureAwait(false);
-                    if (item.IsVideo)
-                        _pendingVideo.AddOrUpdate(item.StreamId, 0, (_, n) => Math.Max(0, n - 1));
+                    await _socket.SendAsync(urgent, WebSocketMessageType.Binary, true, ct).ConfigureAwait(false);
+                    continue;
                 }
+                if (!_video.TryDequeue(out var item))
+                    continue;
+                _pendingVideo.AddOrUpdate(item.StreamId, 0, (_, n) => Math.Max(0, n - 1));
+                if (OutboxPolicy.IsStale(item.Order, _keyframeOrder.TryGetValue(item.StreamId, out var newest) ? newest : 0))
+                {
+                    Interlocked.Increment(ref _staleDropped);
+                    continue;
+                }
+                await _socket.SendAsync(item.Frame, WebSocketMessageType.Binary, true, ct).ConfigureAwait(false);
             }
         }
         catch (Exception) { }
@@ -587,6 +667,11 @@ public sealed class LoungeClient : IDisposable
             Close(_byeReason ?? "lost");
         }
     }
+
+    private long _staleDropped;
+
+    /// <summary>Video frames skipped in the queue because a newer keyframe of the same stream was behind them.</summary>
+    public long StaleFramesDropped => Interlocked.Read(ref _staleDropped);
 
     private async Task HeartbeatLoopAsync(CancellationToken ct)
     {
@@ -744,9 +829,13 @@ public sealed class LoungeClient : IDisposable
                     PresenceReceived?.Invoke(a, presence);
                 break;
             case LoungeMux.Control:
-                if (channel is not null && channel.TryOpenFramed(payload, out var controlType, out var controlBytes) && controlType == MessageType.StreamMeta
-                    && Json.Deserialize<StreamMetaMessage>(controlBytes) is { } updated)
+                // The host stamps a with the sender's member id (not a stream id).
+                if (channel is null || !channel.TryOpenFramed(payload, out var controlType, out var controlBytes))
+                    break;
+                if (controlType == MessageType.StreamMeta && Json.Deserialize<StreamMetaMessage>(controlBytes) is { } updated)
                     StreamMetaUpdated?.Invoke(a, updated);
+                else if (controlType == MessageType.Signal && Json.Deserialize<PeerSignal>(controlBytes) is { } signal && signal.To == MemberId)
+                    SignalReceived?.Invoke(a, signal);
                 break;
             case LoungeMux.StreamStarted:
                 if (channel is not null && channel.TryOpenFramed(payload, out _, out var metaBytes) && Json.Deserialize<StreamMetaMessage>(metaBytes) is { } meta)
@@ -852,7 +941,6 @@ public sealed class LoungeClient : IDisposable
         if (Interlocked.Exchange(ref _closed, 1) != 0)
             return;
         Diag.Log($"net: socket closed ({reason}); state {_socket.State}, close status {_socket.CloseStatus?.ToString() ?? "-"} '{_socket.CloseStatusDescription}', pending video {_pendingVideo.Values.Sum()}");
-        _outbox.Writer.TryComplete();
         foreach (var waiter in _publishWaiters.Values)
             waiter.TrySetCanceled();
         foreach (var waiter in _inviteWaiters.Values)

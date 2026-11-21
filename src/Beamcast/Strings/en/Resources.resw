@@ -183,10 +183,15 @@
   <data name="Update_BarAction" xml:space="preserve"><value>See what changed</value></data>
 
   <data name="Quality_Encoder.Header" xml:space="preserve"><value>Codec</value></data>
-  <data name="Encoder_Auto" xml:space="preserve"><value>Automatic (GPU when available)</value></data>
-  <data name="Encoder_Gpu" xml:space="preserve"><value>{0} (GPU)</value></data>
-  <data name="Encoder_Unavailable" xml:space="preserve"><value>{0} (no encoder on this machine)</value></data>
-  <data name="Encoder_Vp8" xml:space="preserve"><value>VP8 (CPU, compatible)</value></data>
+  <data name="Encoder_AutoGpu" xml:space="preserve"><value>Automatic: H.264 on the {0} graphics card</value></data>
+  <data name="Encoder_AutoCpu" xml:space="preserve"><value>Automatic: VP8 on the processor (no compatible GPU)</value></data>
+  <data name="Encoder_Gpu" xml:space="preserve"><value>{0} on the {1} graphics card</value></data>
+  <data name="Encoder_Unavailable" xml:space="preserve"><value>{0} (your graphics card has no such encoder)</value></data>
+  <data name="Encoder_Vp8" xml:space="preserve"><value>VP8 on the processor (CPU, works on any PC)</value></data>
+  <data name="Encoder_HintGpu" xml:space="preserve"><value>Video is encoded as {0} by the {1} graphics card: it barely touches the processor and keeps up with high resolution and fps.</value></data>
+  <data name="Encoder_HintCpu" xml:space="preserve"><value>Video is encoded as VP8 by the processor (CPU): it works on any PC, but costs more and does less at 1080p or 60 fps.</value></data>
+  <data name="Encoder_HintHevc" xml:space="preserve"><value>HEVC looks better at the same bitrate, but viewers need a PC that can decode HEVC.</value></data>
+  <data name="Encoder_HintFallback" xml:space="preserve"><value>{0} does not work on this machine, so the broadcast will use {1}.</value></data>
   <data name="Error_Codec" xml:space="preserve"><value>This machine cannot decode the codec used by the stream.</value></data>
 
   <data name="Session_Mode.Header" xml:space="preserve"><value>How viewers reach you</value></data>
@@ -255,6 +260,15 @@
   <data name="Stream_ViewerSounds.Header" xml:space="preserve"><value>Sound when someone starts or stops watching</value></data>
   <data name="Stream_ViewerSounds.OnContent" xml:space="preserve"><value>On</value></data>
   <data name="Stream_ViewerSounds.OffContent" xml:space="preserve"><value>Off</value></data>
+  <data name="Watch_PathDirect" xml:space="preserve"><value>Direct</value></data>
+  <data name="Watch_PathRelay" xml:space="preserve"><value>Via server</value></data>
+  <data name="Path_ViewerDirect" xml:space="preserve"><value>Direct connection with {0}: the video now arrives without going through the server.</value></data>
+  <data name="Path_ViewerRelay" xml:space="preserve"><value>The direct connection with {0} dropped. The video goes through the server again, and the app will try the direct connection again on its own.</value></data>
+  <data name="Path_PublisherDirect" xml:space="preserve"><value>{0} is now watching over a direct connection.</value></data>
+  <data name="Path_PublisherRelay" xml:space="preserve"><value>The direct connection with {0} dropped; they are watching through the server again.</value></data>
+  <data name="Stream_ViewersDirect" xml:space="preserve"><value>{0} watching · {1} direct</value></data>
+  <data name="Settings_Direct" xml:space="preserve"><value>Direct connection (P2P)</value></data>
+  <data name="Settings_DirectDesc" xml:space="preserve"><value>Sends the video straight between PCs, skipping the server, when the network allows it. Otherwise it goes through the server as before. People in the room can see your IP address.</value></data>
   <data name="Stream_Viewers" xml:space="preserve"><value>{0} watching</value></data>
   <data name="Stream_ViewerJoined" xml:space="preserve"><value>{0} started watching.</value></data>
   <data name="Stream_ViewerLeft" xml:space="preserve"><value>{0} stopped watching.</value></data>

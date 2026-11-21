@@ -464,6 +464,9 @@ public sealed class PresenceMessage
 {
     public string Name { get; set; } = string.Empty;
     public string AppVersion { get; set; } = string.Empty;
+
+    /// <summary>3.1: this app accepts direct (P2P) video links. Older apps leave it false and get the relay only.</summary>
+    public bool Direct { get; set; }
 }
 
 public sealed class StreamMetaMessage
@@ -475,4 +478,31 @@ public sealed class StreamMetaMessage
     public int Fps { get; set; }
     public string? Audio { get; set; }
     public string State { get; set; } = StreamStates.Live;
+
+    /// <summary>
+    /// Set on updates (3.1): which of the sender's streams changed. The host stamps relayed control
+    /// messages with the sender's member id, so the stream id has to travel inside. 0 = unknown.
+    /// </summary>
+    public uint StreamId { get; set; }
+}
+
+/// <summary>
+/// A direct-link (P2P) signal, sealed with the room key and relayed by the host to the whole room;
+/// only <see cref="To"/> acts on it. <see cref="Session"/> tells attempts apart so a late message
+/// from an abandoned attempt is ignored.
+/// </summary>
+public sealed class PeerSignal
+{
+    public const string KindOffer = "offer";
+    public const string KindAnswer = "answer";
+    public const string KindIce = "ice";
+    public const string KindBye = "bye";
+
+    public uint To { get; set; }
+    public uint Stream { get; set; }
+    public uint Session { get; set; }
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>SDP (offer/answer), candidate JSON (ice) or the reason (bye).</summary>
+    public string? Data { get; set; }
 }
