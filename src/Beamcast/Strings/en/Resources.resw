@@ -182,7 +182,7 @@
   <data name="Update_Downloading" xml:space="preserve"><value>Preparing the download…</value></data>
   <data name="Update_Failed" xml:space="preserve"><value>The update could not be downloaded. Check the connection and try again; if it keeps failing, the new version is also available from the About page.</value></data>
   <data name="Update_BannerAvailable" xml:space="preserve"><value>Beamcast {0} is available</value></data>
-  <data name="Update_BannerReady" xml:space="preserve"><value>Beamcast {0} is downloaded. Restart to finish.</value></data>
+  <data name="Update_BannerReady" xml:space="preserve"><value>Beamcast {0} is downloaded and will be installed when you close the app.</value></data>
   <data name="Update_BannerDetails" xml:space="preserve"><value>See what changed</value></data>
   <data name="Update_BarTitle" xml:space="preserve"><value>Update available</value></data>
   <data name="Update_BarBody" xml:space="preserve"><value>Beamcast {0} is ready to install. See what changes.</value></data>

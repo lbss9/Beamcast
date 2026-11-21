@@ -1,3 +1,10 @@
+## 3.1.2
+
+### Correções
+
+- **Botões piscando ao passar o mouse.** Itens da lateral, hosts, abas e botões de ícone davam um clarão rápido quando o mouse entrava ou saía. A transição agora é suave.
+- **Texto da faixa de atualização.** Quando a versão nova já foi baixada, a faixa dizia para reiniciar. Ela agora explica que a instalação acontece quando você fecha o app.
+
 ## 3.1.1
 
 ### Melhorias

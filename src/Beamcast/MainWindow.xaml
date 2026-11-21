@@ -58,7 +58,7 @@
                     </ScrollViewer>
                     <StackPanel x:Name="NavPanel" Grid.Row="2" Spacing="2" Margin="8,0,8,8" />
                     <Border Grid.Row="3" BorderBrush="{ThemeResource BeamStrokeBrush}" BorderThickness="0,1,0,0" Margin="8,0,8,0" Padding="0,8,0,10">
-                        <Button x:Name="ProfileButton" x:Uid="Side_Profile" Background="Transparent" BorderThickness="0" Padding="8,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CornerRadius="10" Click="OnEditName" />
+                        <Button x:Name="ProfileButton" x:Uid="Side_Profile" Background="{ThemeResource BeamClearBrush}" BorderThickness="0" Padding="8,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" CornerRadius="10" Click="OnEditName" />
                     </Border>
                 </Grid>
             </Border>
@@ -100,7 +100,13 @@
                 </Button>
                 <HyperlinkButton x:Name="UpdateBannerDetails" Foreground="White" FontWeight="SemiBold" Padding="8,4" Click="OnUpdateBannerDetails" />
             </StackPanel>
-            <Button x:Name="UpdateBannerClose" Width="36" Height="36" Padding="0" Margin="0,0,-46,0" HorizontalAlignment="Right" VerticalAlignment="Center" Background="Transparent" BorderThickness="0" Foreground="White" Click="OnUpdateBannerClose">
+            <Button x:Name="UpdateBannerClose" Width="36" Height="36" Padding="0" Margin="0,0,-46,0" HorizontalAlignment="Right" VerticalAlignment="Center" BorderThickness="0" Foreground="White" Click="OnUpdateBannerClose">
+                <Button.Resources>
+                    <!-- On the coral banner: from clear white to a little white, in both themes. -->
+                    <SolidColorBrush x:Key="ButtonBackground" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#33FFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#22FFFFFF" />
+                </Button.Resources>
                 <FontIcon Glyph="&#xE711;" FontSize="13" Foreground="White" />
             </Button>
         </Grid>

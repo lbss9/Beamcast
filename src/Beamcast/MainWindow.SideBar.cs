@@ -162,7 +162,7 @@ public sealed partial class MainWindow
             HorizontalContentAlignment = rail ? HorizontalAlignment.Center : HorizontalAlignment.Left,
             CornerRadius = new CornerRadius(9),
             BorderThickness = new Thickness(0),
-            Background = on ? Beam.Brush("Surface2") : new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            Background = on ? Beam.Brush("Surface2") : Beam.Brush("Clear"),
         };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, label);
         if (rail)
@@ -226,7 +226,7 @@ public sealed partial class MainWindow
             HorizontalContentAlignment = rail ? HorizontalAlignment.Center : HorizontalAlignment.Stretch,
             CornerRadius = new CornerRadius(10),
             BorderThickness = new Thickness(0),
-            Background = selected && !rail ? Beam.Brush("Surface2") : new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            Background = selected && !rail ? Beam.Brush("Surface2") : Beam.Brush("Clear"),
             ContextFlyout = menu,
         };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, host.Name);

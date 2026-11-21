@@ -1,3 +1,10 @@
+## 3.1.2
+
+### Fixes
+
+- **Buttons flashing on hover.** Side bar items, hosts, tabs and icon buttons gave a quick flash when the mouse entered or left. The transition is smooth now.
+- **Update banner text.** When the new version was already downloaded, the banner said to restart. It now explains that it is installed when you close the app.
+
 ## 3.1.1
 
 ### Improvements

@@ -22,6 +22,11 @@
                             <SolidColorBrush x:Key="BeamSideBrush" Color="#13161C" />
                             <SolidColorBrush x:Key="BeamSurfaceBrush" Color="#181C23" />
                             <SolidColorBrush x:Key="BeamSurface2Brush" Color="#20252E" />
+                            <!-- "Nothing" as a button background. Not the stock Transparent, which is white with no
+                                 alpha: the button template fades between the resting and the hover brush, and from
+                                 transparent white the fade passes through a light grey, a flash on every hover.
+                                 This is the hover colour with no alpha, so the fade only changes opacity. -->
+                            <SolidColorBrush x:Key="BeamClearBrush" Color="#002A303B" />
                             <SolidColorBrush x:Key="BeamSurface3Brush" Color="#2A303B" />
                             <SolidColorBrush x:Key="BeamStrokeBrush" Color="#2A2F3A" />
                             <SolidColorBrush x:Key="BeamTextBrush" Color="#F2F4F8" />
@@ -158,6 +163,7 @@
                             <SolidColorBrush x:Key="BeamSideBrush" Color="#ECEEF2" />
                             <SolidColorBrush x:Key="BeamSurfaceBrush" Color="#FFFFFF" />
                             <SolidColorBrush x:Key="BeamSurface2Brush" Color="#F0F2F5" />
+                            <SolidColorBrush x:Key="BeamClearBrush" Color="#00E4E7EC" />
                             <SolidColorBrush x:Key="BeamSurface3Brush" Color="#E4E7EC" />
                             <SolidColorBrush x:Key="BeamStrokeBrush" Color="#DDE0E7" />
                             <SolidColorBrush x:Key="BeamTextBrush" Color="#14171C" />
@@ -365,7 +371,7 @@
             </Style>
 
             <Style x:Key="GhostButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
-                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Background" Value="{ThemeResource BeamClearBrush}" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="Width" Value="34" />
@@ -376,7 +382,7 @@
             </Style>
 
             <Style x:Key="GhostToggleStyle" TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
-                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Background" Value="{ThemeResource BeamClearBrush}" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="Width" Value="34" />

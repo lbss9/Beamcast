@@ -88,7 +88,7 @@ public sealed class Segmented : ContentControl
                 Padding = new Thickness(12, 0, 12, 0),
                 CornerRadius = new CornerRadius(7),
                 BorderThickness = new Thickness(0),
-                Background = on ? Beam.Brush("SegOn") : new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                Background = on ? Beam.Brush("SegOn") : Beam.Brush("Clear"),
             };
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, _items[i].Label);
             button.Click += (_, _) => SelectedIndex = index;

@@ -2,6 +2,17 @@
 
 Beamcast is a study project. See the README for the full notice.
 
+## 3.1.2
+
+- Hover: os botões sem fundo usavam `Transparent` (#00FFFFFF). O template do botão faz um
+  `BrushTransition` entre o fundo em repouso e o de hover (#2A303B no tema escuro), e partindo de
+  branco sem alfa a interpolação passa por um cinza claro. Novo `BeamClearBrush` por tema (a cor de
+  hover com alfa zero) em `GhostButtonStyle`, `GhostToggleStyle`, itens e hosts da lateral, perfil,
+  `Segmented` e "revogar convites"; o X da faixa de atualização vai de branco sem alfa a branco 20%.
+  Diagnóstico por leitura do código, não confirmado em execução.
+- `Update_BannerReady` diz que a versão baixada é instalada ao fechar o app (é o que
+  `OnClosing` faz com `AutoUpdate`).
+
 ## 3.1.1
 
 - Sem decodificador: `WatchService.Viewer` marca `CannotDecode` quando `MfVideoDecoder` não constrói
